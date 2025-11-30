@@ -1,0 +1,6 @@
+BusNo,Company,CurrentStop,Route
+B101,MetroBus,Stop3,Stop1 > Stop2 > Stop3 > Stop4
+B102,CapitalTrans,Stop1,Stop1 > Stop5 > Stop8
+B201,GreenWheels,Stop6,Stop6 > Stop2 > Stop7 > Stop9
+B305,NorthFleet,Stop4,Stop4 > Stop10 > Stop11
+B402,SkyLine,Stop8,Stop8 > Stop6 > Stop3

@@ -1,0 +1,6 @@
+PharmacyID,Name,Sector,MedicineName,Formula,Price
+P01,Sehat Pharmacy,F-8,Panadol,Paracetamol,50
+P02,D-Well Pharma,G-10,Augmentin,Co-Amoxiclav,320
+P03,Medix Pharmacy,F-6,Brufen,Ibuprofen,120
+P04,CurePlus Pharmacy,I-8,Zyrtec,Cetirizine,90
+P05,HealthOne,Blue Area,Disprin,Aspirin,30
