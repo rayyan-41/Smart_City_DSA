@@ -2,12 +2,9 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace re {
-
-    // ===================== DOUBLY LINKED LIST =====================
 
     template <typename T>
-    class List {
+    class LinkedList {
     private:
         struct Node {
             T data;
@@ -24,9 +21,9 @@ namespace re {
         int   m_size;
 
     public:
-        List() : head(nullptr), tail(nullptr), m_size(0) {}
+        LinkedList() : head(nullptr), tail(nullptr), m_size(0) {}
 
-        List(const List& other) : head(nullptr), tail(nullptr), m_size(0) {
+        LinkedList(const LinkedList& other) : head(nullptr), tail(nullptr), m_size(0) {
             Node* curr = other.head;
             while (curr) {
                 push_back(curr->data);
@@ -34,7 +31,7 @@ namespace re {
             }
         }
 
-        List& operator=(const List& other) {
+        LinkedList& operator=(const LinkedList& other) {
             if (this == &other)
                 return *this;
 
@@ -47,7 +44,7 @@ namespace re {
             return *this;
         }
 
-        ~List() {
+        ~LinkedList() {
             clear();
         }
 
@@ -218,7 +215,7 @@ namespace re {
             m_size = 0;
         }
 
-        void swap(List& other) {
+        void swap(LinkedList& other) {
             Node* tempHead = head;
             Node* tempTail = tail;
             int   tempSize = m_size;
@@ -662,4 +659,3 @@ namespace re {
         }
     };
 
-}

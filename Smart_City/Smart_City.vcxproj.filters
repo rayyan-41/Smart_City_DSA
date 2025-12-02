@@ -13,65 +13,80 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\Custom_DS">
+      <UniqueIdentifier>{418e2535-309d-48a9-940d-ac5942fa0c2c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Utilities">
+      <UniqueIdentifier>{c4aef990-b875-4592-9cb6-58d408bf7602}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules">
+      <UniqueIdentifier>{d31dab84-e4da-4b7d-88b7-6553eec463cc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CityUtils.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="re\Vector.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="re\LinkedLists.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="re\custom_STL.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="re\NaryTree.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="re\BST.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="re\PriorityQueue.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
     <ClInclude Include="re\Queue.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="re\Stack.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\PriorityQueue.h">
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Student.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\NaryTree.h">
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Faculty.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\LinkedLists.h">
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Class.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\CustomSTL.h">
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Department.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\BST.h">
+      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
     <ClInclude Include="utils\Coordinate.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\ModuleUtils.h">
+      <Filter>Header Files\Utilities</Filter>
     </ClInclude>
     <ClInclude Include="utils\Location.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Utilities</Filter>
     </ClInclude>
     <ClInclude Include="utils\ID_Generator.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="utils\utils.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="re\Stack.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Student.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Class.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Department.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Faculty.h">
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
     <ClInclude Include="source\SchoolSystem\School.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
     <ClInclude Include="source\SchoolSystem\SchoolManager.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="CityMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
