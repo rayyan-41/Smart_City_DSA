@@ -128,7 +128,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h" />
-    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CityMap.h" />
@@ -150,6 +149,14 @@
     <ClInclude Include="utils\ID_Generator.h" />
     <ClInclude Include="utils\Location.h" />
     <ClInclude Include="utils\ModuleUtils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dataset\buses.csv" />
+    <None Include="dataset\hospitals.csv" />
+    <None Include="dataset\pharmacies.csv" />
+    <None Include="dataset\population.csv" />
+    <None Include="dataset\schools.csv" />
+    <None Include="dataset\stops.csv" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

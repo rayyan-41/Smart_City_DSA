@@ -16,7 +16,7 @@ public:
     ~Location();
 };
 
-// Implementation
+//Implementation
 Location::Location()
     : sector(""), coord() {
 }

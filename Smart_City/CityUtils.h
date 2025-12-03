@@ -1,11 +1,15 @@
 //@desc: This file contains basic utilities for the city map. 
 #include <string>
 #include <cmath>
-#include "CustomSTL.h"
+#include <iostream>
+#include <fstream>
+#include "data structures/CustomSTL.h"
 using namespace std;
 
 #define pi 3.14159265358979323846
 #define INF 1e9
+#define R 6371.0
+
 #define MAX_NODES 250
 #define SECTOR_COUNT 12
 #define MAX_ROADS_PER_NODE 5
@@ -13,6 +17,19 @@ using namespace std;
 #define MAX_HOSPITALS_PER_SECTOR 2
 #define MAX_MALLS_PER_SECTOR 2
 
+//ANSI Color Codes
+#define ANSI_RESET "\033[0m"
+#define ANSI_BOLD "\033[1m"
+#define ANSI_RED "\033[31m"
+#define ANSI_GREEN "\033[32m"
+#define ANSI_YELLOW "\033[33m"
+#define ANSI_BLUE "\033[34m"
+#define ANSI_CYAN "\033[36m"
+#define ANSI_WHITE "\033[37m"
+#define ANSI_BRIGHT_RED "\033[91m"
+#define ANSI_BRIGHT_GREEN "\033[92m"
+#define ANSI_BRIGHT_YELLOW "\033[93m"
+#define ANSI_BRIGHT_CYAN "\033[96m"
 
 //@purpose: Organizes sector boundaries. Pure utility struct that doesn't do much else.
 struct SectorBox {
@@ -39,48 +56,14 @@ static SectorBox SECTOR_GRID[SECTOR_COUNT] = {
     {"G-10", 33.670, 33.690, 72.990, 73.010},
     {"G-11", 33.660, 33.680, 72.970, 72.990}
 };
-//////////////////////////////////////////////////////////////////////////////////////
 
-//@purpose: This namespace contains various geometry related utilities for the city map. 
 //Basically just a collection of tools.
-namespace GeometryUtils {
-    
-    struct Edge {
-        int destinationID;
-        double weight; // Distance in KM
-    };
+//@purpose: This namespace contains various geometry related utilities for the city map. 
+class GeometryUtils {
+public:
+    static string resolveSector(double lat, double lon) {
+        //Identifies the sector based on coordinates
 
-    struct CityNode {
-        int id;
-        string stopID;
-        string name;
-        string sector;
-
-        double lat, lon;
-
-        LinkedList<Edge> roads; //Adjacency List
-
-        CityNode(int i, string sid, string n, double lt, double ln) {
-            id = i; stopID = sid; name = n; lat = lt; lon = ln;
-            //MAGIC: Auto-detect sector upon creation
-            sector = GeometryUtils::resolveSector(lt, ln);
-        }
-    };
-
-    //Haversine Formula: Returns distance in Kilometers
-    double getHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
-        const double R = 6371.0; //Radius of Earth in KM
-        double dLat = (lat2 - lat1) * pi / 180.0;
-        double dLon = (lon2 - lon1) * pi / 180.0;
-        double a = sin(dLat / 2) * sin(dLat / 2) +
-            cos(lat1 * pi / 180.0) * cos(lat2 * pi / 180.0) *
-            sin(dLon / 2) * sin(dLon / 2);
-        double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-        return R * c;
-    }
-
-    //Identifies the sector based on coordinates
-    string resolveSector(double lat, double lon) {
         for (int i = 0; i < SECTOR_COUNT; i++) {
             if (lat >= SECTOR_GRID[i].minLat && lat <= SECTOR_GRID[i].maxLat &&
                 lon >= SECTOR_GRID[i].minLon && lon <= SECTOR_GRID[i].maxLon) {
@@ -89,16 +72,26 @@ namespace GeometryUtils {
         }
         return "Unknown Sector";
     }
+    static double getHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        //Haversine Formula: Returns distance in Kilometers
 
-    int getSectorIndex(string name) {
+        double dLat = (lat2 - lat1) * pi / 180.0;
+        double dLon = (lon2 - lon1) * pi / 180.0;
+        double a = sin(dLat / 2) * sin(dLat / 2) +
+            cos(lat1 * pi / 180.0) * cos(lat2 * pi / 180.0) *
+            sin(dLon / 2) * sin(dLon / 2);
+        double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+        return R * c;
+    }
+    static int getSectorIndex(string name) {
         for (int i = 0; i < SECTOR_COUNT; i++) {
             if (SECTOR_GRID[i].name == name) return i;
         }
         return -1;
     }
+    static void generateCoords(string sector, double& lat, double& lon) {
+        //Generate random coordinate in a sector (maintaining integrity)
 
-    //Generate random coordinate in a sector (maintaining integrity)
-    void generateCoords(string sector, double& lat, double& lon) {
         int idx = getSectorIndex(sector);
         if (idx != -1) {
             double f1 = (double)rand() / RAND_MAX;
@@ -109,5 +102,49 @@ namespace GeometryUtils {
         }
         lat = 33.69; lon = 73.04;
     }
-}
+};
+
+
+struct Edge {
+    int destinationID;
+    double weight; // Distance in KM
+
+	Edge() : destinationID(-1), weight(0.0) {}
+	Edge(int destID, double w) : destinationID(destID), weight(w) {}
+    bool operator==(const Edge& other) const {
+        return destinationID == other.destinationID && weight == other.weight;
+    }
+};
+
+struct CityNode {
+    int id;
+    string stopID;
+    string name;
+    string sector;
+    string type;
+    double lat, lon;
+
+    LinkedList<Edge> roads; //Adjacency List
+
+    CityNode(int i, string sid, string n, string t, double lt, double ln)
+        : id(i), stopID(sid), name(n), type(t), lat(lt), lon(ln) {
+        sector = GeometryUtils::resolveSector(lt, ln);   //MAGIC: Auto-detect sector upon creation
+    }
+};
+
+struct DijkstraNode {
+    
+    //Helper struct for Dijkstra's Priority Queue (Min-Heap based on distance)
+    int nodeID;
+    double distance;
+
+    DijkstraNode() : nodeID(-1), distance(INF) {}
+    DijkstraNode(int id, double dist) : nodeID(id), distance(dist) {}
+
+    // Operator< for min-heap (smaller distance = higher priority)
+    // Note: PriorityQueue implements max-heap, so we reverse the comparison
+    bool operator<(const DijkstraNode& other) const {
+        return distance > other.distance;  // Reverse for min-heap behavior
+    }
+};
 

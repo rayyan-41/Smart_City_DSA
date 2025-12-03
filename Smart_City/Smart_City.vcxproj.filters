@@ -22,14 +22,12 @@
     <Filter Include="Header Files\Modules">
       <UniqueIdentifier>{d31dab84-e4da-4b7d-88b7-6553eec463cc}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CityUtils.h">
-      <Filter>Header Files</Filter>
-    </ClCompile>
+    <Filter Include="Header Files\City Map">
+      <UniqueIdentifier>{35157dde-c229-4137-aac8-e403c2c47f30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\FTXUI">
+      <UniqueIdentifier>{3dc44205-3dcd-430e-b36b-281372dd91dc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="re\Vector.h">
@@ -87,7 +85,32 @@
       <Filter>Header Files\Modules</Filter>
     </ClInclude>
     <ClInclude Include="CityMap.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\City Map</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dataset\buses.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="dataset\hospitals.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="dataset\pharmacies.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="dataset\population.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="dataset\schools.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="dataset\stops.csv">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CityUtils.h">
+      <Filter>Header Files\City Map</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
