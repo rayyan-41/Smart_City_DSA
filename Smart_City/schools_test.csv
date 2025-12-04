@@ -1,0 +1,6 @@
+SchoolID,Name,Sector,Rating,Subjects
+S01,City School,G-10,4.5,"Math, Physics, English"
+S02,Allied School,F-8,4.0,"CS, Math, Urdu"
+S03,Beaconhouse,F-6,4.7,"Bio, Chem, English"
+S04,Iqra Academy,G-9,4.2,"Islamiat, Arabic"
+S05,Roots Millennium,F-7,4.8,"AI, Robotics, Math"

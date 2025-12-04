@@ -104,7 +104,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)re;$(ProjectDir)utils</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -119,7 +119,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)re;$(ProjectDir)utils</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -128,9 +128,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CityMap.h" />
+    <ClInclude Include="data_structures\HashTable.h" />
     <ClInclude Include="re\BST.h" />
     <ClInclude Include="re\CustomSTL.h" />
     <ClInclude Include="re\LinkedLists.h" />

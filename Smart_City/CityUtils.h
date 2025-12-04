@@ -3,7 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <fstream>
-#include "data structures/CustomSTL.h"
+#include "CustomSTL.h"
 using namespace std;
 
 #define pi 3.14159265358979323846

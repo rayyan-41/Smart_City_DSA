@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <fstream>
-#include "custom_STL.h"
+#include "customSTL.h"
 #include "School.h"
 #include "Department.h"
 #include "Class.h"
@@ -9,48 +9,53 @@
 
 using std::string;
 using std::ifstream;
-using re::Vector;
 
 class SchoolManager {
 public:
-    Vector<School*> schools;   
+    Vector<School*> schools;
+
+    // Hash Table for O(1) Lookup by ID
+    // Key: School ID (string), Value: School Pointer (School*)
+    HashTable<string, School*> schoolLookup;
+
+    // NEW: Hash Table for O(1) Lookup by Subject [Image of Hash Table Mapping]
+    // Key: Subject Name (string), Value: List of Schools offering it
+    HashTable<string, Vector<School*>> subjectLookup;
 
     SchoolManager();
     ~SchoolManager();
 
-    // Disable copying to avoid double deletes.
     SchoolManager(const SchoolManager& other) = delete;
     SchoolManager& operator=(const SchoolManager& other) = delete;
 
-    // ----------- Core API -----------
-
+    // ------- School Creation API -------
     School* createSchool(const string& id,
         const string& name,
         const string& sector,
         float rating,
-        int graphNodeID = -1);
+        const string& graphNodeID = "",
+        double x = 0.0,
+        double y = 0.0);
 
     void addSchool(School* school);
 
-    void setSchoolSubjects(School* school, const Vector<string>& subjects);
+    void setSchoolSubjects(School* school,
+        const Vector<string>& subjects);
 
     void buildDepartmentsForSchool(School* school);
     void buildDepartmentsForAllSchools();
 
-    // ----------- Lookup API -----------
-
+    // ------- Lookup API -------
     School* findSchoolByID(const string& id) const;
     Vector<School*> findSchoolsBySubject(const string& subject) const;
 
-    // Graph integration later
-    void setGraphNodeForSchool(const string& schoolID, int graphNodeID);
+    void setGraphNodeForSchool(const string& schoolID,
+        const string& graphNodeID);
 
-    // ----------- CSV Loading -----------
-
+    // ------- CSV Loading -------
     bool loadFromCSV(const string& filename, bool hasHeader = true);
 
 private:
-    // Map subject string -> department name
     string mapSubjectToDepartment(const string& subject) const;
 
     Department* findDepartmentInSchool(School* school,
@@ -61,34 +66,44 @@ private:
 
     void addClassesToDepartment(Department* dept);
 
-    // small helper to trim spaces/tabs from both ends
     string trim(const string& s) const;
 };
 
 
-// ========== IMPLEMENTATION ==========
+// ================= IMPLEMENTATION =================
 
-SchoolManager::SchoolManager() : schools() {}
+// Initialize Hash Tables with a decent prime number capacity
+// schoolLookup: ~101 schools
+// subjectLookup: ~53 unique subjects (smaller universe usually)
+SchoolManager::SchoolManager() : schools(), schoolLookup(101), subjectLookup(53) {}
 
 SchoolManager::~SchoolManager() {
     for (int i = 0; i < schools.getSize(); i++) {
         delete schools[i];
     }
+    // No need to delete pointers in schoolLookup/subjectLookup explicitly 
 }
 
 School* SchoolManager::createSchool(const string& id,
     const string& name,
     const string& sector,
     float rating,
-    int graphNodeID) {
-    School* s = new School(id, name, sector, rating, graphNodeID);
-    schools.push_back(s);
+    const string& graphNodeID,
+    double x,
+    double y)
+{
+    School* s = new School(id, name, sector, rating, graphNodeID, x, y);
+
+    schools.push_back(s);           // Store in Vector for iteration
+    schoolLookup.insert(id, s);     // Store in ID Hash Table
+
     return s;
 }
 
 void SchoolManager::addSchool(School* school) {
-    if (school != nullptr) {
+    if (school) {
         schools.push_back(school);
+        schoolLookup.insert(school->id, school);
     }
 }
 
@@ -96,31 +111,43 @@ void SchoolManager::setSchoolSubjects(School* school,
     const Vector<string>& subjects) {
     if (!school) return;
     school->subjects = subjects;
+
+    // NEW: Populate the Subject Lookup Hash Table
+    for (int i = 0; i < subjects.getSize(); i++) {
+        string subj = subjects[i];
+
+        // Check if we already have a list of schools for this subject
+        Vector<School*>* existingList = subjectLookup.get(subj);
+
+        if (existingList != nullptr) {
+            // Subject exists, append this school to the list
+            existingList->push_back(school);
+        }
+        else {
+            // Subject doesn't exist, create a new list and insert
+            Vector<School*> newList;
+            newList.push_back(school);
+            subjectLookup.insert(subj, newList);
+        }
+    }
 }
 
 void SchoolManager::buildDepartmentsForSchool(School* school) {
     if (!school) return;
+    if (school->departments.getSize() > 0) return;
 
-    if (school->departments.getSize() > 0) {
-        return; 
-    }
-
-    // 1) Map subjects to departments
     for (int i = 0; i < school->subjects.getSize(); i++) {
         const string& subj = school->subjects[i];
         string deptName = mapSubjectToDepartment(subj);
 
         Department* dept = findDepartmentInSchool(school, deptName);
-        if (dept == nullptr) {
-            dept = createDepartmentInSchool(school, deptName);
-        }
+        if (!dept) dept = createDepartmentInSchool(school, deptName);
 
         dept->addSubject(subj);
     }
 
-    // 2) Give each department classes 1–10
-    for (int d = 0; d < school->departments.getSize(); d++) {
-        addClassesToDepartment(school->departments[d]);
+    for (int i = 0; i < school->departments.getSize(); i++) {
+        addClassesToDepartment(school->departments[i]);
     }
 }
 
@@ -130,81 +157,60 @@ void SchoolManager::buildDepartmentsForAllSchools() {
     }
 }
 
+// OPTIMIZED ID LOOKUP (O(1))
 School* SchoolManager::findSchoolByID(const string& id) const {
-    for (int i = 0; i < schools.getSize(); i++) {
-        if (schools[i]->id == id) {
-            return schools[i];
-        }
+    School** result = schoolLookup.get(id);
+    if (result != nullptr) {
+        return *result;
     }
     return nullptr;
 }
 
+// NEW: OPTIMIZED SUBJECT LOOKUP (O(1))
 Vector<School*> SchoolManager::findSchoolsBySubject(const string& subject) const {
-    Vector<School*> result;
+    // OLD METHOD (O(N*M)): Loop through all schools
 
-    for (int i = 0; i < schools.getSize(); i++) {
-        School* s = schools[i];
-        for (int j = 0; j < s->subjects.getSize(); j++) {
-            if (s->subjects[j] == subject) {
-                result.push_back(s);
-                break;
-            }
-        }
+    // NEW METHOD (O(1)): Get the list directly from Hash Table
+    Vector<School*>* result = subjectLookup.get(subject);
+    if (result != nullptr) {
+        return *result; // Returns a copy of the vector of schools
     }
-    return result;
+
+    return Vector<School*>(); // Return empty vector if subject not found
 }
 
 void SchoolManager::setGraphNodeForSchool(const string& schoolID,
-    int graphNodeID) {
+    const string& graphNodeID) {
     School* s = findSchoolByID(schoolID);
-    if (s) {
-        s->graphNodeID = graphNodeID;
-    }
+    if (s) s->graphNodeID = graphNodeID;
 }
-
-
-// ---------- CSV LOADING ----------
 
 bool SchoolManager::loadFromCSV(const string& filename, bool hasHeader) {
     ifstream file(filename);
-    if (!file.is_open()) {
-        return false;
-    }
+    if (!file.is_open()) return false;
 
     string line;
 
-    // Skip header if present
-    if (hasHeader && std::getline(file, line)) {
-        // ignored
-    }
+    if (hasHeader) std::getline(file, line);
 
     while (std::getline(file, line)) {
-        if (line.empty()) {
-            continue;
-        }
+        if (line.empty()) continue;
 
-        // We expect: ID,Name,Sector,Rating,Subjects...
-        // First 4 commas split the first 4 columns.
         string fields[5];
-        int fieldIndex = 0;
-        string current = "";
+        int idx = 0;
+        string cur = "";
 
         for (int i = 0; i < (int)line.size(); i++) {
             char c = line[i];
-
-            if (c == ',' && fieldIndex < 4) {
-                fields[fieldIndex] = trim(current);
-                current.clear();
-                fieldIndex++;
+            if (c == ',' && idx < 4) {
+                fields[idx++] = trim(cur);
+                cur.clear();
             }
             else {
-                current += c;
+                cur += c;
             }
         }
-
-        if (fieldIndex <= 4) {
-            fields[fieldIndex] = trim(current);
-        }
+        fields[idx] = trim(cur);
 
         string id = trim(fields[0]);
         string name = trim(fields[1]);
@@ -212,43 +218,34 @@ bool SchoolManager::loadFromCSV(const string& filename, bool hasHeader) {
         string ratingStr = trim(fields[3]);
         string subjectsField = trim(fields[4]);
 
+        float rating = ratingStr.empty() ? 0.0f : std::stof(ratingStr);
+
         if (!subjectsField.empty() &&
             subjectsField.front() == '"' &&
             subjectsField.back() == '"' &&
-            subjectsField.size() >= 2) {
+            subjectsField.size() >= 2)
+        {
             subjectsField = subjectsField.substr(1, subjectsField.size() - 2);
         }
 
-        if (id.empty() || name.empty()) {
-            continue; 
-        }
-
-        float rating = 0.0f;
-        if (!ratingStr.empty()) {
-            rating = std::stof(ratingStr);
-        }
-
         Vector<string> subjects;
-        string subj = "";
+        string curSub = "";
         for (int i = 0; i < (int)subjectsField.size(); i++) {
-            char c = subjectsField[i];
-            if (c == ',') {
-                string trimmed = trim(subj);
-                if (!trimmed.empty()) {
-                    subjects.push_back(trimmed);
-                }
-                subj.clear();
+            if (subjectsField[i] == ',') {
+                string t = trim(curSub);
+                if (!t.empty()) subjects.push_back(t);
+                curSub.clear();
             }
             else {
-                subj += c;
+                curSub += subjectsField[i];
             }
         }
-        string trimmed = trim(subj);
-        if (!trimmed.empty()) {
-            subjects.push_back(trimmed);
-        }
+        string t = trim(curSub);
+        if (!t.empty()) subjects.push_back(t);
 
-        School* s = createSchool(id, name, sector, rating, -1);
+        // This calls createSchool -> then setSchoolSubjects
+        // which now auto-populates BOTH Hash Tables.
+        School* s = createSchool(id, name, sector, rating);
         setSchoolSubjects(s, subjects);
         buildDepartmentsForSchool(s);
     }
@@ -258,64 +255,42 @@ bool SchoolManager::loadFromCSV(const string& filename, bool hasHeader) {
 }
 
 
-// ---------- Private helpers ----------
+// ---------------- Private Helpers ----------------
 
 string SchoolManager::mapSubjectToDepartment(const string& subject) const {
-    // Arts department
-    if (subject == "English" ||
-        subject == "Urdu" ||
-        subject == "Islamiat" ||
-        subject == "Arabic") {
+    if (subject == "English" || subject == "Urdu" ||
+        subject == "Islamiat" || subject == "Arabic")
         return "Arts";
-    }
 
-    // Science department
-    if (subject == "Math" ||
-        subject == "Mathematics" ||
-        subject == "Physics" ||
-        subject == "Chemistry" ||
-        subject == "Chem" ||
-        subject == "Biology" ||
-        subject == "Bio") {
+    if (subject == "Math" || subject == "Mathematics" ||
+        subject == "Physics" || subject == "Chemistry" ||
+        subject == "Chem" || subject == "Biology" || subject == "Bio")
         return "Science";
-    }
 
-    // Computing
-    if (subject == "CS" ||
-        subject == "Computer Science" ||
-        subject == "AI" ||
-        subject == "Artificial Intelligence" ||
-        subject == "Robotics") {
+    if (subject == "CS" || subject == "Computer Science" ||
+        subject == "AI" || subject == "Artificial Intelligence" ||
+        subject == "Robotics")
         return "Computing";
-    }
 
     return "General";
 }
 
 Department* SchoolManager::findDepartmentInSchool(School* school,
     const string& deptName) const {
-    if (!school) return nullptr;
-
     for (int i = 0; i < school->departments.getSize(); i++) {
-        if (school->departments[i]->name == deptName) {
-            return school->departments[i];
-        }
+        if (school->departments[i]->name == deptName) return school->departments[i];
     }
     return nullptr;
 }
 
 Department* SchoolManager::createDepartmentInSchool(School* school,
     const string& deptName) {
-    if (!school) return nullptr;
-
     Department* d = new Department(deptName);
     school->departments.push_back(d);
     return d;
 }
 
 void SchoolManager::addClassesToDepartment(Department* dept) {
-    if (!dept) return;
-
     for (int level = 1; level <= 10; level++) {
         Class* c = new Class(level);
         dept->addClass(c);
@@ -323,22 +298,17 @@ void SchoolManager::addClassesToDepartment(Department* dept) {
 }
 
 string SchoolManager::trim(const string& s) const {
-    int start = 0;
-    int end = (int)s.size() - 1;
+    int start = 0, end = (int)s.size() - 1;
 
     while (start <= end &&
-        (s[start] == ' ' || s[start] == '\t' || s[start] == '\r')) {
+        (s[start] == ' ' || s[start] == '\t' ||
+            s[start] == '\r' || s[start] == '"'))
         start++;
-    }
 
     while (end >= start &&
-        (s[end] == ' ' || s[end] == '\t' || s[end] == '\r')) {
+        (s[end] == ' ' || s[end] == '\t' ||
+            s[end] == '\r' || s[end] == '"'))
         end--;
-    }
 
-    if (start > end) {
-        return "";
-    }
-
-    return s.substr(start, end - start + 1);
+    return (start > end) ? "" : s.substr(start, end - start + 1);
 }

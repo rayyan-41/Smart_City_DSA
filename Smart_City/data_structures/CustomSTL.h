@@ -7,3 +7,4 @@
 #include "Stack.h"
 #include "Queue.h"
 #include "NaryTree.h"
+#include "HashTable.h"

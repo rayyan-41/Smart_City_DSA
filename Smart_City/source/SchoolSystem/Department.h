@@ -1,10 +1,9 @@
 #pragma once
-#include "custom_STL.h"
+#include "customSTL.h"
 #include "Class.h"
 #include "Faculty.h"
 
 using std::string;
-using re::Vector;
 
 class Department {
 public:

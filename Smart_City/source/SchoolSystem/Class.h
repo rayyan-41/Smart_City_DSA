@@ -1,10 +1,8 @@
 #pragma once
 #include <string>
-#include "custom_STL.h"
+#include "customSTL.h"
 #include "Student.h"
 using std::string;
-using re::Vector;
-
 
 // Class owns the students but students will be created outside and passed here
 class Class {

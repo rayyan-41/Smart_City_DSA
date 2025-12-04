@@ -87,6 +87,9 @@
     <ClInclude Include="CityMap.h">
       <Filter>Header Files\City Map</Filter>
     </ClInclude>
+    <ClInclude Include="data_structures\HashTable.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">
@@ -111,6 +114,9 @@
   <ItemGroup>
     <ClCompile Include="CityUtils.h">
       <Filter>Header Files\City Map</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -11,6 +11,7 @@ public:
 
     Location();
     Location(const string& sector, const Coordinate& coord);
+    Location(const string& sector, double x, double y);
     Location(const Location& other);
     Location& operator=(const Location& other);
     ~Location();
@@ -23,6 +24,10 @@ Location::Location()
 
 Location::Location(const string& sector, const Coordinate& coord)
     : sector(sector), coord(coord) {
+}
+
+Location::Location(const string& sector, double x, double y)
+    : sector(sector), coord(x, y) {
 }
 
 Location::Location(const Location& other)
