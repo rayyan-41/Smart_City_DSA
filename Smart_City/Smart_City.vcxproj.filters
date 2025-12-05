@@ -28,11 +28,8 @@
     <Filter Include="Header Files\FTXUI">
       <UniqueIdentifier>{3dc44205-3dcd-430e-b36b-281372dd91dc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Modules\SchoolSystem">
-      <UniqueIdentifier>{ea49f78b-0db4-4896-8d86-d52e21974fd6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Modules\MedicalSystem">
-      <UniqueIdentifier>{51bf3e84-7be8-48c1-ae16-ba49e1933d25}</UniqueIdentifier>
+    <Filter Include="Header Files\Smart City">
+      <UniqueIdentifier>{22ceb272-4b7f-4efe-9d5e-66fb7e67015a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -48,10 +45,28 @@
     <ClInclude Include="utils\ID_Generator.h">
       <Filter>Header Files\Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="CityMap.h">
-      <Filter>Header Files\City Map</Filter>
+    <ClInclude Include="source\SchoolSystem\Student.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Class.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Department.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Faculty.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\School.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\SchoolManager.h">
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
     <ClInclude Include="data_structures\HashTable.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\Vector.h">
       <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
     <ClInclude Include="data_structures\BST.h">
@@ -75,41 +90,17 @@
     <ClInclude Include="data_structures\Stack.h">
       <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="data_structures\Vector.h">
-      <Filter>Header Files\Custom_DS</Filter>
+    <ClInclude Include="CityGraph.h">
+      <Filter>Header Files\City Map</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Student.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    <ClInclude Include="SmartCity.h">
+      <Filter>Header Files\Smart City</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\SchoolManager.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    <ClInclude Include="source\TransportSystem\BusManager.h">
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
-    <ClInclude Include="source\SchoolSystem\School.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Faculty.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Department.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Class.h">
-      <Filter>Header Files\Modules\SchoolSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MedicalSystem\Patient.h">
-      <Filter>Header Files\Modules\MedicalSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MedicalSystem\Medicine.h">
-      <Filter>Header Files\Modules\MedicalSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MedicalSystem\Pharmacy.h">
-      <Filter>Header Files\Modules\MedicalSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MedicalSystem\Hospital.h">
-      <Filter>Header Files\Modules\MedicalSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MedicalSystem\MedicalManager.h">
-      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    <ClInclude Include="source\TransportSystem\Bus.h">
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -131,6 +122,8 @@
     <None Include="dataset\stops.csv">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
+    <None Include="SMARTCITY_FIXES_NEEDED.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h">

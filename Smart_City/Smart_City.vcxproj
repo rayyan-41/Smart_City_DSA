@@ -106,6 +106,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -121,7 +122,6 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -133,7 +133,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CityMap.h" />
+    <ClInclude Include="CityGraph.h" />
     <ClInclude Include="data_structures\BST.h" />
     <ClInclude Include="data_structures\CustomSTL.h" />
     <ClInclude Include="data_structures\HashTable.h" />
@@ -143,17 +143,15 @@
     <ClInclude Include="data_structures\Queue.h" />
     <ClInclude Include="data_structures\Stack.h" />
     <ClInclude Include="data_structures\Vector.h" />
-    <ClInclude Include="source\MedicalSystem\Hospital.h" />
-    <ClInclude Include="source\MedicalSystem\MedicalManager.h" />
-    <ClInclude Include="source\MedicalSystem\Medicine.h" />
-    <ClInclude Include="source\MedicalSystem\Patient.h" />
-    <ClInclude Include="source\MedicalSystem\Pharmacy.h" />
+    <ClInclude Include="SmartCity.h" />
     <ClInclude Include="source\SchoolSystem\Class.h" />
     <ClInclude Include="source\SchoolSystem\Department.h" />
     <ClInclude Include="source\SchoolSystem\Faculty.h" />
     <ClInclude Include="source\SchoolSystem\School.h" />
     <ClInclude Include="source\SchoolSystem\SchoolManager.h" />
     <ClInclude Include="source\SchoolSystem\Student.h" />
+    <ClInclude Include="source\TransportSystem\Bus.h" />
+    <ClInclude Include="source\TransportSystem\BusManager.h" />
     <ClInclude Include="utils\Coordinate.h" />
     <ClInclude Include="utils\ID_Generator.h" />
     <ClInclude Include="utils\Location.h" />
@@ -166,6 +164,8 @@
     <None Include="dataset\population.csv" />
     <None Include="dataset\schools.csv" />
     <None Include="dataset\stops.csv" />
+    <None Include="SMARTCITY_FIXES_NEEDED.md" />
+    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -48,6 +48,8 @@ public:
         clear();
     }
 
+	Node* getHead() const { return head; }  
+
     void push_front(const T& value) {
         Node* n = new Node(value);
         n->next = head;
