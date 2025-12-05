@@ -28,29 +28,11 @@
     <Filter Include="Header Files\FTXUI">
       <UniqueIdentifier>{3dc44205-3dcd-430e-b36b-281372dd91dc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Smart City">
+      <UniqueIdentifier>{22ceb272-4b7f-4efe-9d5e-66fb7e67015a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="re\Vector.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\Queue.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\PriorityQueue.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\NaryTree.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\LinkedLists.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\CustomSTL.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
-    <ClInclude Include="re\BST.h">
-      <Filter>Header Files\Custom_DS</Filter>
-    </ClInclude>
     <ClInclude Include="utils\Coordinate.h">
       <Filter>Header Files\Utilities</Filter>
     </ClInclude>
@@ -62,9 +44,6 @@
     </ClInclude>
     <ClInclude Include="utils\ID_Generator.h">
       <Filter>Header Files\Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="re\Stack.h">
-      <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
     <ClInclude Include="source\SchoolSystem\Student.h">
       <Filter>Header Files\Modules</Filter>
@@ -84,11 +63,44 @@
     <ClInclude Include="source\SchoolSystem\SchoolManager.h">
       <Filter>Header Files\Modules</Filter>
     </ClInclude>
-    <ClInclude Include="CityMap.h">
-      <Filter>Header Files\City Map</Filter>
-    </ClInclude>
     <ClInclude Include="data_structures\HashTable.h">
       <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\Vector.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\BST.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\CustomSTL.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\LinkedLists.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\NaryTree.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\PriorityQueue.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\Queue.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\Stack.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="CityGraph.h">
+      <Filter>Header Files\City Map</Filter>
+    </ClInclude>
+    <ClInclude Include="SmartCity.h">
+      <Filter>Header Files\Smart City</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\BusManager.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Bus.h">
+      <Filter>Header Files\Modules</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +122,8 @@
     <None Include="dataset\stops.csv">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
+    <None Include="SMARTCITY_FIXES_NEEDED.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h">
