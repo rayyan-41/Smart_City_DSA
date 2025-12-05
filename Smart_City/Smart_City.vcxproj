@@ -105,6 +105,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -120,6 +121,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)data_structures;$(ProjectDir)utils</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -132,15 +134,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CityMap.h" />
+    <ClInclude Include="data_structures\BST.h" />
+    <ClInclude Include="data_structures\CustomSTL.h" />
     <ClInclude Include="data_structures\HashTable.h" />
-    <ClInclude Include="re\BST.h" />
-    <ClInclude Include="re\CustomSTL.h" />
-    <ClInclude Include="re\LinkedLists.h" />
-    <ClInclude Include="re\NaryTree.h" />
-    <ClInclude Include="re\PriorityQueue.h" />
-    <ClInclude Include="re\Queue.h" />
-    <ClInclude Include="re\Stack.h" />
-    <ClInclude Include="re\Vector.h" />
+    <ClInclude Include="data_structures\LinkedLists.h" />
+    <ClInclude Include="data_structures\NaryTree.h" />
+    <ClInclude Include="data_structures\PriorityQueue.h" />
+    <ClInclude Include="data_structures\Queue.h" />
+    <ClInclude Include="data_structures\Stack.h" />
+    <ClInclude Include="data_structures\Vector.h" />
+    <ClInclude Include="source\MedicalSystem\Hospital.h" />
+    <ClInclude Include="source\MedicalSystem\MedicalManager.h" />
+    <ClInclude Include="source\MedicalSystem\Medicine.h" />
+    <ClInclude Include="source\MedicalSystem\Patient.h" />
+    <ClInclude Include="source\MedicalSystem\Pharmacy.h" />
     <ClInclude Include="source\SchoolSystem\Class.h" />
     <ClInclude Include="source\SchoolSystem\Department.h" />
     <ClInclude Include="source\SchoolSystem\Faculty.h" />
