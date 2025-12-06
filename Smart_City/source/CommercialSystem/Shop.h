@@ -1,6 +1,5 @@
 #pragma once
 #include <string>
-#include "../../data_structures/CustomSTL.h" 
 #include "Product.h"
 
 using std::string;
@@ -74,20 +73,10 @@ public:
 };
 
 // Implementation
-inline void Shop::addProduct(const Product& p) {
+void Shop::addProduct(const Product& p) {
     inventory.push_back(p);
 }
 
-inline bool Shop::hasProduct(const string& productName) {
-    for (int i = 0; i < inventory.getSize(); i++) {
-        if (inventory[i].name == productName) {
-            return true;
-        }
-    }
-    return false;
-}
-
-inline bool Shop::removeProduct(const string& productName) {
     for (int i = 0; i < inventory.getSize(); i++) {
         if (inventory[i].name == productName) {
             inventory.erase(i);
