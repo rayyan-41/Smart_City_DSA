@@ -28,7 +28,19 @@
     <Filter Include="Header Files\FTXUI">
       <UniqueIdentifier>{3dc44205-3dcd-430e-b36b-281372dd91dc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Smart City">
+    <Filter Include="Header Files\Modules\SchoolSystem">
+      <UniqueIdentifier>{6e43646e-fba7-4148-8565-7e0a5ebb0857}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\BusSystem">
+      <UniqueIdentifier>{f63598ca-3b3d-4c46-ba38-c98c0c9ce76a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\MedicalSystem">
+      <UniqueIdentifier>{e0570fea-2905-4b5c-a806-b87e9e2f589d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\HousingSystem">
+      <UniqueIdentifier>{7829994f-76a9-45c1-8c68-776e36be8f44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\Smart City">
       <UniqueIdentifier>{22ceb272-4b7f-4efe-9d5e-66fb7e67015a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -44,24 +56,6 @@
     </ClInclude>
     <ClInclude Include="utils\ID_Generator.h">
       <Filter>Header Files\Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Student.h">
-      <Filter>Header Files\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Class.h">
-      <Filter>Header Files\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Department.h">
-      <Filter>Header Files\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\Faculty.h">
-      <Filter>Header Files\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\School.h">
-      <Filter>Header Files\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="source\SchoolSystem\SchoolManager.h">
-      <Filter>Header Files\Modules</Filter>
     </ClInclude>
     <ClInclude Include="data_structures\HashTable.h">
       <Filter>Header Files\Custom_DS</Filter>
@@ -94,13 +88,58 @@
       <Filter>Header Files\City Map</Filter>
     </ClInclude>
     <ClInclude Include="SmartCity.h">
-      <Filter>Header Files\Smart City</Filter>
+      <Filter>Header Files\Modules\Smart City</Filter>
     </ClInclude>
-    <ClInclude Include="source\TransportSystem\BusManager.h">
-      <Filter>Header Files\Modules</Filter>
+    <ClInclude Include="source\SchoolSystem\Class.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Department.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Faculty.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\School.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\SchoolManager.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SchoolSystem\Student.h">
+      <Filter>Header Files\Modules\SchoolSystem</Filter>
     </ClInclude>
     <ClInclude Include="source\TransportSystem\Bus.h">
-      <Filter>Header Files\Modules</Filter>
+      <Filter>Header Files\Modules\BusSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\BusManager.h">
+      <Filter>Header Files\Modules\BusSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\Doctor.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\Hospital.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\MedicalManager.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\Patient.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\Pharmacy.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\HousingSystem\Citizen.h">
+      <Filter>Header Files\Modules\HousingSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\HousingSystem\HousingHierarchy.h">
+      <Filter>Header Files\Modules\HousingSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\HousingSystem\PopulationManager.h">
+      <Filter>Header Files\Modules\HousingSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MedicalSystem\Medicine.h">
+      <Filter>Header Files\Modules\MedicalSystem</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

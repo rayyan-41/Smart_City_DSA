@@ -1,52 +1,46 @@
 #pragma once
 #include <string>
-#include "ModuleUtils.h" 
+#include "../HousingSystem/Citizen.h" 
+#include "ModuleUtils.h"
 
 using std::string;
 
 struct Patient {
-    string id;
-    string name;
-    int age;
+    // POINTER to the real person in the Population System
+    Citizen* profile;
+
+    // Medical-specific data
+    string id; // Internal Hospital ID (e.g., "P-101")
     string disease;
 
-    // Severity: 1 (Critical) to 10 (Stable)
-    // The Min-Heap Priority Queue uses this to triage patients.
+    // Severity Level: 1 (Critical) to 10 (Stable)
     int severity;
 
-    // Graph Integration:
-    // When an ambulance is dispatched, it needs the patient's graph node
-    // to calculate the shortest path (Dijkstra).
-    Location location;
-    string graphNodeID;
+    // Graph Location (for Ambulance routing)
+    Location emergencyLocation;
 
-    Patient()
-        : id(""), name(""), age(0), disease(""), severity(10), graphNodeID("") {
-    }
+    // Constructors
+    Patient() : profile(nullptr), id(IDGenerator::generatePatientID()), disease(""), severity(10) {}
 
-    Patient(string id, string name, int age, string disease, int severity,
-        string graphNodeID = "", double x = 0.0, double y = 0.0)
-        : id(id), name(name), age(age), disease(disease), severity(severity),
-        location("Unknown", x, y), graphNodeID(graphNodeID) {
+    Patient(Citizen* c, string dis, int sev)
+        : profile(c), id(IDGenerator::genetatePatientID()), disease(dis), severity(sev) {
+        if (c) {
+            c->currentStatus = "Hospitalized"; // Update status in Population System
+        }
     }
 
     // ---------------------------------------------------------
-    // OPERATOR OVERLOADING FOR PRIORITY QUEUE (MIN-HEAP)
+    // OPERATOR OVERLOADING FOR PRIORITY QUEUE
     // ---------------------------------------------------------
 
-    // The PriorityQueue (Min-Heap) logic:
-    // If we want severity 1 to be at the TOP, then 1 must be considered "smaller" 
-    // than 10, and the heap must organize based on "smaller is higher priority".
+    // Logic: We want Severity 1 (Critical) to be at the TOP.
+    // If the underlying heap is a Max-Heap, we define 1 > 10.
 
     bool operator<(const Patient& other) const {
-        // Returns true if this priority is LOWER than other
-        // Severity 10 (Stable) < Severity 1 (Critical)
-        return severity > other.severity;
+        return severity > other.severity; // Critical (1) > Stable (10)
     }
 
     bool operator>(const Patient& other) const {
-        // Returns true if this priority is HIGHER than other
-        // Severity 1 (Critical) > Severity 10 (Stable)
         return severity < other.severity;
     }
 
@@ -54,7 +48,7 @@ struct Patient {
         return id == other.id;
     }
 
-    bool operator!=(const Patient& other) const {
-        return !(*this == other);
-    }
+    // Helper accessors
+    string getName() const { return profile ? profile->name : "Unknown"; }
+    string getCNIC() const { return profile ? profile->cnic : ""; }
 };

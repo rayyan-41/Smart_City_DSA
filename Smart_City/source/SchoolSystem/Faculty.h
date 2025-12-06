@@ -1,29 +1,40 @@
 #pragma once
-#include<string>
-using std::string;
-class Faculty {
-	public:
-	string name;
-	string cnic;
-	string qualification;
-	float salary;
+#include <string>
+#include "../HousingSystem/Citizen.h"
 
-	// Rule of three
-	Faculty() : name(""), cnic(""), qualification(""), salary(0.0f) {}
-	Faculty(string name, string cnic, string qualification, float salary)
-		: name(name), cnic(cnic), qualification(qualification), salary(salary) {
-	}
-	Faculty(const Faculty& other)
-		: name(other.name), cnic(other.cnic), qualification(other.qualification), salary(other.salary) {
-	}
-	Faculty& operator=(const Faculty& other) {
-		if (this != &other) {
-			name = other.name;
-			cnic = other.cnic;
-			qualification = other.qualification;
-			salary = other.salary;
-		}
-		return *this;
-	}
-	~Faculty() {}
+using std::string;
+
+class Faculty {
+public:
+    // Core Identity
+    Citizen* profile;
+
+    // Professional Data
+    string employeeID;
+    string qualification;
+    float salary;
+
+    Faculty();
+    Faculty(Citizen* c, string empID, string qual, float sal);
+
+    string getName() const;
 };
+
+// ==========================================
+// IMPLEMENTATION
+// ==========================================
+
+inline Faculty::Faculty()
+    : profile(nullptr), employeeID(""), qualification(""), salary(0.0f) {
+}
+
+inline Faculty::Faculty(Citizen* c, string empID, string qual, float sal)
+    : profile(c), employeeID(empID), qualification(qual), salary(sal) {
+    if (c) {
+        c->currentStatus = "Teacher";
+    }
+}
+
+inline string Faculty::getName() const {
+    return profile ? profile->name : "Unknown";
+}

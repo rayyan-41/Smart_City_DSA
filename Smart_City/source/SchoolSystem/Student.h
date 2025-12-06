@@ -1,23 +1,34 @@
 #pragma once
 #include <string>
+#include "ModuleUtils.h"
+#include "../HousingSystem/Citizen.h"
 using std::string;
 
 class Student {
-public:
-    string name;
-    string cnic;
-    int age;
+	public:
+		Citizen* profile;
+		string rollNumber;
 
-	Student() : name(""), cnic(""), age(0) {}
-	Student(string name, string cnic, int age) : name(name), cnic(cnic), age(age) {}
-	Student(const Student& other) : name(other.name), cnic(other.cnic), age(other.age) {}
-	Student& operator=(const Student& other) {
-		if (this != &other) {
-			name = other.name;
-			cnic = other.cnic;
-			age = other.age;
+		Student()
+			: profile(nullptr), rollNumber(IDGenerator::generateStudentID()) {
 		}
-		return *this;
-	}
-	~Student() {}
+		Student(Citizen* citizen)
+			: profile(citizen), rollNumber(IDGenerator::generateStudentID()) {
+		}
+
+		// Equality check based on Student ID
+		bool operator==(const Student& other) const {
+			return rollNumber == other.rollNumber;
+		}
+
+		// Getters
+		int getAge() const {
+			return profile ? profile->age : 0;
+		}
+		string getName() const {
+			return profile ? profile->name : "";
+		}
+		string getCNIC() const {
+			return profile ? profile->cnic : "";
+		}
 };
