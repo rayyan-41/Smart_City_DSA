@@ -43,6 +43,12 @@
     <Filter Include="Header Files\Modules\Smart City">
       <UniqueIdentifier>{22ceb272-4b7f-4efe-9d5e-66fb7e67015a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Modules\CommercialSystem">
+      <UniqueIdentifier>{6e08117a-7048-455e-8f99-6356a0f61be7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\TransportSystem">
+      <UniqueIdentifier>{c67ffa9b-f981-4764-92f6-4f10958a788a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils\Coordinate.h">
@@ -141,6 +147,33 @@
     <ClInclude Include="source\MedicalSystem\Medicine.h">
       <Filter>Header Files\Modules\MedicalSystem</Filter>
     </ClInclude>
+    <ClInclude Include="source\CommercialSystem\CommercialManager.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Mall.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Product.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Shop.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\CircularQueue.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Ambulance.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\SchoolBus.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Vehicle.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\TransportManager.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">
@@ -161,8 +194,6 @@
     <None Include="dataset\stops.csv">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
-    <None Include="SMARTCITY_FIXES_NEEDED.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h">

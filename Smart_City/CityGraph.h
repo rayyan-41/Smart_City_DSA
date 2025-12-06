@@ -5,6 +5,22 @@ class CityGraph {
 private:
     CityNode* nodes[MAX_NODES];
     int nodeCount;
+    
+    // Counters for generating unique IDs for public facilities
+    int mosqueCount;
+    int parkCount;
+    int waterCoolerCount;
+    int playgroundCount;
+    int libraryCount;
+    int communityCenterCount;
+    int policeStationCount;
+    int fireStationCount;
+    int postOfficeCount;
+    int bankCount;
+    int atmCount;
+    int petrolStationCount;
+    int restaurantCount;
+    int publicToiletCount;
 
     void initializeSectorFrame(string sectorName);
 	friend class CityVisualizer;
@@ -42,20 +58,101 @@ public:
 
     void loadStopsCSV(const string& filename);
     void loadBuildingsCSV(const string& filename, string type);
-
-
+    
+    // ==================== PUBLIC FACILITY MANAGEMENT ====================
+    
+    // Add a public facility with auto-generated stop ID
+    int addPublicFacility(const string& name, const string& type, const string& sector,
+                         const string& operatingHours = "", bool isAccessible = true,
+                         const string& additionalInfo = "");
+    
+    // Add a public facility with specific coordinates
+    int addPublicFacilityWithCoords(const string& name, const string& type, 
+                                    double lat, double lon,
+                                    const string& operatingHours = "", 
+                                    bool isAccessible = true,
+                                    const string& additionalInfo = "");
+    
+    // Convenience methods for common facility types
+    int addMosque(const string& name, const string& sector, const string& prayerTimes = "");
+    int addPark(const string& name, const string& sector, const string& hours = "06:00-22:00");
+    int addWaterCooler(const string& name, const string& sector);
+    int addPlayground(const string& name, const string& sector);
+    int addLibrary(const string& name, const string& sector, const string& hours = "09:00-17:00");
+    int addPoliceStation(const string& name, const string& sector);
+    int addFireStation(const string& name, const string& sector);
+    int addPetrolStation(const string& name, const string& sector, bool is24Hours = true);
+    int addATM(const string& name, const string& sector, const string& bankName = "");
+    int addRestaurant(const string& name, const string& sector, const string& cuisine = "");
+    int addPublicToilet(const string& name, const string& sector);
+    
+    // Find all public facilities of a type in a sector
+    Vector<int> getPublicFacilitiesInSector(const string& sector, const string& type = "");
+    
+    // Find all transport stops (bus stops + public facilities) in a sector
+    Vector<int> getAllTransportStopsInSector(const string& sector);
+    
+    // Load public facilities from CSV
+    void loadPublicFacilitiesCSV(const string& filename);
+    
+    // Generate unique stop ID for a facility type
+    string generateStopID(const string& type);
 };
 
 /*------ Constructors and Destructors ------*/
 inline CityGraph::CityGraph() {
     nodeCount = 0;
     for (int i = 0; i < MAX_NODES; i++) nodes[i] = nullptr;
+    
+    // Initialize facility counters
+    mosqueCount = 0;
+    parkCount = 0;
+    waterCoolerCount = 0;
+    playgroundCount = 0;
+    libraryCount = 0;
+    communityCenterCount = 0;
+    policeStationCount = 0;
+    fireStationCount = 0;
+    postOfficeCount = 0;
+    bankCount = 0;
+    atmCount = 0;
+    petrolStationCount = 0;
+    restaurantCount = 0;
+    publicToiletCount = 0;
 }
 
 inline CityGraph::~CityGraph() {
     for (int i = 0; i < nodeCount; i++) {
         if (nodes[i] != nullptr) delete nodes[i];
     }
+}
+
+/*------ Generate Unique Stop ID ------*/
+inline string CityGraph::generateStopID(const string& type) {
+    string prefix = FacilityType::getStopIDPrefix(type);
+    int count = 0;
+    
+    if (type == FacilityType::MOSQUE) count = ++mosqueCount;
+    else if (type == FacilityType::PARK) count = ++parkCount;
+    else if (type == FacilityType::WATER_COOLER) count = ++waterCoolerCount;
+    else if (type == FacilityType::PLAYGROUND) count = ++playgroundCount;
+    else if (type == FacilityType::LIBRARY) count = ++libraryCount;
+    else if (type == FacilityType::COMMUNITY_CENTER) count = ++communityCenterCount;
+    else if (type == FacilityType::POLICE_STATION) count = ++policeStationCount;
+    else if (type == FacilityType::FIRE_STATION) count = ++fireStationCount;
+    else if (type == FacilityType::POST_OFFICE) count = ++postOfficeCount;
+    else if (type == FacilityType::BANK) count = ++bankCount;
+    else if (type == FacilityType::ATM) count = ++atmCount;
+    else if (type == FacilityType::PETROL_STATION) count = ++petrolStationCount;
+    else if (type == FacilityType::RESTAURANT) count = ++restaurantCount;
+    else if (type == FacilityType::PUBLIC_TOILET) count = ++publicToiletCount;
+    else count = nodeCount + 1;
+    
+    // Format: PREFIX-XXX (e.g., MSQ-001, PRK-002)
+    string countStr = std::to_string(count);
+    while (countStr.length() < 3) countStr = "0" + countStr;
+    
+    return prefix + "-" + countStr;
 }
 
 /*------ Helper: Initialize Sector Frame ------*/
@@ -70,10 +167,10 @@ inline void CityGraph::initializeSectorFrame(string sectorName) {
 
     // For corner nodes: databaseID and stopID are the same (corner identifier)
     // stopID is empty since corners are not bus stops
-    int c1 = nodeCount; addLocation("C-" + sectorName + "-1", "", sectorName + " Corner 1", "CORNER", box.minLat, box.minLon);
-    int c2 = nodeCount; addLocation("C-" + sectorName + "-2", "", sectorName + " Corner 2", "CORNER", box.maxLat, box.minLon);
-    int c3 = nodeCount; addLocation("C-" + sectorName + "-3", "", sectorName + " Corner 3", "CORNER", box.maxLat, box.maxLon);
-    int c4 = nodeCount; addLocation("C-" + sectorName + "-4", "", sectorName + " Corner 4", "CORNER", box.minLat, box.maxLon);
+    int c1 = nodeCount; addLocation("C-" + sectorName + "-1", "", sectorName + " Corner 1", FacilityType::CORNER, box.minLat, box.minLon);
+    int c2 = nodeCount; addLocation("C-" + sectorName + "-2", "", sectorName + " Corner 2", FacilityType::CORNER, box.maxLat, box.minLon);
+    int c3 = nodeCount; addLocation("C-" + sectorName + "-3", "", sectorName + " Corner 3", FacilityType::CORNER, box.maxLat, box.maxLon);
+    int c4 = nodeCount; addLocation("C-" + sectorName + "-4", "", sectorName + " Corner 4", FacilityType::CORNER, box.minLat, box.maxLon);
 
     addRoad(c1, c2);
     addRoad(c2, c3);
@@ -92,7 +189,8 @@ inline int CityGraph::addLocation(string databaseID, string stopID, string name,
     string sector = GeometryUtils::resolveSector(lat, lon);
 
     //1. Check if we need to build the frame FIRST
-    if (type != "CORNER" && sector != "Unknown" && !SECTOR_GRID[GeometryUtils::getSectorIndex(sector)].initialized) {
+    if (type != FacilityType::CORNER && sector != "Unknown" && sector != "Unknown Sector" && 
+        GeometryUtils::getSectorIndex(sector) != -1 && !SECTOR_GRID[GeometryUtils::getSectorIndex(sector)].initialized) {
         initializeSectorFrame(sector);
     }
 
@@ -102,12 +200,12 @@ inline int CityGraph::addLocation(string databaseID, string stopID, string name,
     nodeCount++;
 
     //3. Anchor Logic: Connect to nearest frame corner
-    if (type != "CORNER" && sector != "Unknown") {
+    if (type != FacilityType::CORNER && sector != "Unknown" && sector != "Unknown Sector") {
         int nearestCorner = -1;
         double minDst = 99999.0;
 
         for (int i = 0; i < nodeCount - 1; i++) {
-            if (nodes[i]->sector == sector && nodes[i]->type == "CORNER") {
+            if (nodes[i]->sector == sector && nodes[i]->type == FacilityType::CORNER) {
                 double d = GeometryUtils::getHaversineDistance(lat, lon, nodes[i]->lat, nodes[i]->lon);
                 if (d < minDst) {
                     minDst = d;
@@ -121,6 +219,198 @@ inline int CityGraph::addLocation(string databaseID, string stopID, string name,
     }
 
     return newID;
+}
+
+/*------ Public Facility Management ------*/
+
+inline int CityGraph::addPublicFacility(const string& name, const string& type, const string& sector,
+                                        const string& operatingHours, bool isAccessible,
+                                        const string& additionalInfo) {
+    // Generate coordinates in the sector
+    double lat = 0.0, lon = 0.0;
+    GeometryUtils::generateCoords(sector, lat, lon);
+    
+    return addPublicFacilityWithCoords(name, type, lat, lon, operatingHours, isAccessible, additionalInfo);
+}
+
+inline int CityGraph::addPublicFacilityWithCoords(const string& name, const string& type,
+                                                   double lat, double lon,
+                                                   const string& operatingHours,
+                                                   bool isAccessible,
+                                                   const string& additionalInfo) {
+    // Generate unique IDs
+    string stopID = generateStopID(type);
+    string databaseID = stopID;  // Use same ID for database
+    
+    // Add to graph
+    int nodeID = addLocation(databaseID, stopID, name, type, lat, lon);
+    
+    if (nodeID != -1) {
+        // Set additional metadata
+        nodes[nodeID]->operatingHours = operatingHours;
+        nodes[nodeID]->isAccessible = isAccessible;
+        nodes[nodeID]->additionalInfo = additionalInfo;
+    }
+    
+    return nodeID;
+}
+
+// Convenience methods for common facility types
+inline int CityGraph::addMosque(const string& name, const string& sector, const string& prayerTimes) {
+    return addPublicFacility(name, FacilityType::MOSQUE, sector, prayerTimes, true, "");
+}
+
+inline int CityGraph::addPark(const string& name, const string& sector, const string& hours) {
+    return addPublicFacility(name, FacilityType::PARK, sector, hours, true, "");
+}
+
+inline int CityGraph::addWaterCooler(const string& name, const string& sector) {
+    return addPublicFacility(name, FacilityType::WATER_COOLER, sector, "24/7", true, "Free drinking water");
+}
+
+inline int CityGraph::addPlayground(const string& name, const string& sector) {
+    return addPublicFacility(name, FacilityType::PLAYGROUND, sector, "06:00-20:00", true, "Children's playground");
+}
+
+inline int CityGraph::addLibrary(const string& name, const string& sector, const string& hours) {
+    return addPublicFacility(name, FacilityType::LIBRARY, sector, hours, true, "");
+}
+
+inline int CityGraph::addPoliceStation(const string& name, const string& sector) {
+    return addPublicFacility(name, FacilityType::POLICE_STATION, sector, "24/7", true, "Emergency: 15");
+}
+
+inline int CityGraph::addFireStation(const string& name, const string& sector) {
+    return addPublicFacility(name, FacilityType::FIRE_STATION, sector, "24/7", true, "Emergency: 16");
+}
+
+inline int CityGraph::addPetrolStation(const string& name, const string& sector, bool is24Hours) {
+    string hours = is24Hours ? "24/7" : "06:00-22:00";
+    return addPublicFacility(name, FacilityType::PETROL_STATION, sector, hours, true, "");
+}
+
+inline int CityGraph::addATM(const string& name, const string& sector, const string& bankName) {
+    return addPublicFacility(name, FacilityType::ATM, sector, "24/7", true, bankName);
+}
+
+inline int CityGraph::addRestaurant(const string& name, const string& sector, const string& cuisine) {
+    return addPublicFacility(name, FacilityType::RESTAURANT, sector, "11:00-23:00", true, cuisine);
+}
+
+inline int CityGraph::addPublicToilet(const string& name, const string& sector) {
+    return addPublicFacility(name, FacilityType::PUBLIC_TOILET, sector, "24/7", true, "");
+}
+
+inline Vector<int> CityGraph::getPublicFacilitiesInSector(const string& sector, const string& type) {
+    Vector<int> results;
+    
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->sector == sector) {
+            if (type.empty()) {
+                // Return all public facilities
+                if (nodes[i]->isPublicFacility()) {
+                    results.push_back(i);
+                }
+            } else {
+                // Return specific type
+                if (nodes[i]->type == type) {
+                    results.push_back(i);
+                }
+            }
+        }
+    }
+    
+    return results;
+}
+
+inline Vector<int> CityGraph::getAllTransportStopsInSector(const string& sector) {
+    Vector<int> results;
+    
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->sector == sector && nodes[i]->canBeTransportStop()) {
+            results.push_back(i);
+        }
+    }
+    
+    return results;
+}
+
+inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) return;
+    
+    string line;
+    getline(file, line); // Skip header
+    
+    // Expected format: Name,Type,Sector,OperatingHours,IsAccessible,AdditionalInfo
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        string name = "", type = "", sector = "", hours = "", accessible = "", info = "";
+        int i = 0;
+        bool inQuotes = false;
+        
+        // Parse Name
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == ',' && !inQuotes) break;
+            name += c;
+        }
+        
+        // Parse Type
+        inQuotes = false;
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == ',' && !inQuotes) break;
+            type += c;
+        }
+        
+        // Parse Sector
+        inQuotes = false;
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == ',' && !inQuotes) break;
+            sector += c;
+        }
+        
+        // Parse OperatingHours
+        inQuotes = false;
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == ',' && !inQuotes) break;
+            hours += c;
+        }
+        
+        // Parse IsAccessible
+        inQuotes = false;
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == ',' && !inQuotes) break;
+            accessible += c;
+        }
+        
+        // Parse AdditionalInfo (rest of line)
+        inQuotes = false;
+        while (i < (int)line.size()) {
+            char c = line[i++];
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == '\r' || c == '\n') break;
+            info += c;
+        }
+        
+        // Validate and add
+        if (!name.empty() && !type.empty() && !sector.empty()) {
+            bool isAccessible = (accessible != "false" && accessible != "0" && accessible != "no");
+            addPublicFacility(name, type, sector, hours, isAccessible, info);
+        }
+    }
+    
+    file.close();
 }
 
 /*------ Core Helpers ------*/
@@ -158,8 +448,6 @@ inline void CityGraph::addRoad(int id1, int id2) {
 }
 
 /*------ Generic Building Loader ------*/
-//Loads CSVs like schools.csv, hospitals.csv that LACK coordinates.
-//It generates coordinates based on the 'Sector' column.
 inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
     ifstream file(filename);
     if (!file.is_open()) {
@@ -174,47 +462,40 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
     while (getline(file, line)) {
         if (line.empty()) continue;
 
-        string databaseID = "";  // Changed from idStr
+        string databaseID = "";
         string name = "";
         string sector = "";
         int i = 0;
 
-        //Manual Parsing to handle quotes
-        //1. Database ID (Column 0)
         bool inQuotes = false;
-        while (i < line.size()) {
+        while (i < (int)line.size()) {
             char c = line[i++];
             if (c == '"') { inQuotes = !inQuotes; continue; }
             if (c == ',' && !inQuotes) break;
             databaseID += c;
         }
 
-        //2. Name (Column 1)
         inQuotes = false;
-        while (i < line.size()) {
+        while (i < (int)line.size()) {
             char c = line[i++];
             if (c == '"') { inQuotes = !inQuotes; continue; }
             if (c == ',' && !inQuotes) break;
             name += c;
         }
 
-        //3. Sector (Column 2)
         inQuotes = false;
-        while (i < line.size()) {
+        while (i < (int)line.size()) {
             char c = line[i++];
             if (c == '"') { inQuotes = !inQuotes; continue; }
             if (c == ',' && !inQuotes) break;
             sector += c;
         }
 
-        //Validate Sector
         if (sector.empty()) continue;
 
-        //Generate Coordinates!
         double lat = 0.0, lon = 0.0;
         GeometryUtils::generateCoords(sector, lat, lon);
 
-        //Add to Graph (databaseID, empty stopID, name, type, lat, lon)
         if (addLocation(databaseID, "", name, type, lat, lon) != -1) {
             successCount++;
         }
@@ -238,41 +519,34 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
         string databaseID = "", stopID = "", name = "", lat_str = "", lon_str = "";
         int i = 0;
 
-        //DatabaseID (same as StopID for stops)
-        while (i < line.size() && line[i] != ',') databaseID += line[i++];
-        if (i >= line.size()) continue;  //Malformed line
+        while (i < (int)line.size() && line[i] != ',') databaseID += line[i++];
+        if (i >= (int)line.size()) continue;
         i++;
         
-        //StopID (for transport system - same as databaseID for stops)
         stopID = databaseID;
         
-        //Name
-        while (i < line.size() && line[i] != ',') name += line[i++];
-        if (i >= line.size()) continue;  //Malformed line
+        while (i < (int)line.size() && line[i] != ',') name += line[i++];
+        if (i >= (int)line.size()) continue;
         i++;
         
-        //Coordinates (Skip quotes manually)
-        while (i < line.size() && (line[i] == '"' || line[i] == ' ')) i++; //Skip start quote/space
-        while (i < line.size() && line[i] != ',') lat_str += line[i++];
-        if (i >= line.size()) continue;  //Malformed line
+        while (i < (int)line.size() && (line[i] == '"' || line[i] == ' ')) i++;
+        while (i < (int)line.size() && line[i] != ',') lat_str += line[i++];
+        if (i >= (int)line.size()) continue;
         i++;
         
-        while (i < line.size() && (line[i] == '"' || line[i] == ' ')) i++;
-        while (i < line.size() && line[i] != '"' && line[i] != '\r' && line[i] != '\n') lon_str += line[i++];
+        while (i < (int)line.size() && (line[i] == '"' || line[i] == ' ')) i++;
+        while (i < (int)line.size() && line[i] != '"' && line[i] != '\r' && line[i] != '\n') lon_str += line[i++];
 
-        //Validate required fields
         if (databaseID.empty() || name.empty() || lat_str.empty() || lon_str.empty()) {
-            continue;  //Skip invalid entries
+            continue;
         }
 
         try {
             double lat = stod(lat_str);
             double lon = stod(lon_str);
-            // For stops: databaseID and stopID are the same
-            addLocation(databaseID, stopID, name, "STOP", lat, lon);
+            addLocation(databaseID, stopID, name, FacilityType::STOP, lat, lon);
         }
         catch (...) {
-            //Handle parsing errors silently or log
             continue;
         }
     }
@@ -280,7 +554,6 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
 }
 
 /*------ Algorithms ------*/
-// New version that returns the path
 inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& totalDistance) {
     Vector<int> path;
     totalDistance = 0.0;
@@ -316,7 +589,7 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
 
         if (u < 0 || u >= nodeCount || nodes[u] == nullptr) continue;
 
-        for (size_t i = 0; i < nodes[u]->roads.size(); i++) {
+        for (int i = 0; i < nodes[u]->roads.size(); i++) {
             Edge edge = nodes[u]->roads[i];
             int v = edge.destinationID;
             double weight = edge.weight;
@@ -329,7 +602,6 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
         }
     }
     
-    // Reconstruct path
     if (parent[endID] != -1 || startID == endID) {
         int current = endID;
         while (current != -1) {
@@ -337,7 +609,6 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
             current = parent[current];
         }
         
-        // Reverse path to get start->end order
         for (int i = 0; i < path.getSize() / 2; i++) {
             int temp = path[i];
             path[i] = path[path.getSize() - 1 - i];
@@ -350,7 +621,6 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
     return path;
 }
 
-// Old version for compatibility
 inline void CityGraph::findShortestPathOld(int startID, int endID) {
     if (startID < 0 || startID >= nodeCount || endID < 0 || endID >= nodeCount) {
         return;
@@ -383,7 +653,7 @@ inline void CityGraph::findShortestPathOld(int startID, int endID) {
 
         if (u < 0 || u >= nodeCount || nodes[u] == nullptr) continue;
 
-        for (size_t i = 0; i < nodes[u]->roads.size(); i++) {
+        for (int i = 0; i < nodes[u]->roads.size(); i++) {
             Edge edge = nodes[u]->roads[i];
             int v = edge.destinationID;
             double weight = edge.weight;
@@ -424,19 +694,17 @@ inline int CityGraph::findNearestFacility(int fromNodeID, const string& facility
         if (visited[u]) continue;
         visited[u] = true;
         
-        // Check if this node is the facility type we're looking for
         if (u != fromNodeID && nodes[u] != nullptr && nodes[u]->type == facilityType) {
             if (distance[u] < minDistance) {
                 minDistance = distance[u];
                 nearestFacility = u;
             }
-            // Found the nearest, can stop early
             break;
         }
         
         if (u < 0 || u >= nodeCount || nodes[u] == nullptr) continue;
         
-        for (size_t i = 0; i < nodes[u]->roads.size(); i++) {
+        for (int i = 0; i < nodes[u]->roads.size(); i++) {
             Edge edge = nodes[u]->roads[i];
             int v = edge.destinationID;
             double weight = edge.weight;
@@ -476,14 +744,13 @@ inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const str
         if (visited[u]) continue;
         visited[u] = true;
         
-        // Check if this node is the facility type we're looking for
         if (u != fromNodeID && nodes[u] != nullptr && nodes[u]->type == facilityType) {
             results.push_back(u);
         }
         
         if (u < 0 || u >= nodeCount || nodes[u] == nullptr) continue;
         
-        for (size_t i = 0; i < nodes[u]->roads.size(); i++) {
+        for (int i = 0; i < nodes[u]->roads.size(); i++) {
             Edge edge = nodes[u]->roads[i];
             int v = edge.destinationID;
             double weight = edge.weight;
@@ -501,6 +768,8 @@ inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const str
 inline Vector<int> CityGraph::calculateBusRoute(int startNodeID, int endNodeID, double& distance) {
     return findShortestPath(startNodeID, endNodeID, distance);
 }
+
+
 
 
 

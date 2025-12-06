@@ -1,965 +1,751 @@
-﻿#pragma once
-#include "CityGraph.h"
-#include "source/SchoolSystem/SchoolManager.h"
-#include "source/TransportSystem/BusManager.h"
-#include <iostream>
-#include <string>
-#include <thread>
-#include <chrono>
+﻿/*
+ * ============================================================================
+ * SMART CITY MANAGEMENT SYSTEM - Core Wrapper Class
+ * ============================================================================
+ * 
+ * This class serves as the central hub connecting all city subsystems:
+ *   - CityGraph: Graph-based infrastructure (Adjacency List + Dijkstra)
+ *   - SchoolManager: Education system (School Tree hierarchy)
+ *   - TransportManager: Full transport system (Buses, School Buses, Ambulances)
+ *   - PopulationManager: Housing system (N-ary Tree: Sector->Street->House->Citizen)
+ *   - MedicalManager: Healthcare system (Hospital + Pharmacy with Priority Queue)
+ *   - CommercialManager: Commercial system (Mall->Shop->Product with Hash lookup)
+ * 
+ * Data Structures Used:
+ *   - Graph (Adjacency List) with weighted edges
+ *   - Dijkstra's Shortest Path Algorithm
+ *   - N-ary Tree for Population/Housing hierarchy
+ *   - School Tree (School -> Department -> Class) 3-level hierarchy
+ *   - Hash Tables with separate chaining for O(1) lookups
+ *   - Priority Queue (Min-Heap) for Hospital ER and Patient Transfer Dispatch
+ *   - Stack for Travel History
+ *   - Circular Queue for Passenger simulation at bus stops
+ *   - Singly Linked List for Bus/SchoolBus/Ambulance route management
+ * 
+ * Authors: Rayyan Ahmad Sultan, Omar Abdullah Khan Niazi, Aryan Ali Khan
+ * ============================================================================
+ */
 
-using namespace std;
+#pragma once
+
+#include "CityGraph.h"
+
+#include "source/SchoolSystem/SchoolManager.h"
+#include "source/TransportSystem/TransportManager.h"
+#include "source/HousingSystem/PopulationManager.h"
+#include "source/MedicalSystem/MedicalManager.h"
+#include "source/CommercialSystem/CommercialManager.h"
 
 class SmartCity {
 private:
+    // ========== CORE INFRASTRUCTURE ==========
     CityGraph* cityGraph;
     
-    // Managers
+    // ========== SYSTEM MANAGERS ==========
     SchoolManager* schoolManager;
-    BusManager* busManager;
-    // TODO: Add HospitalManager, PopulationManager in future
+    TransportManager* transportManager;
+    PopulationManager* populationManager;
+    MedicalManager* medicalManager;
+    CommercialManager* commercialManager;
     
-    // Dataset paths
+    // ========== SIMULATION DATA STRUCTURES ==========
+    Stack<TravelRecord> travelHistory;
+    int travelCounter;
+    
+    // ========== DATASET PATHS ==========
     string stopsCSV;
     string schoolsCSV;
     string hospitalsCSV;
     string pharmaciesCSV;
     string busesCSV;
+    string populationCSV;
+    string mallsCSV;
+    string shopsCSV;
+    string ambulancesCSV;
     
-    // UI state
-    bool isRunning;
+    // ========== STATE FLAGS ==========
     bool cityInitialized;
-    bool simulationStarted;
-    
-    // UI Methods
-    void displayWelcomeMenu();
-    void displayMainMenu();
-    void clearScreen();
-    void pauseScreen();
-    int getIntInput(const string& prompt);
-    string getStringInput(const string& prompt);
-    
-    // Initialization
-    void initializeCity();
-    
-    // Simulation
-    void startSimulation();
-    void showCityStats();
-    
-    // Sector Navigation
-    void viewAllSectors();
-    void viewSectorDetails(const string& sectorName);
-    void viewSchoolDetails(School* school);
-    void viewHospitalDetails(int nodeID);
-    
-    // Transport Module
-    void transportMenu();
-    void viewAllBuses();
-    void viewBusDetails(const string& busNo);
-    void registerNewBus();
-    void findNearestFacilityMenu();
-    void findBusRoute();
-    
-    // Pathfinding
-    void runDijkstra();
-    void displayPath(int startID, int endID);
-    
+
 public:
+    // ========== LIFECYCLE ==========
     SmartCity();
     ~SmartCity();
     
-    // Configuration
-    void setDatasetPaths(const string& stops, const string& schools, 
-                        const string& hospitals, const string& pharmacies, const string& buses);
+    SmartCity(const SmartCity&) = delete;
+    SmartCity& operator=(const SmartCity&) = delete;
     
-    // Main entry point
-    void run();
+    // ========== CONFIGURATION ==========
+    void setDatasetPaths(const string& stops, const string& schools,
+                         const string& hospitals, const string& pharmacies,
+                         const string& buses, const string& population = "",
+                         const string& malls = "", const string& shops = "",
+                         const string& ambulances = "");
     
-    // Menu options
-    void showAbout();
-    void exitProgram();
+    // ========== INITIALIZATION ==========
+    bool initialize();
+    bool isInitialized() const { return cityInitialized; }
+    
+    // ========== MANAGER ACCESSORS ==========
+    CityGraph* getCityGraph() const { return cityGraph; }
+    SchoolManager* getSchoolManager() const { return schoolManager; }
+    TransportManager* getTransportManager() const { return transportManager; }
+    PopulationManager* getPopulationManager() const { return populationManager; }
+    MedicalManager* getMedicalManager() const { return medicalManager; }
+    CommercialManager* getCommercialManager() const { return commercialManager; }
+    
+    // ========== STATISTICS & REPORTING ==========
+    CityStats getCityStats() const;
+    Vector<string> getSectorNames() const;
+    TransportStats getTransportStats() const;
+    
+    // ========== GRAPH/PATHFINDING APIs ==========
+    Vector<int> findShortestPath(int startID, int endID, double& outDistance);
+    Vector<int> findShortestPathByName(const string& startName, const string& endName, double& outDistance);
+    Vector<int> findShortestPathByDBID(const string& startDBID, const string& endDBID, double& outDistance);
+    int findNearestFacility(int fromNodeID, const string& facilityType);
+    int findNearestFacilityByDBID(const string& fromDBID, const string& facilityType);
+    
+    // ========== BUS TRANSPORT APIs ==========
+    Bus* registerBus(const string& busNo, const string& company, 
+                    const string& currentStop, const string& startStopID, 
+                    const string& endStopID);
+    Bus* findBusByNumber(const string& busNo);
+    Vector<Bus*> findBusesByCompany(const string& company);
+    Vector<Bus*> findBusesOnRoute(int fromNodeID, int toNodeID);
+    Vector<Bus*> findBusesOnRouteByDBID(const string& fromDBID, const string& toDBID);
+    bool addPassengerToStop(int stopNodeID, const string& cnic, 
+                           int destinationNodeID, double fare = 50.0);
+    int getWaitingPassengersAtStop(int stopNodeID);
+    
+    // ========== SCHOOL BUS APIs ==========
+    SchoolBus* registerSchoolBus(const string& id, const string& schoolID, 
+                                 int schoolNodeID, const string& sector);
+    SchoolBus* findSchoolBusByID(const string& id);
+    Vector<SchoolBus*> getSchoolBusesBySchool(const string& schoolID);
+    Vector<SchoolBus*> getSchoolBusesInSector(const string& sector);
+    SchoolBus* findSchoolBusForRoute(const string& fromSector, const string& toSector);
+    
+    // ========== AMBULANCE/PATIENT TRANSFER APIs ==========
+    Ambulance* registerAmbulance(const string& id, const string& hospitalID, 
+                                 int hospitalNodeID, const string& sector);
+    Ambulance* findAmbulanceByID(const string& id);
+    Vector<Ambulance*> getAmbulancesByHospital(const string& hospitalID);
+    Vector<Ambulance*> getAvailableAmbulances();
+    
+    string requestPatientTransfer(const string& patientCNIC, const string& patientName,
+                                  const string& sourceHospitalID, const string& destHospitalID,
+                                  const string& priority, const string& condition);
+    Ambulance* dispatchNextTransfer();
+    int getPendingTransferCount();
+    bool routeAmbulanceToHospital(Ambulance* amb, const string& hospitalID);
+    
+    // ========== POPULATION APIs ==========
+    Citizen* addCitizen(const string& cnic, const string& name, int age,
+                       const string& sector, int streetNo, int houseNo);
+    bool removeCitizen(const string& cnic);
+    Citizen* findCitizen(const string& cnic) const;
+    
+    // ========== EDUCATION APIs ==========
+    bool enrollStudent(const string& cnic, const string& schoolID,
+                      const string& deptName, int classNumber);
+    Vector<School*> findSchoolsBySubject(const string& subject);
+    
+    // ========== MEDICAL APIs ==========
+    bool admitPatient(const string& cnic, const string& hospitalID,
+                     int severity, const string& condition);
+    bool dischargePatient(const string& hospitalID, const string& patientID);
+    Vector<Pharmacy*> findPharmaciesByMedicine(const string& medicineName);
+    Vector<Pharmacy*> findPharmaciesByFormula(const string& formula);
+    Hospital* findNearestAvailableHospital(int fromNodeID);
+    
+    // ========== COMMERCIAL APIs ==========
+    Vector<Shop*> findShopsByProduct(const string& productName);
+    Vector<Shop*> findShopsByCategory(const string& category);
+    
+    // ========== TRAVEL HISTORY (Stack) ==========
+    void recordTravel(const string& cnic, int fromNode, int toNode, 
+                     double distance, const string& vehicleID = "", 
+                     const string& vehicleType = "WALK");
+    TravelRecord getLastTravel() const;
+    bool undoLastTravel();
+    const Stack<TravelRecord>& getTravelHistory() const { return travelHistory; }
+    int getTravelHistorySize() const { return travelHistory.size(); }
+    
+    // ========== SIMULATION ==========
+    void simulateStep();
+    void processBusArrivals();
+    void processSchoolBuses();
+    void updateAmbulances();
+    
+    // ========== SECTOR/NODE QUERIES ==========
+    Vector<CityNode*> getNodesInSector(const string& sectorName) const;
+    Vector<CityNode*> getSchoolsInSector(const string& sectorName) const;
+    Vector<CityNode*> getHospitalsInSector(const string& sectorName) const;
+    Vector<CityNode*> getPharmaciesInSector(const string& sectorName) const;
+    Vector<CityNode*> getStopsInSector(const string& sectorName) const;
+    
+    // ========== SECTOR ADJACENCY ==========
+    static Vector<string> getAdjacentSectors(const string& sector);
+    static bool areSectorsAdjacent(const string& sector1, const string& sector2);
 };
 
-/*------ Constructor & Destructor ------*/
+// ============================================================================
+// IMPLEMENTATION
+// ============================================================================
+
 inline SmartCity::SmartCity() {
     cityGraph = nullptr;
     schoolManager = nullptr;
-    busManager = nullptr;
-    isRunning = true;
+    transportManager = nullptr;
+    populationManager = nullptr;
+    medicalManager = nullptr;
+    commercialManager = nullptr;
     cityInitialized = false;
-    simulationStarted = false;
+    travelCounter = 0;
     
-    // Default dataset paths (relative to executable)
     stopsCSV = "dataset/stops.csv";
     schoolsCSV = "dataset/schools.csv";
     hospitalsCSV = "dataset/hospitals.csv";
     pharmaciesCSV = "dataset/pharmacies.csv";
     busesCSV = "dataset/buses.csv";
+    populationCSV = "dataset/population.csv";
+    mallsCSV = "dataset/malls.csv";
+    shopsCSV = "dataset/shops.csv";
+    ambulancesCSV = "dataset/ambulances.csv";
 }
 
 inline SmartCity::~SmartCity() {
-    if (cityGraph != nullptr) {
-        delete cityGraph;
-    }
-    if (schoolManager != nullptr) {
-        delete schoolManager;
-    }
-    if (busManager != nullptr) {
-        delete busManager;
-    }
+    delete cityGraph;
+    delete schoolManager;
+    delete transportManager;
+    delete populationManager;
+    delete medicalManager;
+    delete commercialManager;
 }
 
-/*------ Configuration ------*/
-inline void SmartCity::setDatasetPaths(const string& stops, const string& schools, 
-                               const string& hospitals, const string& pharmacies, const string& buses) {
+inline void SmartCity::setDatasetPaths(const string& stops, const string& schools,
+                                       const string& hospitals, const string& pharmacies,
+                                       const string& buses, const string& population,
+                                       const string& malls, const string& shops,
+                                       const string& ambulances) {
     stopsCSV = stops;
     schoolsCSV = schools;
     hospitalsCSV = hospitals;
     pharmaciesCSV = pharmacies;
     busesCSV = buses;
+    if (!population.empty()) populationCSV = population;
+    if (!malls.empty()) mallsCSV = malls;
+    if (!shops.empty()) shopsCSV = shops;
+    if (!ambulances.empty()) ambulancesCSV = ambulances;
 }
 
-/*------ Utility Methods ------*/
-inline void SmartCity::clearScreen() {
-    std::cout << "\x1B[2J\x1B[H";
-}
-
-inline void SmartCity::pauseScreen() {
-    cout << "\nPress Enter to continue...";
-    cin.ignore(10000, '\n');
-    cin.get();
-}
-
-inline int SmartCity::getIntInput(const string& prompt) {
-    int value;
-    cout << prompt;
-    while (!(cin >> value)) {
-        cin.clear();
-        cin.ignore(10000, '\n');
-        cout << "Invalid input. " << prompt;
-    }
-    cin.ignore(10000, '\n');
-    return value;
-}
-
-inline string SmartCity::getStringInput(const string& prompt) {
-    string value;
-    cout << prompt;
-    getline(cin, value);
-    return value;
-}
-
-/*------ Welcome Menu ------*/
-inline void SmartCity::displayWelcomeMenu() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   SMART CITY MANAGEMENT SYSTEM\n";
-    cout << "   New Islamabad - City of the Future\n";
-    cout << "========================================\n\n";
-    cout << "Group Members:\n";
-    cout << "  - Rayyan Ahmad Sultan\n";
-    cout << "  - Omar Abdullah Khan Niazi\n";
-    cout << "  - Aryan Ali Khan\n\n";
-    cout << "========================================\n\n";
-    cout << "Press Enter to Initialize the City...\n";
-}
-
-/*------ Main Menu ------*/
-inline void SmartCity::displayMainMenu() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   SMART CITY MANAGEMENT SYSTEM\n";
-    if (simulationStarted) {
-        cout << "   [SIMULATION RUNNING]\n";
-    }
-    cout << "========================================\n\n";
-    cout << "Main Menu:\n\n";
+inline bool SmartCity::initialize() {
+    if (cityInitialized) return true;
     
-    if (!simulationStarted) {
-        cout << "  1. Start Simulation\n";
-    } else {
-        cout << "  1. View City Statistics\n";
-        cout << "  2. View All Sectors\n";
-        cout << "  3. Transport Module\n";
-        cout << "  4. Run Dijkstra Pathfinding\n";
-        cout << "  5. About\n";
-        cout << "  6. Exit Program\n";
-    }
-    
-    cout << "\n========================================\n";
-    cout << "Enter your choice: ";
-}
-
-/*------ City Initialization ------*/
-inline void SmartCity::initializeCity() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   Initializing Smart City...\n";
-    cout << "========================================\n\n";
-    
-    // Initialize graph and managers
-    cout << "[1/5] Creating city infrastructure...\n";
     cityGraph = new CityGraph();
     schoolManager = new SchoolManager();
-    busManager = new BusManager();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    transportManager = new TransportManager();
+    populationManager = new PopulationManager();
+    medicalManager = new MedicalManager();
+    commercialManager = new CommercialManager();
     
-    // Step 1: Load stops into CityGraph
-    cout << "[2/5] Loading stops.csv into CityGraph...\n";
     cityGraph->loadStopsCSV(stopsCSV);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    // Step 2: Load schools into SchoolManager
-    cout << "[3/5] Loading schools.csv into SchoolManager...\n";
     schoolManager->loadFromCSV(schoolsCSV);
-    
-    // Add schools to CityGraph with same databaseID
-    cout << "       Adding schools to CityGraph with linked databaseIDs...\n";
     for (int i = 0; i < schoolManager->schools.getSize(); i++) {
         School* school = schoolManager->schools[i];
         int graphID = cityGraph->addLocation(
-            school->id,              
-            "",                      
-            school->name,            
-            "SCHOOL",                
-            school->location.coord.x,
-            school->location.coord.y 
+            school->id, "", school->name, "SCHOOL",
+            school->location.coord.x, school->location.coord.y
         );
-        
         if (graphID != -1) {
             school->graphNodeID = std::to_string(graphID);
         }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    // Step 3: Load hospitals and pharmacies
-    cout << "[4/5] Loading hospitals.csv and pharmacies.csv...\n";
+    medicalManager->loadHospitals(hospitalsCSV);
+    medicalManager->loadPharmacies(pharmaciesCSV);
     cityGraph->loadBuildingsCSV(hospitalsCSV, "HOSPITAL");
     cityGraph->loadBuildingsCSV(pharmaciesCSV, "PHARMACY");
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    // Step 4: Load buses
-    cout << "[5/5] Loading buses.csv into BusManager...\n";
-    busManager->loadFromCSV(busesCSV);
-    busManager->setCityGraph(cityGraph);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    // Complete
-    cout << "\n✓ City Initialized Successfully!\n";
-    cout << "  All systems operational.\n\n";
-    cout << "City Statistics:\n";
-    cout << "  - Total Nodes: " << cityGraph->getNodeCount() << "\n";
-    cout << "  - Schools: " << schoolManager->schools.getSize() << "\n";
-    cout << "  - Buses: " << busManager->getBusCount() << "\n";
+    transportManager->setCityGraph(cityGraph);
+    transportManager->loadBusesFromCSV(busesCSV);
+    transportManager->loadAmbulancesFromCSV(ambulancesCSV);
     
-    cityInitialized = true;
-    pauseScreen();
-}
-
-/*------ Simulation ------*/
-inline void SmartCity::startSimulation() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   Starting City Simulation...\n";
-    cout << "========================================\n\n";
-    
-    cout << "Initializing city systems...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    cout << "✓ Transportation network online\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    cout << "✓ School management system active\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    cout << "✓ Healthcare facilities operational\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    cout << "\n✓ Simulation started successfully!\n\n";
-    
-    simulationStarted = true;
-    
-    showCityStats();
-    pauseScreen();
-}
-
-inline void SmartCity::showCityStats() {
-    cout << "========================================\n";
-    cout << "   CITY STATISTICS\n";
-    cout << "========================================\n\n";
-    
-    // Count different node types
-    int stops = 0, schools = 0, hospitals = 0, pharmacies = 0, corners = 0;
     for (int i = 0; i < cityGraph->getNodeCount(); i++) {
         CityNode* node = cityGraph->getNode(i);
-        if (node != nullptr) {
-            if (node->type == "STOP") stops++;
-            else if (node->type == "SCHOOL") schools++;
-            else if (node->type == "HOSPITAL") hospitals++;
-            else if (node->type == "PHARMACY") pharmacies++;
-            else if (node->type == "CORNER") corners++;
+        if (node && node->type == "STOP") {
+            transportManager->initializeStopQueue(node->id, node->name, node->sector);
         }
     }
     
-    cout << "Total Nodes: " << cityGraph->getNodeCount() << "\n\n";
-    cout << "Node Distribution:\n";
-    cout << "  • Bus Stops: " << stops << "\n";
-    cout << "  • Schools: " << schools << "\n";
-    cout << "  • Hospitals: " << hospitals << "\n";
-    cout << "  • Pharmacies: " << pharmacies << "\n";
-    cout << "  • Sector Corners: " << corners << "\n\n";
+    populationManager->loadPopulation(populationCSV);
+    commercialManager->loadMalls(mallsCSV);
+    commercialManager->loadShops(shopsCSV);
     
-    cout << "Active Sectors: " << SECTOR_COUNT << "\n";
-    cout << "Total Buses: " << busManager->getBusCount() << "\n";
-    cout << "========================================\n\n";
+    cityInitialized = true;
+    return true;
 }
 
-/*------ Sector Navigation ------*/
-inline void SmartCity::viewAllSectors() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   ALL SECTORS\n";
-    cout << "========================================\n\n";
+// ========== STATISTICS ==========
+
+inline CityStats SmartCity::getCityStats() const {
+    CityStats stats;
+    if (!cityInitialized) return stats;
     
+    stats.totalNodes = cityGraph->getNodeCount();
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node) {
+            if (node->type == "STOP") stats.busStops++;
+            else if (node->type == "SCHOOL") stats.schoolNodes++;
+            else if (node->type == "HOSPITAL") stats.hospitalNodes++;
+            else if (node->type == "PHARMACY") stats.pharmacyNodes++;
+            else if (node->type == "CORNER") stats.sectorCorners++;
+        }
+    }
+    
+    stats.totalSchools = schoolManager->schools.getSize();
+    stats.totalHospitals = medicalManager->hospitals.getSize();
+    stats.totalPharmacies = medicalManager->pharmacies.getSize();
+    stats.totalMalls = commercialManager->malls.getSize();
+    
+    TransportStats tStats = transportManager->getStats();
+    stats.totalBuses = tStats.totalBuses;
+    stats.activeBuses = tStats.activeBuses;
+    stats.totalSchoolBuses = tStats.totalSchoolBuses;
+    stats.activeSchoolBuses = tStats.activeSchoolBuses;
+    stats.totalAmbulances = tStats.totalAmbulances;
+    stats.availableAmbulances = tStats.availableAmbulances;
+    stats.pendingTransfers = tStats.pendingTransfers;
+    stats.totalPassengersServed = tStats.totalBusPassengers;
+    stats.totalStudentsTransported = tStats.totalStudentsTransported;
+    stats.totalPatientsTransported = tStats.totalTransfers;
+    
+    Vector<int> popStats = populationManager->getHierarchyStats();
+    if (popStats.getSize() >= 4) {
+        stats.totalSectors = popStats[0];
+        stats.totalStreets = popStats[1];
+        stats.totalHouses = popStats[2];
+        stats.totalCitizens = popStats[3];
+    }
+    
+    stats.totalTravelRecords = travelHistory.size();
+    
+    return stats;
+}
+
+inline Vector<string> SmartCity::getSectorNames() const {
+    Vector<string> names;
     for (int i = 0; i < SECTOR_COUNT; i++) {
-        string sectorName = SECTOR_GRID[i].name;
-        
-        int totalNodes = 0, schools = 0, hospitals = 0, pharmacies = 0;
-        for (int j = 0; j < cityGraph->getNodeCount(); j++) {
-            CityNode* node = cityGraph->getNode(j);
-            if (node != nullptr && node->sector == sectorName) {
-                totalNodes++;
-                if (node->type == "SCHOOL") schools++;
-                else if (node->type == "HOSPITAL") hospitals++;
-                else if (node->type == "PHARMACY") pharmacies++;
-            }
-        }
-        
-        cout << (i + 1) << ". " << sectorName << " - " << totalNodes << " nodes";
-        cout << " (S:" << schools << " H:" << hospitals << " P:" << pharmacies << ")\n";
+        names.push_back(SECTOR_GRID[i].name);
     }
-    
-    cout << "\n" << (SECTOR_COUNT + 1) << ". Back to Main Menu\n";
-    cout << "\n========================================\n";
-    
-    int choice = getIntInput("Enter sector number to view details: ");
-    
-    if (choice > 0 && choice <= SECTOR_COUNT) {
-        viewSectorDetails(SECTOR_GRID[choice - 1].name);
-    }
+    return names;
 }
 
-inline void SmartCity::viewSectorDetails(const string& sectorName) {
-    while (true) {
-        clearScreen();
-        cout << "\n";
-        cout << "========================================\n";
-        cout << "   SECTOR: " << sectorName << "\n";
-        cout << "========================================\n\n";
-        
-        Vector<CityNode*> stops, schools, hospitals, pharmacies;
-        
-        for (int i = 0; i < cityGraph->getNodeCount(); i++) {
-            CityNode* node = cityGraph->getNode(i);
-            if (node != nullptr && node->sector == sectorName) {
-                if (node->type == "STOP") stops.push_back(node);
-                else if (node->type == "SCHOOL") schools.push_back(node);
-                else if (node->type == "HOSPITAL") hospitals.push_back(node);
-                else if (node->type == "PHARMACY") pharmacies.push_back(node);
-            }
-        }
-        
-        cout << "Bus Stops: " << stops.getSize() << "\n";
-        cout << "Schools: " << schools.getSize() << "\n";
-        cout << "Hospitals: " << hospitals.getSize() << "\n";
-        cout << "Pharmacies: " << pharmacies.getSize() << "\n\n";
-        
-        cout << "========================================\n";
-        cout << "SCHOOLS IN " << sectorName << ":\n";
-        cout << "========================================\n";
-        for (int i = 0; i < schools.getSize(); i++) {
-            cout << (i + 1) << ". " << schools[i]->name 
-                 << " (ID: " << schools[i]->databaseID << ")\n";
-        }
-        if (schools.getSize() == 0) cout << "  No schools in this sector\n";
-        
-        cout << "\n========================================\n";
-        cout << "HOSPITALS IN " << sectorName << ":\n";
-        cout << "========================================\n";
-        for (int i = 0; i < hospitals.getSize(); i++) {
-            cout << (schools.getSize() + i + 1) << ". " << hospitals[i]->name 
-                 << " (ID: " << hospitals[i]->databaseID << ")\n";
-        }
-        if (hospitals.getSize() == 0) cout << "  No hospitals in this sector\n";
-        
-        cout << "\n========================================\n";
-        cout << "PHARMACIES IN " << sectorName << ":\n";
-        cout << "========================================\n";
-        for (int i = 0; i < pharmacies.getSize(); i++) {
-            cout << (schools.getSize() + hospitals.getSize() + i + 1) << ". " 
-                 << pharmacies[i]->name << " (ID: " << pharmacies[i]->databaseID << ")\n";
-        }
-        if (pharmacies.getSize() == 0) cout << "  No pharmacies in this sector\n";
-        
-        cout << "\n" << (schools.getSize() + hospitals.getSize() + pharmacies.getSize() + 1) 
-             << ". Back\n";
-        cout << "\n========================================\n";
-        
-        int choice = getIntInput("Enter number to view details (or back): ");
-        
-        if (choice < 1 || choice > schools.getSize() + hospitals.getSize() + pharmacies.getSize()) {
-            break;
-        }
-        
-        if (choice <= schools.getSize()) {
-            string schoolID = schools[choice - 1]->databaseID;
-            School* school = schoolManager->findSchoolByID(schoolID);
-            if (school != nullptr) {
-                viewSchoolDetails(school);
-            }
-        } else if (choice <= schools.getSize() + hospitals.getSize()) {
-            int idx = choice - schools.getSize() - 1;
-            viewHospitalDetails(hospitals[idx]->id);
-        } else {
-            int idx = choice - schools.getSize() - hospitals.getSize() - 1;
-            viewHospitalDetails(pharmacies[idx]->id);
-        }
-    }
+inline TransportStats SmartCity::getTransportStats() const {
+    if (!cityInitialized) return TransportStats();
+    return transportManager->getStats();
 }
 
-inline void SmartCity::viewSchoolDetails(School* school) {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   SCHOOL DETAILS\n";
-    cout << "========================================\n\n";
-    
-    cout << "School ID: " << school->id << "\n";
-    cout << "Name: " << school->name << "\n";
-    cout << "Sector: " << school->location.sector << "\n";
-    cout << "Rating: " << school->rating << "/5.0\n";
-    cout << "Location: (" << school->location.coord.x << ", " 
-         << school->location.coord.y << ")\n";
-    cout << "Graph Node ID: " << school->graphNodeID << "\n\n";
-    
-    cout << "========================================\n";
-    cout << "SUBJECTS OFFERED:\n";
-    cout << "========================================\n";
-    for (int i = 0; i < school->subjects.getSize(); i++) {
-        cout << "  • " << school->subjects[i] << "\n";
-    }
-    
-    cout << "\n========================================\n";
-    cout << "DEPARTMENTS:\n";
-    cout << "========================================\n";
-    for (int i = 0; i < school->departments.getSize(); i++) {
-        Department* dept = school->departments[i];
-        cout << "\n" << (i + 1) << ". " << dept->name << " Department\n";
-        cout << "   Subjects: " << dept->subjects.getSize() << "\n";
-        cout << "   Classes: " << dept->classes.getSize() << "\n";
-        cout << "   Faculty: " << dept->faculty.getSize() << "\n";
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+// ========== GRAPH/PATHFINDING ==========
+
+inline Vector<int> SmartCity::findShortestPath(int startID, int endID, double& outDistance) {
+    if (!cityInitialized) return Vector<int>();
+    return cityGraph->findShortestPath(startID, endID, outDistance);
 }
 
-inline void SmartCity::viewHospitalDetails(int nodeID) {
-    CityNode* node = cityGraph->getNode(nodeID);
-    if (node == nullptr) return;
-    
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   " << node->type << " DETAILS\n";
-    cout << "========================================\n\n";
-    
-    cout << "Database ID: " << node->databaseID << "\n";
-    cout << "Name: " << node->name << "\n";
-    cout << "Type: " << node->type << "\n";
-    cout << "Sector: " << node->sector << "\n";
-    cout << "Location: (" << node->lat << ", " << node->lon << ")\n";
-    cout << "Graph Node ID: " << node->id << "\n\n";
-    
-    cout << "========================================\n";
-    cout << "CONNECTIONS:\n";
-    cout << "========================================\n";
-    cout << "Connected to " << node->roads.size() << " other locations:\n";
-    for (size_t i = 0; i < node->roads.size(); i++) {
-        Edge edge = node->roads[i];
-        CityNode* connected = cityGraph->getNode(edge.destinationID);
-        if (connected != nullptr) {
-            cout << "  • " << connected->name << " (" << edge.weight << " km)\n";
-        }
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+inline Vector<int> SmartCity::findShortestPathByName(const string& startName, 
+                                                     const string& endName, 
+                                                     double& outDistance) {
+    if (!cityInitialized) return Vector<int>();
+    int startID = cityGraph->getIDByName(startName);
+    int endID = cityGraph->getIDByName(endName);
+    if (startID == -1 || endID == -1) return Vector<int>();
+    return cityGraph->findShortestPath(startID, endID, outDistance);
 }
 
-/*------ Transport Module ------*/
-inline void SmartCity::transportMenu() {
-    while (true) {
-        clearScreen();
-        cout << "\n";
-        cout << "========================================\n";
-        cout << "   TRANSPORT MODULE\n";
-        cout << "========================================\n\n";
-        
-        cout << "  1. View All Buses\n";
-        cout << "  2. Register New Bus\n";
-        cout << "  3. Find Nearest Facility\n";
-        cout << "  4. Back to Main Menu\n\n";
-        
-        int choice = getIntInput("Enter your choice: ");
-        
-        switch (choice) {
-            case 1:
-                viewAllBuses();
-                break;
-            case 2:
-                registerNewBus();
-                break;
-            case 3:
-                findNearestFacilityMenu();
-                break;
-            case 4:
-                return;
-            default:
-                cout << "Invalid choice!\n";
-                pauseScreen();
-                break;
-        }
-    }
+inline Vector<int> SmartCity::findShortestPathByDBID(const string& startDBID, 
+                                                     const string& endDBID, 
+                                                     double& outDistance) {
+    if (!cityInitialized) return Vector<int>();
+    int startID = cityGraph->getIDByDatabaseID(startDBID);
+    int endID = cityGraph->getIDByDatabaseID(endDBID);
+    if (startID == -1 || endID == -1) return Vector<int>();
+    return cityGraph->findShortestPath(startID, endID, outDistance);
 }
 
-inline void SmartCity::viewAllBuses() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   ALL BUSES\n";
-    cout << "========================================\n\n";
-    
-    if (busManager->getBusCount() == 0) {
-        cout << "No buses registered in the system.\n\n";
-    } else {
-        for (int i = 0; i < busManager->getBusCount(); i++) {
-            Bus* bus = busManager->getBus(i);
-            cout << (i + 1) << ". Bus No: " << bus->busNo 
-                 << " | Company: " << bus->company 
-                 << " | Current Stop: " << bus->currentStop << "\n";
-        }
-        
-        cout << "\n" << (busManager->getBusCount() + 1) << ". View Bus Details\n";
-        cout << (busManager->getBusCount() + 2) << ". Back\n";
-        cout << "\n========================================\n";
-        
-        int choice = getIntInput("Enter choice: ");
-        
-        if (choice == busManager->getBusCount() + 1) {
-            string busNo = getStringInput("Enter bus number: ");
-            viewBusDetails(busNo);
-        }
-    }
-    
-    pauseScreen();
+inline int SmartCity::findNearestFacility(int fromNodeID, const string& facilityType) {
+    if (!cityInitialized) return -1;
+    return cityGraph->findNearestFacility(fromNodeID, facilityType);
 }
 
-inline void SmartCity::viewBusDetails(const string& busNo) {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   BUS DETAILS\n";
-    cout << "========================================\n\n";
-    
-    Bus* bus = busManager->findBusByNumber(busNo);
-    if (bus == nullptr) {
-        cout << "Bus not found!\n";
-    } else {
-        cout << "Bus No: " << bus->busNo << "\n";
-        cout << "Company: " << bus->company << "\n";
-        cout << "Current Stop: " << bus->currentStop << "\n";
-        cout << "Total Distance: " << bus->totalDistance << " km\n";
-        cout << "Number of Stops: " << bus->getStopCount() << "\n\n";
-        
-        if (bus->getStopCount() > 0) {
-            cout << "========================================\n";
-            cout << "ROUTE:\n";
-            cout << "========================================\n";
-            cout << "Start: " << bus->startStopID << "\n";
-            cout << "End: " << bus->endStopID << "\n\n";
-            
-            cout << "Full Route (" << bus->route.getSize() << " nodes):\n";
-            for (int i = 0; i < bus->route.getSize(); i++) {
-                CityNode* node = cityGraph->getNode(bus->route[i]);
-                if (node != nullptr) {
-                    cout << "  " << (i + 1) << ". " << node->name << " (" << node->type << ")\n";
-                }
-            }
-        }
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+inline int SmartCity::findNearestFacilityByDBID(const string& fromDBID, const string& facilityType) {
+    if (!cityInitialized) return -1;
+    int fromID = cityGraph->getIDByDatabaseID(fromDBID);
+    if (fromID == -1) return -1;
+    return cityGraph->findNearestFacility(fromID, facilityType);
 }
 
-inline void SmartCity::registerNewBus() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   REGISTER NEW BUS\n";
-    cout << "========================================\n\n";
+// ========== BUS TRANSPORT ==========
+
+inline Bus* SmartCity::registerBus(const string& busNo, const string& company,
+                                   const string& currentStop, const string& startStopID,
+                                   const string& endStopID) {
+    if (!cityInitialized) return nullptr;
     
-    string busNo = getStringInput("Enter bus number (e.g., B501): ");
-    string company = getStringInput("Enter company name: ");
-    string currentStop = getStringInput("Enter current stop ID: ");
-    
-    Bus* bus = busManager->createBus(busNo, company, currentStop);
-    
-    cout << "\nBus created. Now set the route:\n";
-    string startStopID = getStringInput("Enter starting stop ID: ");
-    string endStopID = getStringInput("Enter ending stop ID: ");
+    Bus* bus = transportManager->createBus(busNo, company, currentStop);
     
     int startNodeID = cityGraph->getIDByDatabaseID(startStopID);
     int endNodeID = cityGraph->getIDByDatabaseID(endStopID);
     
-    if (startNodeID == -1 || endNodeID == -1) {
-        cout << "\nError: Invalid stop IDs!\n";
-        cout << "Bus registered but route not set.\n";
-        pauseScreen();
-        return;
+    if (startNodeID != -1 && endNodeID != -1) {
+        double distance = 0.0;
+        Vector<int> route = cityGraph->findShortestPath(startNodeID, endNodeID, distance);
+        if (route.getSize() > 0) {
+            transportManager->setBusRoute(busNo, route, distance, startStopID, endStopID);
+        }
     }
     
-    cout << "\nCalculating optimal route using Dijkstra's algorithm...\n";
-    double distance = 0.0;
-    Vector<int> route = cityGraph->findShortestPath(startNodeID, endNodeID, distance);
+    return bus;
+}
+
+inline Bus* SmartCity::findBusByNumber(const string& busNo) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->findBusByNumber(busNo);
+}
+
+inline Vector<Bus*> SmartCity::findBusesByCompany(const string& company) {
+    if (!cityInitialized) return Vector<Bus*>();
+    return transportManager->findBusesByCompany(company);
+}
+
+inline Vector<Bus*> SmartCity::findBusesOnRoute(int fromNodeID, int toNodeID) {
+    if (!cityInitialized) return Vector<Bus*>();
+    return transportManager->findBusesOnRoute(fromNodeID, toNodeID);
+}
+
+inline Vector<Bus*> SmartCity::findBusesOnRouteByDBID(const string& fromDBID, const string& toDBID) {
+    if (!cityInitialized) return Vector<Bus*>();
+    int fromID = cityGraph->getIDByDatabaseID(fromDBID);
+    int toID = cityGraph->getIDByDatabaseID(toDBID);
+    if (fromID == -1 || toID == -1) return Vector<Bus*>();
+    return transportManager->findBusesOnRoute(fromID, toID);
+}
+
+inline bool SmartCity::addPassengerToStop(int stopNodeID, const string& cnic, 
+                                          int destinationNodeID, double fare) {
+    if (!cityInitialized) return false;
+    Passenger p(cnic, stopNodeID, destinationNodeID, fare);
+    return transportManager->addPassengerToStop(stopNodeID, p);
+}
+
+inline int SmartCity::getWaitingPassengersAtStop(int stopNodeID) {
+    if (!cityInitialized) return 0;
+    return transportManager->getWaitingCount(stopNodeID);
+}
+
+// ========== SCHOOL BUS ==========
+
+inline SchoolBus* SmartCity::registerSchoolBus(const string& id, const string& schoolID,
+                                               int schoolNodeID, const string& sector) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->createSchoolBus(id, schoolID, schoolNodeID, sector);
+}
+
+inline SchoolBus* SmartCity::findSchoolBusByID(const string& id) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->findSchoolBusByID(id);
+}
+
+inline Vector<SchoolBus*> SmartCity::getSchoolBusesBySchool(const string& schoolID) {
+    if (!cityInitialized) return Vector<SchoolBus*>();
+    return transportManager->getSchoolBusesBySchool(schoolID);
+}
+
+inline Vector<SchoolBus*> SmartCity::getSchoolBusesInSector(const string& sector) {
+    if (!cityInitialized) return Vector<SchoolBus*>();
+    return transportManager->getSchoolBusesBySector(sector);
+}
+
+inline SchoolBus* SmartCity::findSchoolBusForRoute(const string& fromSector, const string& toSector) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->findSchoolBusForRoute(fromSector, toSector);
+}
+
+// ========== AMBULANCE/PATIENT TRANSFER ==========
+
+inline Ambulance* SmartCity::registerAmbulance(const string& id, const string& hospitalID,
+                                               int hospitalNodeID, const string& sector) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->createAmbulance(id, hospitalID, hospitalNodeID, sector);
+}
+
+inline Ambulance* SmartCity::findAmbulanceByID(const string& id) {
+    if (!cityInitialized) return nullptr;
+    return transportManager->findAmbulanceByID(id);
+}
+
+inline Vector<Ambulance*> SmartCity::getAmbulancesByHospital(const string& hospitalID) {
+    if (!cityInitialized) return Vector<Ambulance*>();
+    return transportManager->getAmbulancesByHospital(hospitalID);
+}
+
+inline Vector<Ambulance*> SmartCity::getAvailableAmbulances() {
+    if (!cityInitialized) return Vector<Ambulance*>();
+    return transportManager->getAvailableAmbulances();
+}
+
+inline string SmartCity::requestPatientTransfer(const string& patientCNIC, const string& patientName,
+                                                const string& sourceHospitalID, const string& destHospitalID,
+                                                const string& priority, const string& condition) {
+    if (!cityInitialized) return "";
     
+    int sourceNodeID = cityGraph->getIDByDatabaseID(sourceHospitalID);
+    int destNodeID = cityGraph->getIDByDatabaseID(destHospitalID);
+    
+    if (sourceNodeID == -1 || destNodeID == -1) return "";
+    
+    CityNode* sourceNode = cityGraph->getNode(sourceNodeID);
+    CityNode* destNode = cityGraph->getNode(destNodeID);
+    
+    string sourceSector = sourceNode ? sourceNode->sector : "";
+    string destSector = destNode ? destNode->sector : "";
+    
+    return transportManager->requestTransfer(patientCNIC, patientName,
+                                            sourceHospitalID, sourceNodeID, sourceSector,
+                                            destHospitalID, destNodeID, destSector,
+                                            priority, condition);
+}
+
+inline Ambulance* SmartCity::dispatchNextTransfer() {
+    if (!cityInitialized) return nullptr;
+    return transportManager->dispatchNextTransfer();
+}
+
+inline int SmartCity::getPendingTransferCount() {
+    if (!cityInitialized) return 0;
+    return transportManager->getPendingTransferCount();
+}
+
+inline bool SmartCity::routeAmbulanceToHospital(Ambulance* amb, const string& hospitalID) {
+    if (!cityInitialized || !amb) return false;
+    
+    int hospitalNodeID = cityGraph->getIDByDatabaseID(hospitalID);
+    if (hospitalNodeID == -1) return false;
+    
+    double distance = 0.0;
+    Vector<int> route = cityGraph->findShortestPath(amb->getCurrentNodeID(), 
+                                                    hospitalNodeID, distance);
     if (route.getSize() > 0) {
-        bus->setRoute(route, distance);
-        bus->setStops(startStopID, endStopID);
-        
-        cout << "\n✓ Bus registered successfully!\n";
-        cout << "Bus No: " << busNo << "\n";
-        cout << "Route Distance: " << distance << " km\n";
-        cout << "Number of stops: " << route.getSize() << "\n";
-    } else {
-        cout << "\nError: Could not calculate route!\n";
+        amb->setRouteSimple(route, distance);
+        return true;
     }
-    
-    pauseScreen();
+    return false;
 }
 
-inline void SmartCity::findNearestFacilityMenu() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   FIND NEAREST FACILITY\n";
-    cout << "========================================\n\n";
-    
-    cout << "Facility Types:\n";
-    cout << "  1. School\n";
-    cout << "  2. Hospital\n";
-    cout << "  3. Pharmacy\n";
-    cout << "  4. Bus Stop\n";
-    cout << "  5. Back\n\n";
-    
-    int choice = getIntInput("Select facility type: ");
-    
-    string facilityType;
-    switch (choice) {
-        case 1: facilityType = "SCHOOL"; break;
-        case 2: facilityType = "HOSPITAL"; break;
-        case 3: facilityType = "PHARMACY"; break;
-        case 4: facilityType = "STOP"; break;
-        case 5: return;
-        default:
-            cout << "Invalid choice!\n";
-            pauseScreen();
-            return;
-    }
-    
-    string fromLocation = getStringInput("\nEnter your current location (stop ID or name): ");
-    
-    int fromNodeID = cityGraph->getIDByDatabaseID(fromLocation);
-    if (fromNodeID == -1) {
-        fromNodeID = cityGraph->getIDByName(fromLocation);
-    }
-    
-    if (fromNodeID == -1) {
-        cout << "\nError: Location not found!\n";
-        pauseScreen();
-        return;
-    }
-    
-    cout << "\nSearching for nearest " << facilityType << "...\n\n";
-    
-    int nearestID = cityGraph->findNearestFacility(fromNodeID, facilityType);
-    
-    if (nearestID == -1) {
-        cout << "No " << facilityType << " found in the city.\n";
-    } else {
-        CityNode* nearest = cityGraph->getNode(nearestID);
-        CityNode* from = cityGraph->getNode(fromNodeID);
-        
-        cout << "========================================\n";
-        cout << "NEAREST " << facilityType << "\n";
-        cout << "========================================\n";
-        cout << "From: " << from->name << "\n";
-        cout << "To: " << nearest->name << "\n";
-        cout << "Database ID: " << nearest->databaseID << "\n";
-        cout << "Sector: " << nearest->sector << "\n";
-        cout << "Location: (" << nearest->lat << ", " << nearest->lon << ")\n";
-        
-        double distance = 0.0;
-        Vector<int> path = cityGraph->findShortestPath(fromNodeID, nearestID, distance);
-        
-        cout << "\nDistance: " << distance << " km\n";
-        cout << "Number of stops: " << path.getSize() << "\n";
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+// ========== POPULATION ==========
+
+inline Citizen* SmartCity::addCitizen(const string& cnic, const string& name, int age,
+                                      const string& sector, int streetNo, int houseNo) {
+    if (!cityInitialized) return nullptr;
+    return populationManager->addCitizen(cnic, name, age, sector, streetNo, houseNo, "");
 }
 
-inline void SmartCity::findBusRoute() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   FIND BUS ROUTE\n";
-    cout << "========================================\n\n";
-    
-    string from = getStringInput("Enter starting location (ID or name): ");
-    string to = getStringInput("Enter destination (ID or name): ");
-    
-    int fromID = cityGraph->getIDByDatabaseID(from);
-    if (fromID == -1) fromID = cityGraph->getIDByName(from);
-    
-    int toID = cityGraph->getIDByDatabaseID(to);
-    if (toID == -1) toID = cityGraph->getIDByName(to);
-    
-    if (fromID == -1 || toID == -1) {
-        cout << "\nError: Location(s) not found!\n";
-        pauseScreen();
-        return;
-    }
-    
-    cout << "\nSearching for buses on this route...\n\n";
-    
-    Vector<Bus*> matchingBuses;
-    for (int i = 0; i < busManager->getBusCount(); i++) {
-        Bus* bus = busManager->getBus(i);
-        if (bus->isOnRoute(fromID) && bus->isOnRoute(toID)) {
-            matchingBuses.push_back(bus);
-        }
-    }
-    
-    if (matchingBuses.getSize() == 0) {
-        cout << "No direct bus found for this route.\n";
-        cout << "\nCalculating walking/transfer route...\n";
-        
-        double distance = 0.0;
-        Vector<int> path = cityGraph->findShortestPath(fromID, toID, distance);
-        
-        if (path.getSize() > 0) {
-            cout << "\nRecommended Route:\n";
-            cout << "Distance: " << distance << " km\n";
-            cout << "Stops: " << path.getSize() << "\n";
-        }
-    } else {
-        cout << "Found " << matchingBuses.getSize() << " bus(es) for this route:\n\n";
-        for (int i = 0; i < matchingBuses.getSize(); i++) {
-            Bus* bus = matchingBuses[i];
-            cout << (i + 1) << ". Bus " << bus->busNo 
-                 << " (" << bus->company << ")\n";
-        }
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+inline bool SmartCity::removeCitizen(const string& cnic) {
+    if (!cityInitialized) return false;
+    schoolManager->removeStudentFromAllSchools(cnic);
+    schoolManager->removeFacultyFromAllSchools(cnic);
+    return populationManager->removeCitizen(cnic);
 }
 
-/*------ Pathfinding ------*/
-inline void SmartCity::runDijkstra() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   DIJKSTRA PATHFINDING\n";
-    cout << "========================================\n\n";
-    
-    cout << "Available options:\n";
-    cout << "  1. Search by Node ID\n";
-    cout << "  2. Search by Database ID\n";
-    cout << "  3. Search by Name\n";
-    cout << "  4. Back\n\n";
-    
-    int choice = getIntInput("Choose search method: ");
-    if (choice == 4) return;
-    
-    int startID = -1, endID = -1;
-    
-    if (choice == 1) {
-        startID = getIntInput("Enter start node ID: ");
-        endID = getIntInput("Enter end node ID: ");
-    } else if (choice == 2) {
-        string startDB = getStringInput("Enter start database ID: ");
-        string endDB = getStringInput("Enter end database ID: ");
-        startID = cityGraph->getIDByDatabaseID(startDB);
-        endID = cityGraph->getIDByDatabaseID(endDB);
-    } else if (choice == 3) {
-        string startName = getStringInput("Enter start location name: ");
-        string endName = getStringInput("Enter end location name: ");
-        startID = cityGraph->getIDByName(startName);
-        endID = cityGraph->getIDByName(endName);
-    } else {
-        cout << "Invalid choice!\n";
-        pauseScreen();
-        return;
-    }
-    
-    if (startID == -1 || endID == -1) {
-        cout << "\nError: Location not found!\n";
-        pauseScreen();
-        return;
-    }
-    
-    displayPath(startID, endID);
+inline Citizen* SmartCity::findCitizen(const string& cnic) const {
+    if (!cityInitialized) return nullptr;
+    return populationManager->getCitizen(cnic);
 }
 
-inline void SmartCity::displayPath(int startID, int endID) {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   SHORTEST PATH\n";
-    cout << "========================================\n\n";
-    
-    CityNode* start = cityGraph->getNode(startID);
-    CityNode* end = cityGraph->getNode(endID);
-    
-    if (start == nullptr || end == nullptr) {
-        cout << "Error: Invalid node IDs!\n";
-        pauseScreen();
-        return;
-    }
-    
-    cout << "From: " << start->name << " (ID: " << startID << ")\n";
-    cout << "To: " << end->name << " (ID: " << endID << ")\n\n";
-    cout << "Calculating shortest path...\n\n";
-    
-    double distance = 0.0;
-    Vector<int> path = cityGraph->findShortestPath(startID, endID, distance);
-    
-    cout << "========================================\n";
-    cout << "PATH CALCULATED\n";
-    cout << "========================================\n\n";
-    
-    if (path.getSize() > 0) {
-        cout << "Distance: " << distance << " km\n";
-        cout << "Number of stops: " << path.getSize() << "\n\n";
-        cout << "Route:\n";
-        for (int i = 0; i < path.getSize(); i++) {
-            CityNode* node = cityGraph->getNode(path[i]);
-            if (node != nullptr) {
-                cout << "  " << (i + 1) << ". " << node->name << " (" << node->type << ")\n";
-            }
-        }
-    } else {
-        cout << "No path found!\n";
-    }
-    
-    cout << "\n========================================\n";
-    pauseScreen();
+// ========== EDUCATION ==========
+
+inline bool SmartCity::enrollStudent(const string& cnic, const string& schoolID,
+                                    const string& deptName, int classNumber) {
+    if (!cityInitialized) return false;
+    Citizen* citizen = populationManager->getCitizen(cnic);
+    if (!citizen) return false;
+    return schoolManager->addStudent(schoolID, deptName, citizen, classNumber);
 }
 
-/*------ About ------*/
-inline void SmartCity::showAbout() {
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   SMART CITY MANAGEMENT SYSTEM\n";
-    cout << "   New Islamabad - City of the Future\n";
-    cout << "========================================\n\n";
-    cout << "About This Project:\n\n";
-    cout << "This project demonstrates a smart city\n";
-    cout << "management system using advanced data\n";
-    cout << "structures and algorithms.\n\n";
-    cout << "Key Features:\n";
-    cout << "  • Graph-based city infrastructure\n";
-    cout << "  • School management system\n";
-    cout << "  • Hospital and pharmacy tracking\n";
-    cout << "  • Transport module with bus management\n";
-    cout << "  • Dijkstra's pathfinding algorithm\n";
-    cout << "  • Nearest facility search\n";
-    cout << "  • Custom data structure implementations\n\n";
-    cout << "Technologies:\n";
-    cout << "  • C++ Programming Language\n";
-    cout << "  • Custom STL Implementations\n";
-    cout << "  • Graph Theory & Algorithms\n";
-    cout << "  • Hash Tables and Priority Queues\n\n";
-    cout << "========================================\n";
-    
-    pauseScreen();
+inline Vector<School*> SmartCity::findSchoolsBySubject(const string& subject) {
+    if (!cityInitialized) return Vector<School*>();
+    return schoolManager->findSchoolsBySubject(subject);
 }
 
-inline void SmartCity::exitProgram() {
-    isRunning = false;
-    clearScreen();
-    cout << "\n";
-    cout << "========================================\n";
-    cout << "   Thank you for using\n";
-    cout << "   Smart City Management System!\n";
-    cout << "========================================\n\n";
+// ========== MEDICAL ==========
+
+inline bool SmartCity::admitPatient(const string& cnic, const string& hospitalID,
+                                   int severity, const string& condition) {
+    if (!cityInitialized) return false;
+    Citizen* citizen = populationManager->getCitizen(cnic);
+    if (!citizen) return false;
+    Patient patient(citizen, condition, severity);
+    return medicalManager->processEmergency(hospitalID, patient);
 }
 
-/*------ Main Run Loop ------*/
-inline void SmartCity::run() {
-    if (!cityInitialized) {
-        displayWelcomeMenu();
-        cin.get();
-        initializeCity();
-    }
+inline bool SmartCity::dischargePatient(const string& hospitalID, const string& patientID) {
+    if (!cityInitialized) return false;
+    Hospital* hospital = medicalManager->findHospitalByID(hospitalID);
+    if (!hospital) return false;
+    return hospital->dischargePatient(patientID);
+}
+
+inline Vector<Pharmacy*> SmartCity::findPharmaciesByMedicine(const string& medicineName) {
+    if (!cityInitialized) return Vector<Pharmacy*>();
+    return medicalManager->findMedicine(medicineName);
+}
+
+inline Vector<Pharmacy*> SmartCity::findPharmaciesByFormula(const string& formula) {
+    if (!cityInitialized) return Vector<Pharmacy*>();
+    return medicalManager->findMedicineByFormula(formula);
+}
+
+inline Hospital* SmartCity::findNearestAvailableHospital(int fromNodeID) {
+    if (!cityInitialized) return nullptr;
     
-    while (isRunning && cityInitialized) {
-        displayMainMenu();
-        
-        int choice;
-        cin >> choice;
-        cin.ignore(10000, '\n');
-        
-        if (!simulationStarted) {
-            if (choice == 1) {
-                startSimulation();
-            } else {
-                cout << "\nPlease start simulation first!\n";
-                pauseScreen();
-            }
-        } else {
-            switch (choice) {
-                case 1:
-                    clearScreen();
-                    cout << "\n";
-                    showCityStats();
-                    pauseScreen();
-                    break;
-                case 2:
-                    viewAllSectors();
-                    break;
-                case 3:
-                    transportMenu();
-                    break;
-                case 4:
-                    runDijkstra();
-                    break;
-                case 5:
-                    showAbout();
-                    break;
-                case 6:
-                    exitProgram();
-                    break;
-                default:
-                    cout << "\nInvalid choice. Please try again.\n";
-                    pauseScreen();
-                    break;
+    Hospital* nearest = nullptr;
+    double minDistance = 1e9;
+    
+    for (int i = 0; i < medicalManager->hospitals.getSize(); i++) {
+        Hospital* h = medicalManager->hospitals[i];
+        if (h->getAvailableBeds() > 0) {
+            int hospitalNodeID = cityGraph->getIDByDatabaseID(h->id);
+            if (hospitalNodeID != -1) {
+                double dist = 0.0;
+                Vector<int> path = cityGraph->findShortestPath(fromNodeID, hospitalNodeID, dist);
+                if (path.getSize() > 0 && dist < minDistance) {
+                    minDistance = dist;
+                    nearest = h;
+                }
             }
         }
     }
+    return nearest;
+}
+
+// ========== COMMERCIAL ==========
+
+inline Vector<Shop*> SmartCity::findShopsByProduct(const string& productName) {
+    if (!cityInitialized) return Vector<Shop*>();
+    return commercialManager->findShopsSellingProduct(productName);
+}
+
+inline Vector<Shop*> SmartCity::findShopsByCategory(const string& category) {
+    if (!cityInitialized) return Vector<Shop*>();
+    return commercialManager->findShopsByCategory(category);
+}
+
+// ========== TRAVEL HISTORY ==========
+
+inline void SmartCity::recordTravel(const string& cnic, int fromNode, int toNode, 
+                                   double distance, const string& vehicleID, 
+                                   const string& vehicleType) {
+    string timestamp = "T" + std::to_string(++travelCounter);
+    TravelRecord record(cnic, fromNode, toNode, timestamp, distance, vehicleID, vehicleType);
+    travelHistory.push(record);
+}
+
+inline TravelRecord SmartCity::getLastTravel() const {
+    if (travelHistory.empty()) return TravelRecord();
+    return travelHistory.top();
+}
+
+inline bool SmartCity::undoLastTravel() {
+    if (travelHistory.empty()) return false;
+    travelHistory.pop();
+    return true;
+}
+
+// ========== SIMULATION ==========
+
+inline void SmartCity::simulateStep() {
+    processBusArrivals();
+    processSchoolBuses();
+    updateAmbulances();
+}
+
+inline void SmartCity::processBusArrivals() {
+    if (!cityInitialized) return;
+    transportManager->simulateBusStep();
+}
+
+inline void SmartCity::processSchoolBuses() {
+    if (!cityInitialized) return;
+    transportManager->simulateSchoolBusStep();
+}
+
+inline void SmartCity::updateAmbulances() {
+    if (!cityInitialized) return;
+    for (int i = 0; i < transportManager->getAmbulanceCount(); i++) {
+        transportManager->updateAmbulanceStatus(transportManager->getAmbulance(i));
+    }
+}
+
+// ========== SECTOR QUERIES ==========
+
+inline Vector<CityNode*> SmartCity::getNodesInSector(const string& sectorName) const {
+    Vector<CityNode*> result;
+    if (!cityInitialized) return result;
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node && node->sector == sectorName) result.push_back(node);
+    }
+    return result;
+}
+
+inline Vector<CityNode*> SmartCity::getSchoolsInSector(const string& sectorName) const {
+    Vector<CityNode*> result;
+    if (!cityInitialized) return result;
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node && node->sector == sectorName && node->type == "SCHOOL") result.push_back(node);
+    }
+    return result;
+}
+
+inline Vector<CityNode*> SmartCity::getHospitalsInSector(const string& sectorName) const {
+    Vector<CityNode*> result;
+    if (!cityInitialized) return result;
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node && node->sector == sectorName && node->type == "HOSPITAL") result.push_back(node);
+    }
+    return result;
+}
+
+inline Vector<CityNode*> SmartCity::getPharmaciesInSector(const string& sectorName) const {
+    Vector<CityNode*> result;
+    if (!cityInitialized) return result;
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node && node->sector == sectorName && node->type == "PHARMACY") result.push_back(node);
+    }
+    return result;
+}
+
+inline Vector<CityNode*> SmartCity::getStopsInSector(const string& sectorName) const {
+    Vector<CityNode*> result;
+    if (!cityInitialized) return result;
+    for (int i = 0; i < cityGraph->getNodeCount(); i++) {
+        CityNode* node = cityGraph->getNode(i);
+        if (node && node->sector == sectorName && node->type == "STOP") result.push_back(node);
+    }
+    return result;
+}
+
+// ========== SECTOR ADJACENCY ==========
+
+inline Vector<string> SmartCity::getAdjacentSectors(const string& sector) {
+    return TransportManager::getAdjacentSectors(sector);
+}
+
+inline bool SmartCity::areSectorsAdjacent(const string& sector1, const string& sector2) {
+    return TransportManager::areSectorsAdjacent(sector1, sector2);
 }

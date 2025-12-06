@@ -18,31 +18,70 @@ public:
     Department& operator=(const Department& other);
     ~Department();
 
-    // Add operations
+    // ==================== GETTERS ====================
+    string getName() const { return name; }
+    int getClassCount() const { return classes.getSize(); }
+    int getFacultyCount() const { return faculty.getSize(); }
+    int getSubjectCount() const { return subjects.getSize(); }
+    const Vector<Class*>& getClasses() const { return classes; }
+    const Vector<Faculty*>& getFaculty() const { return faculty; }
+    const Vector<string>& getSubjects() const { return subjects; }
+    
+    // Get class by index
+    Class* getClass(int index) const {
+        if (index >= 0 && index < classes.getSize()) return classes[index];
+        return nullptr;
+    }
+    
+    // Get class by number
+    Class* getClassByNumber(int classNumber) const {
+        for (int i = 0; i < classes.getSize(); i++) {
+            if (classes[i]->classNumber == classNumber) return classes[i];
+        }
+        return nullptr;
+    }
+    
+    // Get faculty by index
+    Faculty* getFacultyMember(int index) const {
+        if (index >= 0 && index < faculty.getSize()) return faculty[index];
+        return nullptr;
+    }
+    
+    // Get total student count
+    int getTotalStudentCount() const {
+        int total = 0;
+        for (int i = 0; i < classes.getSize(); i++) {
+            total += classes[i]->getStudentCount();
+        }
+        return total;
+    }
+
+    // ==================== SETTERS ====================
+    void setName(const string& newName) { name = newName; }
+
+    // ==================== OPERATIONS ====================
     void addClass(Class* c);
     void addFaculty(Faculty* f);
     void addSubject(const string& s);
-	bool addStudent(Student* student, int classNumber);
-	bool removeStudent(const string& cnic);
-	bool removeFaculty(const string& employeeID);
-
-    int getClassCount() const;
-    int getFacultyCount() const;
+    bool addStudent(Student* student, int classNumber);
+    bool removeStudent(const string& cnic);
+    bool removeFaculty(const string& employeeID);
+    bool hasSubject(const string& subject) const;
 };
 
 // Implementation
-Department::Department() : name(""), classes(), faculty(), subjects() {}
+inline Department::Department() : name(""), classes(), faculty(), subjects() {}
 
-Department::Department(const string& name)
+inline Department::Department(const string& name)
     : name(name), classes(), faculty(), subjects() {
 }
 
-Department::Department(const Department& other)
+inline Department::Department(const Department& other)
     : name(other.name), classes(other.classes),
     faculty(other.faculty), subjects(other.subjects) {
 }
 
-Department& Department::operator=(const Department& other) {
+inline Department& Department::operator=(const Department& other) {
     if (this != &other) {
         name = other.name;
         classes = other.classes;
@@ -52,7 +91,7 @@ Department& Department::operator=(const Department& other) {
     return *this;
 }
 
-Department::~Department() {
+inline Department::~Department() {
     for (int i = 0; i < classes.getSize(); i++) {
         delete classes[i];
     }
@@ -61,29 +100,29 @@ Department::~Department() {
     }
 }
 
-// Add operations
-void Department::addClass(Class* c) {
+inline void Department::addClass(Class* c) {
     classes.push_back(c);
 }
 
-void Department::addFaculty(Faculty* f) {
+inline void Department::addFaculty(Faculty* f) {
     faculty.push_back(f);
 }
 
-void Department::addSubject(const string& s) {
+inline void Department::addSubject(const string& s) {
     subjects.push_back(s);
 }
 
-bool Department::addStudent(Student* student, int classNumber) {
+inline bool Department::addStudent(Student* student, int classNumber) {
     for (int i = 0; i < classes.getSize(); i++) {
         if (classes[i]->classNumber == classNumber) {
             classes[i]->addStudent(student);
             return true;
         }
     }
-	return false;
+    return false;
 }
-bool Department::removeStudent(const string& cnic) {
+
+inline bool Department::removeStudent(const string& cnic) {
     for (int i = 0; i < classes.getSize(); i++) {
         if (classes[i]->removeStudent(cnic)) {
             return true;
@@ -92,7 +131,7 @@ bool Department::removeStudent(const string& cnic) {
     return false;
 }
 
-bool Department::removeFaculty(const string& employeeID) {
+inline bool Department::removeFaculty(const string& employeeID) {
     for (int i = 0; i < faculty.getSize(); i++) {
         if (faculty[i]->employeeID == employeeID) {
             delete faculty[i];
@@ -101,14 +140,12 @@ bool Department::removeFaculty(const string& employeeID) {
         }
     }
     return false;
-}   
-
-// Utility
-int Department::getClassCount() const {
-    return classes.getSize();
 }
 
-int Department::getFacultyCount() const {
-    return faculty.getSize();
+inline bool Department::hasSubject(const string& subject) const {
+    for (int i = 0; i < subjects.getSize(); i++) {
+        if (subjects[i] == subject) return true;
+    }
+    return false;
 }
 

@@ -135,6 +135,7 @@
   <ItemGroup>
     <ClInclude Include="CityGraph.h" />
     <ClInclude Include="data_structures\BST.h" />
+    <ClInclude Include="data_structures\CircularQueue.h" />
     <ClInclude Include="data_structures\CustomSTL.h" />
     <ClInclude Include="data_structures\HashTable.h" />
     <ClInclude Include="data_structures\LinkedLists.h" />
@@ -144,6 +145,10 @@
     <ClInclude Include="data_structures\Stack.h" />
     <ClInclude Include="data_structures\Vector.h" />
     <ClInclude Include="SmartCity.h" />
+    <ClInclude Include="source\CommercialSystem\CommercialManager.h" />
+    <ClInclude Include="source\CommercialSystem\Mall.h" />
+    <ClInclude Include="source\CommercialSystem\Product.h" />
+    <ClInclude Include="source\CommercialSystem\Shop.h" />
     <ClInclude Include="source\HousingSystem\Citizen.h" />
     <ClInclude Include="source\HousingSystem\HousingHierarchy.h" />
     <ClInclude Include="source\HousingSystem\PopulationManager.h" />
@@ -159,8 +164,12 @@
     <ClInclude Include="source\SchoolSystem\School.h" />
     <ClInclude Include="source\SchoolSystem\SchoolManager.h" />
     <ClInclude Include="source\SchoolSystem\Student.h" />
+    <ClInclude Include="source\TransportSystem\Ambulance.h" />
     <ClInclude Include="source\TransportSystem\Bus.h" />
     <ClInclude Include="source\TransportSystem\BusManager.h" />
+    <ClInclude Include="source\TransportSystem\SchoolBus.h" />
+    <ClInclude Include="source\TransportSystem\TransportManager.h" />
+    <ClInclude Include="source\TransportSystem\Vehicle.h" />
     <ClInclude Include="utils\Coordinate.h" />
     <ClInclude Include="utils\ID_Generator.h" />
     <ClInclude Include="utils\Location.h" />
@@ -173,8 +182,6 @@
     <None Include="dataset\population.csv" />
     <None Include="dataset\schools.csv" />
     <None Include="dataset\stops.csv" />
-    <None Include="SMARTCITY_FIXES_NEEDED.md" />
-    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

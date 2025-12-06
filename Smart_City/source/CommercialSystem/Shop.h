@@ -32,17 +32,65 @@ public:
 
     ~Shop() {}
 
+    // ==================== GETTERS ====================
+    string getId() const { return id; }
+    string getName() const { return name; }
+    string getCategory() const { return category; }
+    int getProductCount() const { return inventory.getSize(); }
+    const Vector<Product>& getInventory() const { return inventory; }
+    
+    // Get product by index
+    const Product* getProduct(int index) const {
+        if (index >= 0 && index < inventory.getSize()) return &inventory[index];
+        return nullptr;
+    }
+    
+    // Get product by name
+    const Product* getProductByName(const string& productName) const {
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory[i].name == productName) return &inventory[i];
+        }
+        return nullptr;
+    }
+    
+    // Get total inventory value
+    double getTotalInventoryValue() const {
+        double total = 0.0;
+        for (int i = 0; i < inventory.getSize(); i++) {
+            total += inventory[i].price;
+        }
+        return total;
+    }
+
+    // ==================== SETTERS ====================
+    void setId(const string& newId) { id = newId; }
+    void setName(const string& newName) { name = newName; }
+    void setCategory(const string& newCategory) { category = newCategory; }
+
+    // ==================== PRODUCT OPERATIONS ====================
     void addProduct(const Product& p);
     bool hasProduct(const string& productName);
+    bool removeProduct(const string& productName);
 };
+
 // Implementation
-void Shop::addProduct(const Product& p) {
+inline void Shop::addProduct(const Product& p) {
     inventory.push_back(p);
 }
 
-bool Shop::hasProduct(const string& productName) {
+inline bool Shop::hasProduct(const string& productName) {
     for (int i = 0; i < inventory.getSize(); i++) {
         if (inventory[i].name == productName) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline bool Shop::removeProduct(const string& productName) {
+    for (int i = 0; i < inventory.getSize(); i++) {
+        if (inventory[i].name == productName) {
+            inventory.erase(i);
             return true;
         }
     }
