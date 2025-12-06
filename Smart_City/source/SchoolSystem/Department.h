@@ -22,6 +22,9 @@ public:
     void addClass(Class* c);
     void addFaculty(Faculty* f);
     void addSubject(const string& s);
+	bool addStudent(Student* student, int classNumber);
+	bool removeStudent(const string& cnic);
+	bool removeFaculty(const string& employeeID);
 
     int getClassCount() const;
     int getFacultyCount() const;
@@ -70,6 +73,35 @@ void Department::addFaculty(Faculty* f) {
 void Department::addSubject(const string& s) {
     subjects.push_back(s);
 }
+
+bool Department::addStudent(Student* student, int classNumber) {
+    for (int i = 0; i < classes.getSize(); i++) {
+        if (classes[i]->classNumber == classNumber) {
+            classes[i]->addStudent(student);
+            return true;
+        }
+    }
+	return false;
+}
+bool Department::removeStudent(const string& cnic) {
+    for (int i = 0; i < classes.getSize(); i++) {
+        if (classes[i]->removeStudent(cnic)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Department::removeFaculty(const string& employeeID) {
+    for (int i = 0; i < faculty.getSize(); i++) {
+        if (faculty[i]->employeeID == employeeID) {
+            delete faculty[i];
+            faculty.erase(i);
+            return true;
+        }
+    }
+    return false;
+}   
 
 // Utility
 int Department::getClassCount() const {

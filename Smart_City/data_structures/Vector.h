@@ -187,6 +187,15 @@ public:
         shrinkCheck();
     }
 
+    void erase(int index) {
+        if (index < 0 || index >= size)
+            throw std::out_of_range("Index out of range");
+        for (int i = index; i < size - 1; i++)
+            data[i] = data[i + 1];
+        size--;
+        shrinkCheck();
+	}
+
     int getSize() const { return size; }
     int getCapacity() const { return capacity; }
 

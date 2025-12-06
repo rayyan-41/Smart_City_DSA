@@ -144,6 +144,15 @@
     <ClInclude Include="data_structures\Stack.h" />
     <ClInclude Include="data_structures\Vector.h" />
     <ClInclude Include="SmartCity.h" />
+    <ClInclude Include="source\HousingSystem\Citizen.h" />
+    <ClInclude Include="source\HousingSystem\HousingHierarchy.h" />
+    <ClInclude Include="source\HousingSystem\PopulationManager.h" />
+    <ClInclude Include="source\MedicalSystem\Doctor.h" />
+    <ClInclude Include="source\MedicalSystem\Hospital.h" />
+    <ClInclude Include="source\MedicalSystem\MedicalManager.h" />
+    <ClInclude Include="source\MedicalSystem\Medicine.h" />
+    <ClInclude Include="source\MedicalSystem\Patient.h" />
+    <ClInclude Include="source\MedicalSystem\Pharmacy.h" />
     <ClInclude Include="source\SchoolSystem\Class.h" />
     <ClInclude Include="source\SchoolSystem\Department.h" />
     <ClInclude Include="source\SchoolSystem\Faculty.h" />

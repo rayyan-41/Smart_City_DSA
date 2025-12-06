@@ -1,14 +1,12 @@
 #pragma once
 #include <fstream>
 #include <string>
-#include <iostream>
 #include "CustomSTL.h"
 #include "Hospital.h"
 #include "Pharmacy.h"
 
 using std::string;
 using std::ifstream;
-using std::cout;
 using std::endl;
 
 class MedicalManager {
@@ -64,14 +62,6 @@ inline MedicalManager::~MedicalManager() {
 // ---------------- CSV Loading ----------------
 
 inline bool MedicalManager::loadHospitals(const string& filename) {
-    // ... [Previous Hospital Loading Logic Remains Identical] ...
-    // Copy/Paste the implementation from the previous file here for brevity
-    // Or I can rewrite it if you want the full file.
-    // For this update, I will assume the previous logic stands.
-
-    // ... (Standard parsing code) ...
-
-    // RE-INCLUDED FOR COMPLETENESS:
     ifstream file(filename);
     if (!file.is_open()) return false;
     string line;
