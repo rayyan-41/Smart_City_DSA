@@ -67,6 +67,7 @@ public:
 
     // ==================== SHOP OPERATIONS ====================
     void addShop(Shop* s);
+    bool removeShop(const string& shopID);
     Shop* findShop(const string& shopName);
     Shop* findShopByID(const string& shopID);
     Shop* getShop(int index) const {
@@ -79,6 +80,19 @@ public:
 
 inline void Mall::addShop(Shop* s) {
     shops.push_back(s);
+}
+
+bool Mall::removeShop(const string& shopID) {
+    for (int i = 0; i < shops.getSize(); i++) {
+        if (shops[i]->getId() == shopID) {
+            
+            Shop* temp = shops[i];
+            shops.erase(i);
+            delete temp; 
+            return true;
+        }
+    }
+    return false;
 }
 
 inline Shop* Mall::findShop(const string& shopName) {

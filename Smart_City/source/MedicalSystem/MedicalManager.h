@@ -52,6 +52,11 @@ public:
     Vector<Pharmacy*> findMedicineByFormula(const string& formula) const;
     Hospital* findPatientRecord(const string& patientID) const;
     bool processEmergency(const string& hospitalID, const Patient& p);
+    bool addPatient(const string& hospitalID, const Patient& p);
+    bool addPatient(const string& hospitalID, Citizen* citizen, string disease, int severity);
+    bool removePatient(const string& hospitalID, const string& patientID);
+    bool addDoctor(const string& hospitalID, Citizen* citizen, const string& specialization);
+    bool removeDoctor(const string& hospitalID, const string& doctorID);
 
 private:
     string trim(const string& s) const;
@@ -178,6 +183,60 @@ inline bool MedicalManager::processEmergency(const string& hospitalID, const Pat
     Hospital* h = findHospitalByID(hospitalID);
     if (h) return h->admitPatient(p);
     return false;
+}
+
+inline bool MedicalManager::addPatient(const string& hospitalID, const Patient& p) {
+    Hospital* h = findHospitalByID(hospitalID);
+    if (h) {
+        bool admittedToBed = h->admitPatient(p);
+        return true; 
+    }
+    return false; 
+}
+
+inline bool MedicalManager::addPatient(const string& hospitalID, Citizen* citizen, string disease, int severity) {
+    Hospital* h = findHospitalByID(hospitalID);
+    if (h) {
+        Patient p(citizen, disease, severity);
+
+        h->admitPatient(p);
+        return true;
+    }
+    return false; 
+}
+
+inline bool MedicalManager::removePatient(const string& hospitalID, const string& patientID) {
+    Hospital* h = findHospitalByID(hospitalID);
+    if (h) {
+       
+        return h->dischargePatient(patientID);
+    }
+    return false; 
+}
+
+// ==================== NEW DOCTOR MANAGEMENT IMPLEMENTATION ====================
+
+inline bool MedicalManager::addDoctor(const string& hospitalID, Citizen* citizen, const string& specialization) {
+    Hospital* h = findHospitalByID(hospitalID); // Uses O(1) Lookup
+    if (h) {
+        Doctor newDoc(citizen, specialization);
+
+        h->addDoctor(newDoc);
+
+        if (citizen) {
+            citizen->currentStatus = "Doctor";
+        }
+        return true;
+    }
+    return false; 
+}
+
+inline bool MedicalManager::removeDoctor(const string& hospitalID, const string& doctorID) {
+    Hospital* h = findHospitalByID(hospitalID);
+    if (h) {
+        return h->removeDoctor(doctorID);
+    }
+    return false; 
 }
 
 inline string MedicalManager::trim(const string& s) const {

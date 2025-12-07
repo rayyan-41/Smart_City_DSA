@@ -146,5 +146,18 @@ public:
 
     void addDoctor(const Doctor& doc) {
         doctors.push_back(doc);
+        if (!hasSpecialization(doc.specialization)) {
+            addSpecialization(doc.specialization);
+        }
+    }
+
+    bool removeDoctor(const string& docID) {
+        for (int i = 0; i < doctors.getSize(); i++) {
+            if (doctors[i].doctorID == docID) {
+                doctors.erase(i);
+                return true;
+            }
+        }
+        return false;
     }
 };
