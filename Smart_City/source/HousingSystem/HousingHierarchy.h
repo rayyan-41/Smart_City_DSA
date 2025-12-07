@@ -5,18 +5,13 @@
 
 using std::string;
 
-// ==========================================
-// LEVEL 3: HOUSE (Leaf Container)
-// ==========================================
+\
 class House {
 public:
     int houseNumber;
-    Vector<Citizen*> residents; // The leaves of the tree
+    Vector<Citizen*> residents; 
 
     House(int num) : houseNumber(num) {}
-
-    // We do NOT delete Citizens here. 
-    // PopulationManager owns the Citizen memory (Master List).
     ~House() {}
 
     // ==================== GETTERS ====================
@@ -44,7 +39,6 @@ public:
     // ==================== OPERATIONS ====================
     void addResident(Citizen* c) {
         residents.push_back(c);
-        // Link the citizen back to this house logic if needed
         c->houseNo = houseNumber;
     }
     
@@ -59,13 +53,10 @@ public:
     }
 };
 
-// ==========================================
-// LEVEL 2: STREET (Intermediate Node)
-// ==========================================
 class Street {
 public:
     int streetNumber;
-    Vector<House*> houses; // Children
+    Vector<House*> houses; 
 
     Street(int num) : streetNumber(num) {}
 
@@ -83,7 +74,6 @@ public:
         return nullptr;
     }
     
-    // Get total population on street
     int getPopulation() const {
         int total = 0;
         for (int i = 0; i < houses.getSize(); i++) {
@@ -97,7 +87,6 @@ public:
 
     // ==================== OPERATIONS ====================
     House* findOrCreateHouse(int houseNo) {
-        // Linear search is efficient here (Street rarely has >50 houses)
         for (int i = 0; i < houses.getSize(); i++) {
             if (houses[i]->houseNumber == houseNo) return houses[i];
         }
@@ -114,19 +103,14 @@ public:
     }
 };
 
-// ==========================================
-// LEVEL 1: SECTOR (Top Level Node)
-// ==========================================
 class Sector {
 public:
-    string name; // e.g., "G-10"
+    string name; 
 
-    // GRAPH INTEGRATION:
-    // This ID maps to a Node in your CityMap (Adjacency List).
-    // Example: "G-10" -> Node 5 (which is G-10 Markaz Bus Stop)
+    
     string graphNodeID;
 
-    Vector<Street*> streets; // Children
+    Vector<Street*> streets; 
 
     Sector(string n) : name(n), graphNodeID("") {}
 
@@ -145,7 +129,6 @@ public:
         return nullptr;
     }
     
-    // Get total house count in sector
     int getHouseCount() const {
         int total = 0;
         for (int i = 0; i < streets.getSize(); i++) {
@@ -154,7 +137,6 @@ public:
         return total;
     }
     
-    // Get total population in sector
     int getPopulation() const {
         int total = 0;
         for (int i = 0; i < streets.getSize(); i++) {

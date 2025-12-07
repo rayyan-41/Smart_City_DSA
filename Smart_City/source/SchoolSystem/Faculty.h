@@ -6,10 +6,8 @@ using std::string;
 
 class Faculty {
 public:
-    // Core Identity
     Citizen* profile;
 
-    // Professional Data
     string employeeID;
     string qualification;
     float salary;
@@ -20,9 +18,8 @@ public:
     string getName() const;
 };
 
-// ==========================================
-// IMPLEMENTATION
-// ==========================================
+// ==================== Implemenation ====================
+
 
 inline Faculty::Faculty()
     : profile(nullptr), employeeID(""), qualification(""), salary(0.0f) {

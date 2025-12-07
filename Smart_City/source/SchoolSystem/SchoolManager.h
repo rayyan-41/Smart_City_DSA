@@ -24,6 +24,8 @@ public:
     SchoolManager(const SchoolManager& other) = delete;
     SchoolManager& operator=(const SchoolManager& other) = delete;
 
+    // ==================== Operations ====================
+
     School* createSchool(const string& id, const string& name, const string& sector,
         float rating, const string& graphNodeID = "", double x = 0.0, double y = 0.0);
     void addSchool(School* school);

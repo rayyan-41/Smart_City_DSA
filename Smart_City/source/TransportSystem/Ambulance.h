@@ -23,63 +23,53 @@
 
 using std::string;
 
-// ============================================================================
-// EMERGENCY PRIORITY - String constants instead of enum
-// ============================================================================
+
 namespace EmergencyPriority {
-    const string CRITICAL = "CRITICAL";     // Life-threatening, immediate
-    const string HIGH = "HIGH";             // Serious, fast response
-    const string MEDIUM = "MEDIUM";         // Significant, prompt response
-    const string LOW = "LOW";               // Non-urgent
-    const string ROUTINE = "ROUTINE";       // Scheduled transfer
+    const string CRITICAL = "CRITICAL";     
+    const string HIGH = "HIGH";            
+    const string MEDIUM = "MEDIUM";         
+    const string LOW = "LOW";               
+    const string ROUTINE = "ROUTINE";      
     
-    // Priority values for comparison (lower = more urgent)
     inline int getValue(const string& priority) {
         if (priority == CRITICAL) return 1;
         if (priority == HIGH) return 2;
         if (priority == MEDIUM) return 3;
         if (priority == LOW) return 4;
         if (priority == ROUTINE) return 5;
-        return 3; // Default to MEDIUM
+        return 3; 
     }
 }
 
-// ============================================================================
-// AMBULANCE STATUS - String constants instead of enum
-// ============================================================================
 namespace AmbulanceStatus {
-    const string AVAILABLE = "AVAILABLE";           // At hospital, ready
-    const string DISPATCHED = "DISPATCHED";         // En route to pickup hospital
-    const string AT_PICKUP = "AT_PICKUP";           // At pickup hospital
-    const string LOADING_PATIENT = "LOADING";       // Loading patient
-    const string TRANSPORTING = "TRANSPORTING";     // Taking patient to destination
-    const string AT_DESTINATION = "AT_DESTINATION"; // At destination hospital
-    const string UNLOADING = "UNLOADING";           // Transferring patient
-    const string RETURNING = "RETURNING";           // Returning to base hospital
-    const string OUT_OF_SERVICE = "OUT_OF_SERVICE"; // Maintenance
+    const string AVAILABLE = "AVAILABLE";          
+    const string DISPATCHED = "DISPATCHED";        
+    const string AT_PICKUP = "AT_PICKUP";          
+    const string LOADING_PATIENT = "LOADING";      
+    const string TRANSPORTING = "TRANSPORTING";     
+    const string AT_DESTINATION = "AT_DESTINATION"; 
+    const string UNLOADING = "UNLOADING";           
+    const string RETURNING = "RETURNING";           
+    const string OUT_OF_SERVICE = "OUT_OF_SERVICE"; 
 }
 
-// ============================================================================
-// PATIENT TRANSFER REQUEST - For hospital-to-hospital transfers
-// ============================================================================
+
+// Patient Transfer Request Structure
 struct PatientTransfer {
-    string requestID;               // Unique request ID
-    string patientCNIC;             // Patient identifier
+    string requestID;            
+    string patientCNIC;            
     string patientName;
     
-    // Source hospital
     string sourceHospitalID;
     int sourceHospitalNodeID;
     string sourceSector;
     
-    // Destination hospital
     string destHospitalID;
     int destHospitalNodeID;
     string destSector;
     
-    // Transfer details
-    string priority;                // From EmergencyPriority
-    string condition;               // Medical condition
+    string priority;              
+    string condition;               
     string timestamp;
     bool isActive;
     
@@ -99,7 +89,7 @@ struct PatientTransfer {
           destHospitalID(dstHosp), destHospitalNodeID(dstNode), destSector(dstSec),
           priority(prio), condition(cond), timestamp(""), isActive(true) {}
     
-    // For priority queue comparison
+    // priority queue comparison
     bool operator<(const PatientTransfer& other) const {
         return EmergencyPriority::getValue(priority) > EmergencyPriority::getValue(other.priority);
     }
@@ -113,35 +103,27 @@ struct PatientTransfer {
     }
 };
 
-// ============================================================================
-// AMBULANCE CLASS
-// ============================================================================
+// ==================== Ambulance ====================
 class Ambulance : public Vehicle {
 private:
-    // Ambulance-specific attributes
-    string ambulanceID;             // e.g., "AMB-01"
-    string baseHospitalID;          // Home hospital ID
-    int baseHospitalNodeID;         // Home hospital graph node
-    string ambulanceStatus;         // Detailed status
+    string ambulanceID;             
+    string baseHospitalID;          
+    int baseHospitalNodeID;         
+    string ambulanceStatus;         
     
-    // Current assignment
     PatientTransfer* currentTransfer;
     
-    // Equipment flags
-    bool hasALS;                    // Advanced Life Support
+    bool hasALS;                   
     bool hasDefibrillator;
     bool hasOxygen;
     bool hasVentilator;
     
-    // Statistics
     int totalTransfersCompleted;
     int criticalTransfersHandled;
     double totalTransferDistance;
     
-    // Sector priority (own sector + adjacent)
     Vector<string> prioritySectors;
     
-    // Request ID generator
     static int nextRequestID;
 
 public:
@@ -155,7 +137,7 @@ public:
           hasALS(true), hasDefibrillator(true), hasOxygen(true), hasVentilator(false),
           totalTransfersCompleted(0), criticalTransfersHandled(0), 
           totalTransferDistance(0.0) {
-        speed = 60.0;  // Ambulances are faster
+        speed = 60.0;  // Ambulances fast
     }
     
     Ambulance(const string& id, const string& hospitalID, int hospitalNodeID, const string& sector)
@@ -171,7 +153,6 @@ public:
         homeNodeID = hospitalNodeID;
         speed = 60.0;
         
-        // Set priority sectors
         setPrioritySectors(sector);
     }
     
@@ -179,7 +160,8 @@ public:
         delete currentTransfer;
     }
     
-    // ==================== ACCESSORS ====================
+    // ==================== GETTERS ====================
+
     
     string getAmbulanceID() const { return ambulanceID; }
     string getBaseHospitalID() const { return baseHospitalID; }
@@ -203,7 +185,6 @@ public:
     
     void setAmbulanceStatus(const string& s) { 
         ambulanceStatus = s;
-        // Map to base vehicle status
         if (s == AmbulanceStatus::AVAILABLE) {
             status = VehicleStatus::IDLE;
         } else if (s == AmbulanceStatus::DISPATCHED || 
@@ -269,16 +250,16 @@ public:
         return false;
     }
     
-    // Check if this ambulance should handle a transfer (sector priority)
+    // checki if amb should do transfer
     bool shouldHandleTransfer(const PatientTransfer& transfer) const {
-        // Always handle if source or destination is in priority sectors
-        return isSectorInPriority(transfer.sourceSector) || 
+        
+		return isSectorInPriority(transfer.sourceSector) || 
                isSectorInPriority(transfer.destSector);
     }
     
     // ==================== TRANSFER OPERATIONS ====================
     
-    // Reset ambulance to base (for simulation reset)
+    // Reset ambulance 
     void resetToBase() {
         currentNodeID = baseHospitalNodeID;
         currentSector = homeSector;
@@ -286,14 +267,12 @@ public:
         resetRoute();
         setAmbulanceStatus(AmbulanceStatus::AVAILABLE);
         
-        // Clean up current transfer if any
         if (currentTransfer) {
             delete currentTransfer;
             currentTransfer = nullptr;
         }
     }
     
-    // Accept a patient transfer request
     bool acceptTransfer(PatientTransfer* transfer) {
         if (!isAvailable() || transfer == nullptr) return false;
         
@@ -307,7 +286,6 @@ public:
         return true;
     }
     
-    // Arrive at pickup hospital
     void arriveAtPickup() {
         if (ambulanceStatus != AmbulanceStatus::DISPATCHED) return;
         if (!currentTransfer) return;
@@ -317,7 +295,6 @@ public:
         setAmbulanceStatus(AmbulanceStatus::AT_PICKUP);
     }
     
-    // Load patient
     bool loadPatient() {
         if (ambulanceStatus != AmbulanceStatus::AT_PICKUP) return false;
         if (currentOccupancy >= maxCapacity) return false;
@@ -329,7 +306,6 @@ public:
         return true;
     }
     
-    // Start transport to destination hospital
     void startTransport() {
         if (ambulanceStatus != AmbulanceStatus::LOADING_PATIENT &&
             ambulanceStatus != AmbulanceStatus::AT_PICKUP) return;
@@ -337,7 +313,6 @@ public:
         setAmbulanceStatus(AmbulanceStatus::TRANSPORTING);
     }
     
-    // Arrive at destination hospital
     void arriveAtDestination() {
         if (ambulanceStatus != AmbulanceStatus::TRANSPORTING) return;
         if (!currentTransfer) return;
@@ -347,7 +322,6 @@ public:
         setAmbulanceStatus(AmbulanceStatus::AT_DESTINATION);
     }
     
-    // Unload patient at destination
     bool unloadPatient() {
         if (ambulanceStatus != AmbulanceStatus::AT_DESTINATION) return false;
         
@@ -359,7 +333,6 @@ public:
         return true;
     }
     
-    // Complete transfer and prepare to return
     void completeTransfer() {
         if (ambulanceStatus != AmbulanceStatus::UNLOADING &&
             ambulanceStatus != AmbulanceStatus::AT_DESTINATION) return;
@@ -370,12 +343,10 @@ public:
         setAmbulanceStatus(AmbulanceStatus::RETURNING);
     }
     
-    // Return to base hospital
     void returnToBase() {
         setAmbulanceStatus(AmbulanceStatus::RETURNING);
     }
     
-    // Arrive back at base hospital
     void arriveAtBase() {
         currentNodeID = baseHospitalNodeID;
         currentSector = homeSector;
@@ -383,12 +354,10 @@ public:
         setAmbulanceStatus(AmbulanceStatus::AVAILABLE);
     }
     
-    // Take out of service
     void takeOutOfService() {
         setAmbulanceStatus(AmbulanceStatus::OUT_OF_SERVICE);
     }
     
-    // Put back in service
     void putInService() {
         if (ambulanceStatus == AmbulanceStatus::OUT_OF_SERVICE) {
             setAmbulanceStatus(AmbulanceStatus::AVAILABLE);
@@ -397,12 +366,10 @@ public:
     
     // ==================== UTILITY ====================
     
-    // Generate unique request ID
     static string generateRequestID() {
         return "XFER-" + std::to_string(++nextRequestID);
     }
     
-    // Get current destination based on status
     int getCurrentDestination() const {
         if (!currentTransfer) return baseHospitalNodeID;
         
@@ -417,11 +384,9 @@ public:
         return currentNodeID;
     }
     
-    // Get status string
     string getStatusString() const {
         return ambulanceStatus;
     }
 };
 
-// Static member initialization
 inline int Ambulance::nextRequestID = 1000;

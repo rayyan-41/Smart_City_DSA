@@ -46,12 +46,16 @@ public:
 
     bool loadHospitals(const string& filename);
     bool loadPharmacies(const string& filename);
+    // ==================== GETTERS ====================
 
     Hospital* findHospitalByID(const string& id) const;
     Vector<Pharmacy*> findMedicine(const string& medName) const;
     Vector<Pharmacy*> findMedicineByFormula(const string& formula) const;
     Hospital* findPatientRecord(const string& patientID) const;
     bool processEmergency(const string& hospitalID, const Patient& p);
+
+    // ==================== SETTERS ====================
+
     bool addPatient(const string& hospitalID, const Patient& p);
     bool addPatient(const string& hospitalID, Citizen* citizen, string disease, int severity);
     bool removePatient(const string& hospitalID, const string& patientID);
@@ -62,9 +66,8 @@ private:
     string trim(const string& s) const;
 };
 
-// ==========================================
-// IMPLEMENTATION
-// ==========================================
+// ==================== Implemenation ====================
+
 
 inline MedicalManager::MedicalManager()
     : hospitalLookup(53), pharmacyIdLookup(53), medicineLookup(200), formulaLookup(100) {}
@@ -214,10 +217,9 @@ inline bool MedicalManager::removePatient(const string& hospitalID, const string
     return false; 
 }
 
-// ==================== NEW DOCTOR MANAGEMENT IMPLEMENTATION ====================
 
 inline bool MedicalManager::addDoctor(const string& hospitalID, Citizen* citizen, const string& specialization) {
-    Hospital* h = findHospitalByID(hospitalID); // Uses O(1) Lookup
+    Hospital* h = findHospitalByID(hospitalID); // O(1) 
     if (h) {
         Doctor newDoc(citizen, specialization);
 

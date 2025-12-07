@@ -5,7 +5,7 @@
 template <typename T>
 class PriorityQueue {
 private:
-    Vector<T> data; 
+    Vector<T> data;
 
     void heapifyUp(int index) {
         while (index > 0) {
@@ -24,7 +24,7 @@ private:
     void heapifyDown(int index) {
         int n = data.getSize();
         while (true) {
-            int left  = 2 * index + 1;
+            int left = 2 * index + 1;
             int right = 2 * index + 2;
             int largest = index;
 
@@ -48,7 +48,8 @@ public:
     PriorityQueue() : data() {}
 
     PriorityQueue(const PriorityQueue& other)
-        : data(other.data) {}
+        : data(other.data) {
+    }
 
     PriorityQueue& operator=(const PriorityQueue& other) {
         if (this != &other)
@@ -112,4 +113,3 @@ public:
         return data;
     }
 };
-

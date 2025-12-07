@@ -12,11 +12,10 @@ public:
     string name;
     string sector;
 
-    // Inventory of medicines available at this specific branch
     Vector<Medicine> inventory;
 
     Location location;
-    string graphNodeID; // For graph integration later
+    string graphNodeID; 
 
     Pharmacy() : id(""), name(""), sector(""), location(), graphNodeID("") {}
 
@@ -35,13 +34,11 @@ public:
     int getMedicineCount() const { return inventory.getSize(); }
     const Vector<Medicine>& getInventory() const { return inventory; }
     
-    // Get medicine by index
     const Medicine* getMedicine(int index) const {
         if (index >= 0 && index < inventory.getSize()) return &inventory[index];
         return nullptr;
     }
     
-    // Get medicine by name
     const Medicine* getMedicineByName(const string& medName) const {
         for (int i = 0; i < inventory.getSize(); i++) {
             if (inventory[i].name == medName) return &inventory[i];
@@ -49,7 +46,6 @@ public:
         return nullptr;
     }
     
-    // Get total inventory value
     double getTotalInventoryValue() const {
         double total = 0.0;
         for (int i = 0; i < inventory.getSize(); i++) {
@@ -58,7 +54,6 @@ public:
         return total;
     }
     
-    // Get list of all formulas available
     Vector<string> getAvailableFormulas() const {
         Vector<string> formulas;
         for (int i = 0; i < inventory.getSize(); i++) {
@@ -79,12 +74,11 @@ public:
     void setCoordinates(double lat, double lon) { location.coord.x = lat; location.coord.y = lon; }
     void setLocation(const Location& loc) { location = loc; }
 
-    // ==================== MEDICINE OPERATIONS ====================
+    // ==================== Implemenation ====================
     void addMedicine(const Medicine& med) {
-        //Check for duplicates
-		for (int i = 0; i < inventory.getSize(); i++) {
+
+        for (int i = 0; i < inventory.getSize(); i++) {
             if(inventory[i].name == med.name) {
-                // Medicine already exists, update price and formula
                 inventory[i].price = med.price;
                 inventory[i].formula = med.formula;
                 return;
@@ -107,12 +101,11 @@ public:
         return false;
     }
 
-    // Helper to get price if medicine exists
     float getPrice(const string& medName) const {
         for (int i = 0; i < inventory.getSize(); i++) {
             if (inventory[i].name == medName) return inventory[i].price;
         }
-        return -1.0f; // Not found
+        return -1.0f;
     }
     
     bool removeMedicine(const string& medName) {

@@ -1,17 +1,4 @@
-/*
- * ============================================================================
- * SINGLY LINKED LIST - For Bus Route Management & General Use
- * ============================================================================
- * 
- * A singly linked list implementation used for:
- *   - Bus route stop management (sequential traversal)
- *   - Route node tracking
- *   - Forward-only iteration patterns
- *   - Stack and Queue underlying storage
- * 
- * Rubric: Singly Linked List for Bus route management (4 marks)
- * ============================================================================
- */
+
 
 #pragma once
 #include <stdexcept>
@@ -19,7 +6,6 @@
 template <typename T>
 class LinkedList {
 public:
-    // Public node structure for external iteration
     struct Node {
         T data;
         Node* next;
@@ -33,7 +19,6 @@ private:
     int m_size;
 
 public:
-    // ==================== LIFECYCLE ====================
     
     LinkedList() : head(nullptr), tail(nullptr), m_size(0) {}
     
@@ -61,7 +46,6 @@ public:
         clear();
     }
     
-    // ==================== ACCESSORS ====================
     
     Node* getHead() const { return head; }
     Node* getTail() const { return tail; }
@@ -104,9 +88,8 @@ public:
     T& operator[](int index) { return at(index); }
     const T& operator[](int index) const { return at(index); }
     
-    // ==================== MODIFIERS ====================
     
-    // Add to front - O(1)
+    // Front O(1)
     void push_front(const T& value) {
         Node* newNode = new Node(value);
         newNode->next = head;
@@ -118,7 +101,7 @@ public:
         ++m_size;
     }
     
-    // Add to back - O(1) with tail pointer
+    // Back O(1) 
     void push_back(const T& value) {
         Node* newNode = new Node(value);
         
@@ -131,7 +114,7 @@ public:
         ++m_size;
     }
     
-    // Remove from front - O(1)
+    // Remove front O(1)
     void pop_front() {
         if (empty()) return;
         
@@ -145,7 +128,7 @@ public:
         }
     }
     
-    // Remove from back - O(n) since we need to find previous node
+    // Remove back O(n) 
     void pop_back() {
         if (empty()) return;
         
@@ -156,7 +139,6 @@ public:
             return;
         }
         
-        // Find second to last node
         Node* curr = head;
         while (curr->next != tail) {
             curr = curr->next;
@@ -168,7 +150,6 @@ public:
         --m_size;
     }
     
-    // Insert at index - O(n)
     void insert(int index, const T& value) {
         if (index < 0 || index > m_size)
             throw std::out_of_range("Index out of range");
@@ -190,7 +171,6 @@ public:
         ++m_size;
     }
     
-    // Erase at index - O(n)
     void erase(int index) {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
@@ -212,7 +192,6 @@ public:
         --m_size;
     }
     
-    // Clear all elements
     void clear() {
         while (head) {
             Node* temp = head;
@@ -223,7 +202,6 @@ public:
         m_size = 0;
     }
     
-    // Swap contents with another list
     void swap(LinkedList& other) {
         Node* tempHead = head;
         Node* tempTail = tail;
@@ -238,7 +216,6 @@ public:
         other.m_size = tempSize;
     }
     
-    // ==================== SEARCH ====================
     
     int find(const T& value) const {
         Node* curr = head;
@@ -255,11 +232,9 @@ public:
         return find(value) != -1;
     }
     
-    // Remove first occurrence of value
     void remove(const T& value) {
         if (empty()) return;
         
-        // Special case: head contains value
         if (head->data == value) {
             pop_front();
             return;
@@ -283,14 +258,11 @@ public:
         }
     }
     
-    // ==================== ROUTE-SPECIFIC OPERATIONS ====================
     
-    // Get node at specific position (for route traversal)
     Node* getNodeAt(int index) {
         return nodeAt(index);
     }
     
-    // Reverse the list (for reverse route)
     void reverse() {
         if (m_size <= 1) return;
         
@@ -308,7 +280,6 @@ public:
         head = prev;
     }
     
-    // Get sublist from index start to end (inclusive)
     LinkedList<T> sublist(int start, int end) const {
         LinkedList<T> result;
         
@@ -335,9 +306,6 @@ private:
     }
 };
 
-// ============================================================================
-// CIRCULAR LINKED LIST - For Circular Queue and Round-Robin Scheduling
-// ============================================================================
 
 template <typename T>
 class CircularList {
@@ -351,7 +319,7 @@ public:
 
 private:
     Node* head;
-    Node* tail;  // Points to last node, tail->next = head
+    Node* tail;  
     int m_size;
 
 public:
@@ -385,7 +353,6 @@ public:
         clear();
     }
     
-    // ==================== ACCESSORS ====================
     
     Node* getHead() const { return head; }
     Node* getTail() const { return tail; }
@@ -428,18 +395,17 @@ public:
     T& operator[](int index) { return at(index); }
     const T& operator[](int index) const { return at(index); }
     
-    // ==================== MODIFIERS ====================
     
     void push_front(const T& value) {
         Node* newNode = new Node(value);
         
         if (m_size == 0) {
             head = tail = newNode;
-            newNode->next = newNode;  // Points to itself
+            newNode->next = newNode; 
         } else {
             newNode->next = head;
             head = newNode;
-            tail->next = head;  // Maintain circular link
+            tail->next = head; 
         }
         ++m_size;
     }
@@ -485,7 +451,6 @@ public:
             return;
         }
         
-        // Find second to last node
         Node* curr = head;
         while (curr->next != tail) {
             curr = curr->next;
@@ -570,7 +535,6 @@ public:
         other.m_size = tempSize;
     }
     
-    // ==================== SEARCH ====================
     
     int find(const T& value) const {
         if (m_size == 0) return -1;
@@ -590,7 +554,6 @@ public:
     void remove(const T& value) {
         if (empty()) return;
         
-        // Check head
         if (head->data == value) {
             pop_front();
             return;
@@ -614,16 +577,13 @@ public:
         }
     }
     
-    // ==================== CIRCULAR OPERATIONS ====================
     
-    // Rotate: move head to next (round-robin)
     void rotate() {
         if (m_size <= 1) return;
         tail = head;
         head = head->next;
     }
     
-    // Rotate n times
     void rotate(int n) {
         if (m_size <= 1) return;
         n = n % m_size;

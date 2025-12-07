@@ -27,11 +27,16 @@ public:
             delete malls[i];
         }
     }
+
+    // ==================== SETTERS ====================
+
     void addMall(Mall* mall);
+    bool addProduct(const string& mallID, const string& shopID, const string& name, const string& category, int price);
+
+    // ==================== Operations ====================
+    bool removeProduct(const string& mallID, const string& shopID, const string& productName);
     bool removeShop(const string& mallID, const string& shopID);
     bool removeMall(const string& mallID);
-    bool addProduct(const string& mallID, const string& shopID, const string& name, const string& category, int price);
-    bool removeProduct(const string& mallID, const string& shopID, const string& productName);
     void unindexShop(Shop* shop);
     string trim(const string& s) const;
     int parseInt(const string& s);
@@ -42,7 +47,7 @@ public:
   
 };
 
-// Implementation
+// ==================== Implemenation ====================
 
 
 inline void CommercialManager::addMall(Mall* mall) {
@@ -281,25 +286,22 @@ void CommercialManager:: loadShops(const string& filename) {
             continue;
         }
 
-        // 3. Validation: Parent Mall Existence
         Mall** mallPtr = mallLookup.get(mallID);
         if (mallPtr == nullptr) {
             continue;
         }
         Mall* mall = *mallPtr;
 
-        // 4. Find or Create Shop
         Shop* shop = mall->findShopByID(shopID);
         if (shop == nullptr) {
             shop = new Shop(shopID, shopName, category);
             mall->addShop(shop);
         }
 
-        // 5. Add Product
         Product p(prodName, category, price);
         shop->addProduct(p);
 
-        // 6. Update Product Lookup
+        // Update Product Lookup
         Vector<Shop*>* existingShops = productLookup.get(prodName);
         if (existingShops != nullptr) {
             bool alreadyAdded = false;

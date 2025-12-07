@@ -14,47 +14,31 @@ using std::endl;
 
 class PopulationManager {
 public:
-    // ROOT of the N-ary Tree (City -> List of Sectors)
+    // N-ary Tree 
     Vector<Sector*> sectors;
 
-    // DATABASE (Flat List for Ownership & O(1) Search)
     Vector<Citizen*> masterList;
-
-    // Hash Table for O(1) Lookup by CNIC
     HashTable<string, Citizen*> cnicLookup;
 
     PopulationManager();
     ~PopulationManager();
 
-    // ==========================================
-    // DATA LOADING & MANIPULATION
-    // ==========================================
-
-    // Reads CSV and builds the hierarchy tree
+    
     bool loadPopulation(const string& filename);
 
-    // Manually add a citizen
     Citizen* addCitizen(string cnic, string name, int age,
         string secName, int stNo, int hNo, string job);
 
-    // NEW: Remove a citizen (e.g., Deceased)
     bool removeCitizen(const string& cnic);
 
-    // ==========================================
     // TREE OPERATIONS
-    // ==========================================
-
     Sector* findOrCreateSector(const string& name);
 	Sector* findSector(const string& name) const;
 
-    // ==========================================
-    // PUBLIC QUERIES
-    // ==========================================
+    // ==================== GETTERS ====================
 
     Citizen* getCitizen(const string& cnic) const;
 	Vector<int> getHierarchyStats() const;
-    
-    // NEW: Sector-specific queries for Database View
     Vector<int> getSectorStats(const string& sectorName) const;
     Vector<House*> getHousesInSector(const string& sectorName) const;
     Vector<Citizen*> getCitizensInSector(const string& sectorName) const;
@@ -63,9 +47,7 @@ private:
     string trim(const string& s) const;
 };
 
-// ==========================================
-// IMPLEMENTATION
-// ==========================================
+// ==================== Implemenation ====================
 
 inline PopulationManager::PopulationManager() : cnicLookup(1000) {}
 
@@ -74,14 +56,12 @@ inline PopulationManager::~PopulationManager() {
     for (int i = 0; i < masterList.getSize(); i++) delete masterList[i];
 }
 
-// ---------------- Data Loading ----------------
-
 inline bool PopulationManager::loadPopulation(const string& filename) {
     ifstream file(filename);
     if (!file.is_open()) return false;
 
     string line;
-    std::getline(file, line); // Skip Header
+    std::getline(file, line); 
 
     while (std::getline(file, line)) {
         if (line.empty()) continue;
@@ -134,41 +114,32 @@ inline Citizen* PopulationManager::addCitizen(string cnic, string name, int age,
     return c;
 }
 
-// ---------------- Removal Logic ----------------
 
 inline bool PopulationManager::removeCitizen(const string& cnic) {
     Citizen* c = getCitizen(cnic);
-    if (!c) return false; // Not found
-
-    // 1. Remove from N-ary Tree Hierarchy
-    // We use the address stored in the Citizen object to find the specific house
+    if (!c) return false; 
+  
     Sector* sec = findSector(c->sector);
-	if (!sec) return false; // Sector not found (Data inconsistency)
+	if (!sec) return false;
     Street* st = sec->findStreet(c->street);
-	if (!st) return false; // Street not found (Data inconsistency)
+	if (!st) return false; 
     House* house = st->findHouse(c->houseNo);
-	if (!house) return false; // House not found (Data inconsistency)
-
-
-
+	if (!house) return false; 
     
-    // Remove pointer from House's vector
+
     house->residents.remove(c);
 
-    // 2. Remove from Hash Table
+    // Remove Hash
     cnicLookup.remove(cnic);
 
-    // 3. Remove from Master List
     masterList.remove(c);
 
-    // 4. Delete the object (Free memory)
     delete c;
 
     return true;
 }
 
-// ---------------- Tree Logic ----------------
-
+// ==================== tree ====================
 inline Sector* PopulationManager::findOrCreateSector(const string& name) {
     for (int i = 0; i < sectors.getSize(); i++) {
         if (sectors[i]->name == name) return sectors[i];
@@ -186,8 +157,7 @@ inline Sector* PopulationManager::findSector(const string& name) const {
     return nullptr;
 }
 
-// ---------------- Queries ----------------
-
+// ==================== Operations ====================
 inline Citizen* PopulationManager::getCitizen(const string& cnic) const {
     Citizen** c = cnicLookup.get(cnic);
     return c ? *c : nullptr;

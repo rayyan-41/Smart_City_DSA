@@ -5,13 +5,11 @@
 
 using std::string;
 
-// Class owns the students but students will be created outside and passed here
 class Class {
 public:
     int classNumber;
     Vector<Student*> students;
 
-    // Rule of three
     Class();
     Class(int classNumber);
     Class(const Class& other);
@@ -52,9 +50,8 @@ public:
     bool removeStudent(const string& cnic);
 };
 
-// ==========================================
-// IMPLEMENTATION
-// ==========================================
+// ==================== Implemenation ====================
+
 
 inline Class::Class() : classNumber(1), students() {}
 
@@ -71,15 +68,12 @@ inline Class& Class::operator=(const Class& other) {
 }
 
 inline Class::~Class() {
-    // Students are deleted here because the Class "owns" the Student objects (wrappers)
-    // The underlying Citizens are owned by PopulationManager, so deleting Student* is safe.
-    for (int i = 0; i < students.getSize(); i++) {
+     for (int i = 0; i < students.getSize(); i++) {
         delete students[i];
     }
 }
 
 inline bool Class::addStudent(Student* student) {
-    // Check for duplicates using CNIC via getCNIC() helper
     for (int i = 0; i < students.getSize(); i++) {
         if (students[i]->getCNIC() == student->getCNIC()) {
             return false;
@@ -93,7 +87,7 @@ inline bool Class::removeStudent(const string& cnic) {
     for (int i = 0; i < students.getSize(); i++) {
         if (students[i]->getCNIC() == cnic) {
             delete students[i];
-            // Manual remove logic for Vector (shift left)
+            //  remove Vector 
             for (int j = i; j < students.getSize() - 1; j++) {
                 students[j] = students[j + 1];
             }

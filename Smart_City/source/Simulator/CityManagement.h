@@ -1,23 +1,4 @@
-/*
- * ============================================================================
- * CITY MANAGEMENT - Runtime City Expansion/Modification System
- * ============================================================================
- * 
- * PURPOSE:
- * Provides interactive management of city entities at runtime, allowing
- * addition and removal of schools, buses, routes, faculty, citizens, etc.
- * 
- * FEATURES:
- *   - Add/Remove Schools with Departments and Classes
- *   - Add/Remove Faculty (new or from unemployed citizens)
- *   - Register/Remove Buses with calculated Dijkstra routes
- *   - Create new bus routes from start to end stops
- *   - Add/Remove Citizens and enroll in schools
- *   - Add/Remove Hospitals and Pharmacies
- *   - Manage Ambulances and Patient Transfers
- * 
- * ============================================================================
- */
+
 
 
 #include <string>

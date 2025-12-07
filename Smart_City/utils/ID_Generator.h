@@ -5,6 +5,7 @@ using std::string;
 
 class IDGenerator {
 public:
+    // ==================== Operations ====================
     static int schoolCounter;
     static int facultyCounter;
     static int studentCounter;
@@ -21,7 +22,8 @@ public:
 	static string generatePatientID();  
 };
 
-// Impl
+// ==================== Implemenation ====================
+
 int IDGenerator::schoolCounter = 100;
 int IDGenerator::facultyCounter = 1000;
 int IDGenerator::studentCounter = 5000;
