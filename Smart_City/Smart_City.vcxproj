@@ -129,11 +129,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CityUtils.h" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CityGraph.h" />
     <ClInclude Include="data_structures\BST.h" />
     <ClInclude Include="data_structures\CircularQueue.h" />
     <ClInclude Include="data_structures\CustomSTL.h" />
@@ -145,6 +143,8 @@
     <ClInclude Include="data_structures\Stack.h" />
     <ClInclude Include="data_structures\Vector.h" />
     <ClInclude Include="SmartCity.h" />
+    <ClInclude Include="source\CityGrid\CityGraph.h" />
+    <ClInclude Include="source\CityGrid\CityUtils.h" />
     <ClInclude Include="source\CommercialSystem\CommercialManager.h" />
     <ClInclude Include="source\CommercialSystem\Mall.h" />
     <ClInclude Include="source\CommercialSystem\Product.h" />
@@ -164,6 +164,7 @@
     <ClInclude Include="source\SchoolSystem\School.h" />
     <ClInclude Include="source\SchoolSystem\SchoolManager.h" />
     <ClInclude Include="source\SchoolSystem\Student.h" />
+    <ClInclude Include="source\Simulator\CityManagement.h" />
     <ClInclude Include="source\Simulator\CitySimulator.h" />
     <ClInclude Include="source\TransportSystem\Ambulance.h" />
     <ClInclude Include="source\TransportSystem\Bus.h" />

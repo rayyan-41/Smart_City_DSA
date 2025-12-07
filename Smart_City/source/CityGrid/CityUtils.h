@@ -134,101 +134,133 @@ struct SectorBox {
  * ISLAMABAD SECTOR GRID - NON-OVERLAPPING BOUNDARIES
  * ============================================================================
  * 
- * Grid Layout (looking from top/north):
+ * Islamabad's residential sectors follow a grid pattern:
+ * - Letters (E, F, G, H, I) indicate north-south position (E is northernmost)
+ * - Numbers (6-12) indicate east-west position (lower numbers are more central)
  * 
+ * Actual Grid Layout (Geographic North at Top):
+ * 
+ *     WEST  <--  Longitude (73.xx)  -->  EAST
  *           72.96   72.98   73.00   73.02   73.04   73.06   73.08   73.10
  *              |       |       |       |       |       |       |       |
- *  33.74 -----+-------+-------+-------+-------+-------+-------+-------+
- *             |       |       |       |       | E-7   | F-6   |       |
- *  33.72 -----+-------+-------+-------+-------+-------+-------+-------+
- *             |       |       |       | E-8   | F-7   | G-6   |       |
- *  33.70 -----+-------+-------+-------+-------+-------+-------+-------+
- *             |       |       | E-9   | F-8   | G-7   | H-8   | I-8   |
- *  33.68 -----+-------+-------+-------+-------+-------+-------+-------+
- *             |       | E-10  | F-9   | G-8   | H-9   | I-9   |       |
- *  33.66 -----+-------+-------+-------+-------+-------+-------+-------+
- *             | E-11  | F-10  | G-9   | H-10  | I-10  |       |       |
- *  33.64 -----+-------+-------+-------+-------+-------+-------+-------+
- *             | F-11  | G-10  | H-11  | I-11  |       |       |       |
- *  33.62 -----+-------+-------+-------+-------+-------+-------+-------+
- *             | G-11  | H-12  | I-12  |       |       |       |       |
- *  33.60 -----+-------+-------+-------+-------+-------+-------+-------+
+ *  N  33.74 --+-------+-------+-------+-------+-------+-------+-------+
+ *  O         |       |       |       |       | E-7   | F-6   |       |
+ *  R  33.72 --+-------+-------+-------+-------+-------+-------+-------+
+ *  T         |       |       |       | E-8   | F-7   | G-6   |       |
+ *  H  33.70 --+-------+-------+-------+-------+-------+-------+-------+
+ *     ^      |       |       | E-9   | F-8   | G-7   | H-8   | I-8   |
+ *  L  33.68 --+-------+-------+-------+-------+-------+-------+-------+
+ *  A         |       | E-10  | F-9   | G-8   | H-9   | I-9   |       |
+ *  T  33.66 --+-------+-------+-------+-------+-------+-------+-------+
+ *  I         | E-11  | F-10  | G-9   | H-10  | I-10  |       |       |
+ *  T  33.64 --+-------+-------+-------+-------+-------+-------+-------+
+ *  U         | F-11  | G-10  | H-11  | I-11  |       |       |       |
+ *  D  33.62 --+-------+-------+-------+-------+-------+-------+-------+
+ *  E         | G-11  | H-12  | I-12  |       |       |       |       |
+ *  v  33.60 --+-------+-------+-------+-------+-------+-------+-------+
+ *  S
+ *  O
+ *  U
+ *  T
+ *  H
  * 
- * Each sector is exactly 0.02 degrees in both lat and lon (approximately 2km x 2km)
+ * Each sector is exactly 0.02 degrees in both lat and lon (~2.2km x 1.8km)
+ * 
+ * Sector Naming Convention:
+ * - E-series: Northern sectors (E-7 to E-11)
+ * - F-series: North-central sectors (F-6 to F-11)
+ * - G-series: Central sectors (G-6 to G-11)
+ * - H-series: South-central sectors (H-8 to H-12)
+ * - I-series: Southern/Eastern sectors (I-8 to I-12)
+ * 
  * ============================================================================
  */
 
 // Define grid parameters
-const double SECTOR_SIZE_LAT = 0.02;  // ~2.2 km
-const double SECTOR_SIZE_LON = 0.02;  // ~1.8 km at this latitude
+const double SECTOR_SIZE_LAT = 0.02;  // ~2.2 km north-south
+const double SECTOR_SIZE_LON = 0.02;  // ~1.8 km east-west at this latitude
 
-// Base coordinates for the grid
+// Base coordinates for the grid (Southwest corner)
 const double BASE_LAT = 33.60;  // Southern boundary
 const double BASE_LON = 72.96;  // Western boundary
 
+// Maximum boundaries
+const double MAX_LAT = 33.74;   // Northern boundary  
+const double MAX_LON = 73.10;   // Eastern boundary
+
 static SectorBox SECTOR_GRID[] = { 
-    // --- E-Series (Northern Row 7) ---
-    // E-7: Row 7 from top (lat 33.72-33.74), Column 5 (lon 73.04-73.06)
+    // =========================================================================
+    // E-SERIES (Northernmost residential sectors)
+    // =========================================================================
+    // E-7: Lat 33.72-33.74, Lon 73.04-73.06 (Northeast)
     {"E-7",  33.72, 33.74, 73.04, 73.06},
-    // E-8: Row 6 from top (lat 33.70-33.72), Column 4 (lon 73.02-73.04)  
+    // E-8: Lat 33.70-33.72, Lon 73.02-73.04
     {"E-8",  33.70, 33.72, 73.02, 73.04},
-    // E-9: Row 5 from top (lat 33.68-33.70), Column 3 (lon 73.00-73.02)
+    // E-9: Lat 33.68-33.70, Lon 73.00-73.02
     {"E-9",  33.68, 33.70, 73.00, 73.02},
-    // E-10: Row 4 from top (lat 33.66-33.68), Column 2 (lon 72.98-73.00)
+    // E-10: Lat 33.66-33.68, Lon 72.98-73.00
     {"E-10", 33.66, 33.68, 72.98, 73.00},
-    // E-11: Row 3 from top (lat 33.64-33.66), Column 1 (lon 72.96-72.98)
+    // E-11: Lat 33.64-33.66, Lon 72.96-72.98 (Northwest)
     {"E-11", 33.64, 33.66, 72.96, 72.98},
 
-    // --- F-Series (One row South of E) ---
-    // F-6: Row 7 (lat 33.72-33.74), Column 6 (lon 73.06-73.08)
+    // =========================================================================
+    // F-SERIES (North-central sectors)
+    // =========================================================================
+    // F-6: Lat 33.72-33.74, Lon 73.06-73.08 (Far northeast)
     {"F-6",  33.72, 33.74, 73.06, 73.08},
-    // F-7: Row 6 (lat 33.70-33.72), Column 5 (lon 73.04-73.06)
+    // F-7: Lat 33.70-33.72, Lon 73.04-73.06
     {"F-7",  33.70, 33.72, 73.04, 73.06},
-    // F-8: Row 5 (lat 33.68-33.70), Column 4 (lon 73.02-73.04)
+    // F-8: Lat 33.68-33.70, Lon 73.02-73.04
     {"F-8",  33.68, 33.70, 73.02, 73.04},
-    // F-9: Row 4 (lat 33.66-33.68), Column 3 (lon 73.00-73.02)
+    // F-9: Lat 33.66-33.68, Lon 73.00-73.02
     {"F-9",  33.66, 33.68, 73.00, 73.02},
-    // F-10: Row 3 (lat 33.64-33.66), Column 2 (lon 72.98-73.00)
+    // F-10: Lat 33.64-33.66, Lon 72.98-73.00
     {"F-10", 33.64, 33.66, 72.98, 73.00},
-    // F-11: Row 2 (lat 33.62-33.64), Column 1 (lon 72.96-72.98)
+    // F-11: Lat 33.62-33.64, Lon 72.96-72.98
     {"F-11", 33.62, 33.64, 72.96, 72.98},
 
-    // --- G-Series (One row South of F) ---
-    // G-6: Row 6 (lat 33.70-33.72), Column 6 (lon 73.06-73.08)
+    // =========================================================================
+    // G-SERIES (Central sectors - most developed)
+    // =========================================================================
+    // G-6: Lat 33.70-33.72, Lon 73.06-73.08
     {"G-6",  33.70, 33.72, 73.06, 73.08},
-    // G-7: Row 5 (lat 33.68-33.70), Column 5 (lon 73.04-73.06)
+    // G-7: Lat 33.68-33.70, Lon 73.04-73.06
     {"G-7",  33.68, 33.70, 73.04, 73.06},
-    // G-8: Row 4 (lat 33.66-33.68), Column 4 (lon 73.02-73.04)
+    // G-8: Lat 33.66-33.68, Lon 73.02-73.04
     {"G-8",  33.66, 33.68, 73.02, 73.04},
-    // G-9: Row 3 (lat 33.64-33.66), Column 3 (lon 73.00-73.02)
+    // G-9: Lat 33.64-33.66, Lon 73.00-73.02 (Central hub)
     {"G-9",  33.64, 33.66, 73.00, 73.02},
-    // G-10: Row 2 (lat 33.62-33.64), Column 2 (lon 72.98-73.00)
+    // G-10: Lat 33.62-33.64, Lon 72.98-73.00
     {"G-10", 33.62, 33.64, 72.98, 73.00},
-    // G-11: Row 1 (lat 33.60-33.62), Column 1 (lon 72.96-72.98)
+    // G-11: Lat 33.60-33.62, Lon 72.96-72.98 (Southwest)
     {"G-11", 33.60, 33.62, 72.96, 72.98},
 
-    // --- H-Series (One row South of G for most) ---
-    // H-8: Row 5 (lat 33.68-33.70), Column 6 (lon 73.06-73.08)
+    // =========================================================================
+    // H-SERIES (South-central sectors)
+    // =========================================================================
+    // H-8: Lat 33.68-33.70, Lon 73.06-73.08
     {"H-8",  33.68, 33.70, 73.06, 73.08},
-    // H-9: Row 4 (lat 33.66-33.68), Column 5 (lon 73.04-73.06)
+    // H-9: Lat 33.66-33.68, Lon 73.04-73.06
     {"H-9",  33.66, 33.68, 73.04, 73.06},
-    // H-10: Row 3 (lat 33.64-33.66), Column 4 (lon 73.02-73.04)
+    // H-10: Lat 33.64-33.66, Lon 73.02-73.04
     {"H-10", 33.64, 33.66, 73.02, 73.04},
-    // H-11: Row 2 (lat 33.62-33.64), Column 3 (lon 73.00-73.02)
+    // H-11: Lat 33.62-33.64, Lon 73.00-73.02
     {"H-11", 33.62, 33.64, 73.00, 73.02},
-    // H-12: Row 1 (lat 33.60-33.62), Column 2 (lon 72.98-73.00)
+    // H-12: Lat 33.60-33.62, Lon 72.98-73.00
     {"H-12", 33.60, 33.62, 72.98, 73.00},
 
-    // --- I-Series (Easternmost) ---
-    // I-8: Row 5 (lat 33.68-33.70), Column 7 (lon 73.08-73.10)
+    // =========================================================================
+    // I-SERIES (Eastern/Southern sectors)
+    // =========================================================================
+    // I-8: Lat 33.68-33.70, Lon 73.08-73.10 (Far east)
     {"I-8",  33.68, 33.70, 73.08, 73.10},
-    // I-9: Row 4 (lat 33.66-33.68), Column 6 (lon 73.06-73.08)
+    // I-9: Lat 33.66-33.68, Lon 73.06-73.08
     {"I-9",  33.66, 33.68, 73.06, 73.08},
-    // I-10: Row 3 (lat 33.64-33.66), Column 5 (lon 73.04-73.06)
+    // I-10: Lat 33.64-33.66, Lon 73.04-73.06
     {"I-10", 33.64, 33.66, 73.04, 73.06},
-    // I-11: Row 2 (lat 33.62-33.64), Column 4 (lon 73.02-73.04)
+    // I-11: Lat 33.62-33.64, Lon 73.02-73.04
     {"I-11", 33.62, 33.64, 73.02, 73.04},
-    // I-12: Row 1 (lat 33.60-33.62), Column 3 (lon 73.00-73.02)
+    // I-12: Lat 33.60-33.62, Lon 73.00-73.02 (Southeast)
     {"I-12", 33.60, 33.62, 73.00, 73.02}
 };
 
@@ -292,26 +324,75 @@ public:
         return Rad * c;
     }
     
-    static int getSectorIndex(string name) {
+    static int getSectorIndex(const string& name) {
         for (int i = 0; i < SECTOR_COUNT; i++) {
             if (SECTOR_GRID[i].name == name) return i;
         }
         return -1;
     }
     
-    static void generateCoords(string sector, double& lat, double& lon) {
+    /**
+     * Generate random coordinates within a sector's bounds
+     * Uses a margin to keep points away from edges for cleaner visualization
+     * 
+     * @param sector The sector name (e.g., "G-9")
+     * @param lat Output latitude
+     * @param lon Output longitude
+     */
+    static void generateCoords(const string& sector, double& lat, double& lon) {
         int idx = getSectorIndex(sector);
         if (idx != -1) {
-            // Generate coordinates within the sector (avoiding boundaries)
-            double margin = 0.001; // Small margin to stay inside
-            double f1 = 0.1 + ((double)rand() / RAND_MAX) * 0.8; // 10%-90% range
-            double f2 = 0.1 + ((double)rand() / RAND_MAX) * 0.8;
-            lat = SECTOR_GRID[idx].minLat + margin + f1 * (SECTOR_GRID[idx].maxLat - SECTOR_GRID[idx].minLat - 2*margin);
-            lon = SECTOR_GRID[idx].minLon + margin + f2 * (SECTOR_GRID[idx].maxLon - SECTOR_GRID[idx].minLon - 2*margin);
+            const SectorBox& box = SECTOR_GRID[idx];
+            
+            // Use 15% margin on each side to keep points away from boundaries
+            double marginLat = (box.maxLat - box.minLat) * 0.15;
+            double marginLon = (box.maxLon - box.minLon) * 0.15;
+            
+            // Generate random position within the safe area (70% of sector)
+            double randLat = (double)rand() / RAND_MAX;
+            double randLon = (double)rand() / RAND_MAX;
+            
+            lat = box.minLat + marginLat + randLat * (box.maxLat - box.minLat - 2 * marginLat);
+            lon = box.minLon + marginLon + randLon * (box.maxLon - box.minLon - 2 * marginLon);
             return;
         }
         // Default to G-9 center if sector not found
-        lat = 33.65; lon = 73.01;
+        lat = 33.65; 
+        lon = 73.01;
+    }
+    
+    /**
+     * Generate coordinates at sector center (for important landmarks)
+     */
+    static void generateCenterCoords(const string& sector, double& lat, double& lon) {
+        int idx = getSectorIndex(sector);
+        if (idx != -1) {
+            lat = SECTOR_GRID[idx].getCenterLat();
+            lon = SECTOR_GRID[idx].getCenterLon();
+            return;
+        }
+        lat = 33.65;
+        lon = 73.01;
+    }
+    
+    /**
+     * Generate coordinates at a specific position within sector
+     * @param posX 0.0 = west edge, 1.0 = east edge
+     * @param posY 0.0 = south edge, 1.0 = north edge
+     */
+    static void generateCoordsAtPosition(const string& sector, double posX, double posY, 
+                                          double& lat, double& lon) {
+        int idx = getSectorIndex(sector);
+        if (idx != -1) {
+            const SectorBox& box = SECTOR_GRID[idx];
+            // posY maps to latitude (0=south/minLat, 1=north/maxLat)
+            lat = box.minLat + posY * (box.maxLat - box.minLat);
+            // posX maps to longitude (0=west/minLon, 1=east/maxLon)
+            lon = box.minLon + posX * (box.maxLon - box.minLon);
+            return;
+        }
+        lat = 33.65;
+        lon = 73.01;
     }
     
     static SectorBox* getSectorBox(const string& name) {
@@ -352,10 +433,20 @@ public:
     
     // Validate that a point is within Islamabad's bounds
     static bool isWithinIslamabad(double lat, double lon) {
-        return lat >= 33.60 && lat <= 33.74 && lon >= 72.96 && lon <= 73.10;
+        return lat >= BASE_LAT && lat <= MAX_LAT && lon >= BASE_LON && lon <= MAX_LON;
+    }
+    
+    /**
+     * Get the grid bounds for the entire Islamabad map
+     * Returns a rectangular bounding box aligned to north
+     */
+    static void getIslamabadBounds(double& minLat, double& maxLat, double& minLon, double& maxLon) {
+        minLat = BASE_LAT;  // 33.60 - South
+        maxLat = MAX_LAT;   // 33.74 - North
+        minLon = BASE_LON;  // 72.96 - West
+        maxLon = MAX_LON;   // 73.10 - East
     }
 };
-
 // ============================================================================
 // EDGE - Represents a road connection between nodes
 // ============================================================================

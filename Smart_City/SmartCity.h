@@ -196,25 +196,13 @@ public:
      * @param steps Number of steps to simulate
      */
     void runSimulation(int steps);
-    
-    /**
-     * Start continuous simulation mode
-     */
+
     void startSimulation();
     
-    /**
-     * Stop continuous simulation mode
-     */
     void stopSimulation();
-    
-    /**
-     * Check if simulation is currently running
-     */
+  
     bool isSimulationRunning() const;
     
-    /**
-     * Get current simulation tick count
-     */
     int getSimulationTick() const;
     
     // Legacy simulation methods (for backward compatibility)
