@@ -48,7 +48,9 @@ private:
         SCHOOL_BUS_ID = 8,
         DEPARTMENT_ID = 9,
         STUDENT_ID = 10,
-        STOP_ID = 11
+        STOP_ID = 11,
+        MALL_ID = 12,
+        SHOP_ID = 13
     };
 
     string generateID(IDType type);
@@ -381,6 +383,34 @@ public:
     
     CityManagementStats getManagementStats();
 
+    // ==================== COMMERCIAL MANAGEMENT ====================
+
+    /**
+     * Add a new Mall to the city
+     */
+    string addMall(const string& name, const string& sector);
+
+    /**
+     * Remove a Mall and all its shops
+     */
+    bool removeMall(const string& mallID);
+
+    /**
+     * Add a Shop to an existing Mall
+     */
+    string addShop(const string& mallID, const string& name, const string& category);
+
+    /**
+     * Remove a Shop from a Mall
+     */
+    bool removeShop(const string& mallID, const string& shopID);
+
+    /**
+     * Get all Malls
+     */
+    Vector<Mall*> getAllMalls();
+
+
 private:
     string generateCNIC();
     Vector<Citizen*> collectCitizensFromSector(const string& sector);
@@ -391,7 +421,7 @@ private:
 // ============================================================================
 
 inline CityManagement::CityManagement(SmartCity* smartCity) : city(smartCity) {
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 14; i++) {
         idCounters[i] = 1000;
     }
 }
@@ -411,6 +441,8 @@ inline string CityManagement::generateID(IDType type) {
         case DEPARTMENT_ID: prefix = "DPT"; break;
         case STUDENT_ID: prefix = "STU"; break;
         case STOP_ID: prefix = "STP"; break;
+        case MALL_ID: prefix = "MALL"; break; 
+        case SHOP_ID: prefix = "SHOP"; break; 
     }
     return prefix + "-" + std::to_string(++idCounters[type]);
 }
@@ -560,6 +592,69 @@ inline bool CityManagement::addClassToDepartment(const string& schoolID, const s
     Class* c = new Class(classNumber);
     dept->addClass(c);
     return true;
+}
+
+// ==================== COMMERCIAL MANAGEMENT IMPLEMENTATION ====================
+
+inline string CityManagement::addMall(const string& name, const string& sector) {
+    if (!city || !city->isInitialized()) return "";
+
+    string mallID = generateID(MALL_ID);
+
+    Mall* mall = new Mall(mallID, name, sector);
+
+    city->getCommercialManager()->addMall(mall);
+
+    double lat = 0.0, lon = 0.0;
+    GeometryUtils::generateCoords(sector, lat, lon);
+    city->getCityGraph()->addLocation(mallID, "", name, "MALL", lat, lon);
+
+    return mallID;
+}
+
+inline bool CityManagement::removeMall(const string& mallID) {
+    if (!city || !city->isInitialized()) return false;
+
+    return city->getCommercialManager()->removeMall(mallID);
+}
+
+inline string CityManagement::addShop(const string& mallID, const string& name, const string& category) {
+    if (!city || !city->isInitialized()) return "";
+
+    Mall* mall = city->getCommercialManager()->mallLookup.get(mallID)
+        ? *city->getCommercialManager()->mallLookup.get(mallID)
+        : nullptr;
+
+    if (!mall) return "";
+
+    string shopID = generateID(SHOP_ID);
+
+    Shop* shop = new Shop(shopID, name, category);
+
+    mall->addShop(shop);
+
+    Vector<Shop*>* catList = city->getCommercialManager()->categoryLookup.get(category);
+    if (catList) {
+        catList->push_back(shop);
+    }
+    else {
+        Vector<Shop*> newList;
+        newList.push_back(shop);
+        city->getCommercialManager()->categoryLookup.insert(category, newList);
+    }
+
+    return shopID;
+}
+
+inline bool CityManagement::removeShop(const string& mallID, const string& shopID) {
+    if (!city || !city->isInitialized()) return false;
+
+    return city->getCommercialManager()->removeShop(mallID, shopID);
+}
+
+inline Vector<Mall*> CityManagement::getAllMalls() {
+    if (!city || !city->isInitialized()) return Vector<Mall*>();
+    return city->getCommercialManager()->malls;
 }
 
 // ==================== FACULTY MANAGEMENT ====================
