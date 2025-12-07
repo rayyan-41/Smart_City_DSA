@@ -219,6 +219,17 @@ public:
     
     // ==================== ROUTE OPERATIONS ====================
     
+    // Reset bus to start of route
+    void resetToRouteStart() {
+        resetRoute();
+        tripsCompleted = 0;
+        totalPassengersServed = 0;
+        totalFareCollected = 0.0;
+        onboardPassengers.clear();
+        currentOccupancy = 0;
+        status = VehicleStatus::AT_STOP;
+    }
+    
     // Complete a trip
     void completeTrip() {
         ++tripsCompleted;

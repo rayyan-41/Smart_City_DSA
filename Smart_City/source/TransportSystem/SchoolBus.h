@@ -463,6 +463,17 @@ public:
     
     // ==================== TRIP MANAGEMENT ====================
     
+    // Reset school bus to base (for simulation reset)
+    void resetToBase() {
+        currentNodeID = assignedSchoolNodeID;
+        currentSchoolID = assignedSchoolID;
+        currentPickupPointIndex = 0;
+        currentOccupancy = 0;
+        onboardStudents.clear();
+        resetRoute();
+        setSchoolBusStatus(SchoolBusStatus::AVAILABLE);
+    }
+    
     // Start morning home pickup route
     void startHomePickupRoute() {
         currentPickupPointIndex = 0;

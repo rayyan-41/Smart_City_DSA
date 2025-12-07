@@ -278,6 +278,21 @@ public:
     
     // ==================== TRANSFER OPERATIONS ====================
     
+    // Reset ambulance to base (for simulation reset)
+    void resetToBase() {
+        currentNodeID = baseHospitalNodeID;
+        currentSector = homeSector;
+        currentOccupancy = 0;
+        resetRoute();
+        setAmbulanceStatus(AmbulanceStatus::AVAILABLE);
+        
+        // Clean up current transfer if any
+        if (currentTransfer) {
+            delete currentTransfer;
+            currentTransfer = nullptr;
+        }
+    }
+    
     // Accept a patient transfer request
     bool acceptTransfer(PatientTransfer* transfer) {
         if (!isAvailable() || transfer == nullptr) return false;
