@@ -1,5 +1,0 @@
-HospitalID,Name,Sector,EmergencyBeds,Specialization
-H01,City Hospital,G-8,2,"Cardiology, General"
-H02, "Shifa International" , H-8 , 10 , "Oncology, Surgery, Orthopedics"
-H03,Trauma Center,F-10,1,"ER, Burn Unit"
-H04,Small Clinic,I-10,0,"General"
