@@ -1785,136 +1785,173 @@ inline void CitySimulator::runDatabaseView() {
 
 inline void CitySimulator::runSearchView() {
     auto screen = ScreenInteractive::Fullscreen();
+
+    // State
     string query = "";
-    string lastQuery = "";
-    std::vector<string> results;
     int selected = 0;
+    std::vector<string> menu_entries;
+    string message = ""; // To show the ID on selection
 
-    // Component for input
-    Component input = Input(&query, "Type to search items, locations, facilities...");
+    // Helper: string lowercase
+    auto toLower = [](const string& s) -> string {
+        string lower = s;
+        for (char& c : lower) {
+            if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+        }
+        return lower;
+        };
 
-    // Filter logic
-    auto runSearch = [&]() {
-        results.clear();
+    // Helper to perform the search
+    auto performSearch = [&]() {
+        menu_entries.clear();
+        selected = 0;
+        message = "";
+
         if (query.length() < 2) return;
 
-        string q = query;
-        std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+        string q = toLower(query);
 
-        // 1. Facilities (Nodes)
-        CityGraph* g = islamabad->getCityGraph();
-        for (int i = 0; i < g->getNodeCount(); i++) {
-            CityNode* n = g->getNode(i);
-            if (!n) continue;
-            string name = n->name;
-            string lowerName = name;
-            std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
-            if (lowerName.find(q) != string::npos) {
-                results.push_back("[FACILITY] " + name + " (" + n->sector + ")");
+        // 1. Search Facilities (Graph Nodes)
+        if (islamabad && islamabad->getCityGraph()) {
+            CityGraph* g = islamabad->getCityGraph();
+            for (int i = 0; i < g->getNodeCount(); i++) {
+                CityNode* n = g->getNode(i);
+                if (!n || n->type == "CORNER") continue;
+
+                string lowerName = toLower(n->name);
+
+                if (lowerName.find(q) != string::npos) {
+                    menu_entries.push_back("[ID: " + n->databaseID + "] " + n->name + " (" + n->type + ") in " + n->sector);
+                }
             }
         }
 
-        // 2. Commercial (Products & Shops)
-        CommercialManager* cm = islamabad->getCommercialManager();
-        if (cm) {
+        // 2. Search Commercial (Malls, Shops, Products)
+        if (islamabad && islamabad->getCommercialManager()) {
+            CommercialManager* cm = islamabad->getCommercialManager();
             for (int i = 0; i < cm->malls.getSize(); i++) {
                 Mall* m = cm->malls[i];
-                // Mall name check
-                string mName = m->name;
-                string lowerMName = mName;
-                std::transform(lowerMName.begin(), lowerMName.end(), lowerMName.begin(), ::tolower);
-                if (lowerMName.find(q) != string::npos) {
-                    results.push_back("[MALL] " + mName + " (" + m->getSector() + ")");
+
+                // Search Mall Name
+                string mLower = toLower(m->name);
+                if (mLower.find(q) != string::npos) {
+                    menu_entries.push_back("[ID: " + m->id + "] " + m->name + " (" + m->getSector() + ")");
                 }
 
+                // Search Shops
                 for (int j = 0; j < m->shops.getSize(); j++) {
                     Shop* s = m->shops[j];
-                    // Shop Name check
-                    string sName = s->name;
-                    string lowerSName = sName;
-                    std::transform(lowerSName.begin(), lowerSName.end(), lowerSName.begin(), ::tolower);
-                    if (lowerSName.find(q) != string::npos) {
-                        results.push_back("[SHOP] " + sName + " @ " + m->name);
+                    string sLower = toLower(s->name);
+
+                    if (sLower.find(q) != string::npos) {
+                        menu_entries.push_back("[ID: " + s->id + "] " + s->name + " @ " + m->name);
                     }
-                    // Product check
+
+                    // Search Products within Shop
                     for (int k = 0; k < s->inventory.getSize(); k++) {
                         const Product* p = s->getProduct(k);
                         if (!p) continue;
-                        string pName = p->name;
-                        string lowerPName = pName;
-                        std::transform(lowerPName.begin(), lowerPName.end(), lowerPName.begin(), ::tolower);
-                        if (lowerPName.find(q) != string::npos) {
-                            results.push_back("[ITEM] " + pName + " (Rs " + std::to_string(p->price) + ") @ " + sName);
+
+                        string pLower = toLower(p->name);
+
+                        if (pLower.find(q) != string::npos) {
+                            menu_entries.push_back("[ID: " + s->id + "] Item: " + p->name + " (Rs." + std::to_string(p->price) + ") @ " + s->name);
                         }
                     }
                 }
             }
         }
 
-        // 3. Medical (Medicines)
-        MedicalManager* mm = islamabad->getMedicalManager();
-        if (mm) {
+        // 3. Search Medical (Medicines)
+        if (islamabad && islamabad->getMedicalManager()) {
+            MedicalManager* mm = islamabad->getMedicalManager();
+
             for (int i = 0; i < mm->pharmacies.getSize(); i++) {
                 Pharmacy* p = mm->pharmacies[i];
                 for (int j = 0; j < p->inventory.getSize(); j++) {
                     const Medicine* m = p->getMedicine(j);
                     if (!m) continue;
-                    string mName = m->name;
-                    string lowerMName = mName;
-                    std::transform(lowerMName.begin(), lowerMName.end(), lowerMName.begin(), ::tolower);
-                    if (lowerMName.find(q) != string::npos) {
-                        results.push_back("[MED] " + mName + " (Rs " + std::to_string((int)m->price) + ") @ " + p->name);
+
+                    string mLower = toLower(m->name);
+                    string fLower = toLower(m->formula);
+
+                    if (mLower.find(q) != string::npos || fLower.find(q) != string::npos) {
+                        menu_entries.push_back("[ID: " + p->id + "] Med: " + m->name + " (" + m->formula + ") @ " + p->name);
                     }
                 }
             }
         }
+
+        // Limit results for performance UI
+        if (menu_entries.size() > 100) {
+            menu_entries.resize(100);
+            menu_entries.push_back("... (matches truncated) ...");
+        }
         };
 
-    auto renderer = Renderer(input, [&] {
-        // Trigger search if query changed
-        if (query != lastQuery) {
-            runSearch();
-            lastQuery = query;
-            selected = 0;
-        }
+    // --- Components ---
 
-        Elements listItems;
-        if (query.length() < 2) {
-            listItems.push_back(text("Type at least 2 characters to search...") | dim | center);
-        }
-        else if (results.empty()) {
-            listItems.push_back(text("No results found.") | color(Color::Red) | center);
-        }
-        else {
-            int maxItems = 25;
-            for (int i = 0; i < results.size(); i++) {
-                if (i >= maxItems) {
-                    listItems.push_back(text("... and " + std::to_string(results.size() - maxItems) + " more") | dim | center);
-                    break;
+    InputOption input_opt;
+    input_opt.on_change = performSearch;
+    input_opt.placeholder = "Search for items, medicines, shops, or places...";
+    auto input_component = Input(&query, input_opt);
+
+    MenuOption menu_opt;
+    menu_opt.on_enter = [&] {
+        if (selected >= 0 && selected < (int)menu_entries.size()) {
+            string selection = menu_entries[selected];
+
+            // Extract ID logic
+            size_t start = selection.find("[ID: ");
+            if (start != string::npos) {
+                start += 5; // Skip "[ID: "
+                size_t end = selection.find("]", start);
+                if (end != string::npos) {
+                    string extractedID = selection.substr(start, end - start);
+                    message = "Selected Item ID: " + extractedID + " (Press Esc to return)";
+
+                    // PLACEHOLDER FOR MANAGEMENT VIEW INTEGRATION
+                    // When pressing Enter, we will eventually pass 'extractedID' 
+                    // to a Management View that looks up the object via HashTable.
+                    // For now, we just display the ID.
                 }
-
-                string line = results[i];
-                Color c = Color::White;
-                if (line.find("[ITEM]") != string::npos) c = Color::Cyan;
-                else if (line.find("[MED]") != string::npos) c = Color::Magenta;
-                else if (line.find("[SHOP]") != string::npos) c = Color::Yellow;
-                else if (line.find("[FACILITY]") != string::npos) c = Color::Green;
-
-                listItems.push_back(text(line) | color(c));
+                else {
+                    message = "ID format not recognized.";
+                }
+            }
+            else {
+                message = "No ID associated with this entry.";
             }
         }
+        };
+    auto menu_component = Menu(&menu_entries, &selected, menu_opt);
 
+    auto container = Container::Vertical({
+        input_component,
+        menu_component | vscroll_indicator | frame | flex
+        });
+
+    // --- Renderer ---
+    auto renderer = Renderer(container, [&] {
         return vbox({
             text(" UNIVERSAL SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
             separator(),
-            hbox({text(" FIND: "), input->Render() | flex }),
+            hbox({ text(" FIND: "), input_component->Render() | flex }),
             separator(),
-            vbox(listItems) | flex | border,
+            (menu_entries.empty())
+                ? (query.length() < 2
+                    ? text("Type at least 2 characters to begin...") | dim | center
+                    : text("No results found.") | color(Color::Red) | center)
+                : menu_component->Render() | flex,
             separator(),
-            text("Esc: Back to Menu") | dim | center
-            }) | center | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 35) | border;
+            // Message Area for ID display
+            (message.empty() ? text("Select an item and press Enter") | dim | center
+                             : text(message) | bold | color(Color::Green) | center),
+            text("Esc: Back to Database") | dim | center
+            }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
         });
 
+    // --- Event Loop ---
     auto component = CatchEvent(renderer, [&](Event e) {
         if (e == Event::Escape) {
             currentState = SimulatorState::DATABASE_VIEW; // Return to DB view
@@ -1926,167 +1963,6 @@ inline void CitySimulator::runSearchView() {
 
     screen.Loop(component);
 }
-
-// ============================================================================
-// UNIVERSAL SEARCH VIEW
-// ============================================================================
-
-//inline void CitySimulator::runSearchView() {
-//    auto screen = ScreenInteractive::Fullscreen();
-//
-//    // State
-//    string query = "";
-//    int selected = 0;
-//    std::vector<string> menu_entries;
-//
-//    // Helper to perform the search
-//    auto performSearch = [&]() {
-//        menu_entries.clear();
-//        selected = 0;
-//
-//        if (query.length() < 2) return;
-//
-//        string q = query;
-//        std::transform(q.begin(), q.end(), q.begin(), ::tolower);
-//
-//        // 1. Search Facilities (Graph Nodes)
-//        if (islamabad && islamabad->getCityGraph()) {
-//            CityGraph* g = islamabad->getCityGraph();
-//            for (int i = 0; i < g->getNodeCount(); i++) {
-//                CityNode* n = g->getNode(i);
-//                if (!n || n->type == "CORNER") continue; // Skip raw intersections
-//
-//                string name = n->name;
-//                string lowerName = name;
-//                std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
-//
-//                if (lowerName.find(q) != string::npos) {
-//                    menu_entries.push_back("[LOC] " + name + " (" + n->type + ") in " + n->sector);
-//                }
-//            }
-//        }
-//
-//        // 2. Search Commercial (Malls, Shops, Products)
-//        if (islamabad && islamabad->getCommercialManager()) {
-//            CommercialManager* cm = islamabad->getCommercialManager();
-//            for (int i = 0; i < cm->malls.getSize(); i++) {
-//                Mall* m = cm->malls[i];
-//
-//                // Search Mall Name
-//                string mName = m->name;
-//                string mLower = mName;
-//                std::transform(mLower.begin(), mLower.end(), mLower.begin(), ::tolower);
-//                if (mLower.find(q) != string::npos) {
-//                    menu_entries.push_back("[MALL] " + mName + " (" + m->getSector() + ")");
-//                }
-//
-//                // Search Shops and Products
-//                for (int j = 0; j < m->shops.getSize(); j++) {
-//                    Shop* s = m->shops[j];
-//
-//                    // Shop Name
-//                    string sName = s->name;
-//                    string sLower = sName;
-//                    std::transform(sLower.begin(), sLower.end(), sLower.begin(), ::tolower);
-//                    if (sLower.find(q) != string::npos) {
-//                        menu_entries.push_back("[SHOP] " + sName + " @ " + mName);
-//                    }
-//
-//                    // Products
-//                    for (int k = 0; k < s->inventory.getSize(); k++) {
-//                        const Product* p = s->getProduct(k);
-//                        if (!p) continue;
-//
-//                        string pName = p->name;
-//                        string pLower = pName;
-//                        std::transform(pLower.begin(), pLower.end(), pLower.begin(), ::tolower);
-//                        if (pLower.find(q) != string::npos) {
-//                            menu_entries.push_back("[ITEM] " + pName + " (Rs." + std::to_string(p->price) + ") @ " + sName);
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//
-//        // 3. Search Medical (Medicines)
-//        if (islamabad && islamabad->getMedicalManager()) {
-//            MedicalManager* mm = islamabad->getMedicalManager();
-//            for (int i = 0; i < mm->pharmacies.getSize(); i++) {
-//                Pharmacy* p = mm->pharmacies[i];
-//                for (int j = 0; j < p->inventory.getSize(); j++) {
-//                    const Medicine* m = p->getMedicine(j);
-//                    if (!m) continue;
-//
-//                    string mName = m->name;
-//                    string mLower = mName;
-//                    std::transform(mLower.begin(), mLower.end(), mLower.begin(), ::tolower);
-//
-//                    // Check name OR formula
-//                    string fName = m->formula;
-//                    string fLower = fName;
-//                    std::transform(fLower.begin(), fLower.end(), fLower.begin(), ::tolower);
-//
-//                    if (mLower.find(q) != string::npos || fLower.find(q) != string::npos) {
-//                        menu_entries.push_back("[MED] " + mName + " (" + fName + ") @ " + p->name);
-//                    }
-//                }
-//            }
-//        }
-//
-//        // Limit results for performance
-//        if (menu_entries.size() > 100) {
-//            menu_entries.resize(100);
-//            menu_entries.push_back("... matches truncated ...");
-//        }
-//        };
-//
-//    // --- Components ---
-//
-//    // 1. Input Component
-//    InputOption input_opt;
-//    input_opt.on_change = performSearch; // Trigger search on every keystroke
-//    input_opt.placeholder = "Search for items, medicines, shops, or places...";
-//    auto input_component = Input(&query, input_opt);
-//
-//    // 2. Menu Component (Results List)
-//    MenuOption menu_opt;
-//    auto menu_component = Menu(&menu_entries, &selected, menu_opt);
-//
-//    // 3. Container to hold them
-//    auto container = Container::Vertical({
-//        input_component,
-//        menu_component | vscroll_indicator | frame | flex
-//        });
-//
-//    // --- Renderer ---
-//    auto renderer = Renderer(container, [&] {
-//        return vbox({
-//            text(" UNIVERSAL SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
-//            separator(),
-//            hbox({ text(" FIND: "), input_component->Render() | flex }),
-//            separator(),
-//            (menu_entries.empty())
-//                ? (query.length() < 2
-//                    ? text("Type at least 2 characters to begin...") | dim | center
-//                    : text("No results found.") | color(Color::Red) | center)
-//                : menu_component->Render() | flex,
-//            separator(),
-//            text("Esc: Back to Database") | dim | center
-//            }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
-//        });
-//
-//    // --- Event Loop ---
-//    auto component = CatchEvent(renderer, [&](Event e) {
-//        if (e == Event::Escape) {
-//            currentState = SimulatorState::DATABASE_VIEW;
-//            screen.Exit();
-//            return true;
-//        }
-//        return false;
-//        });
-//
-//    screen.Loop(component);
-//}
 
 // ============================================================================
 // MANAGEMENT MENU - Placeholder for city management functions
