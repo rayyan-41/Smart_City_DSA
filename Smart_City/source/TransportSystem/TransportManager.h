@@ -234,9 +234,19 @@ public:
     void runSimulationStep();
     
     /**
+     * Run single step (alias for runSimulationStep)
+     */
+    void runSimulation() { runSimulationStep(); }
+    
+    /**
      * Run multiple simulation steps
      */
     void runSimulationSteps(int steps);
+    
+    /**
+     * Run multiple simulation steps (overloaded)
+     */
+    void runSimulation(int steps) { runSimulationSteps(steps); }
     
     /**
      * Get current simulation step count
@@ -244,9 +254,29 @@ public:
     int getSimulationStep() const { return simulationStep; }
     
     /**
+     * Get simulation tick (alias for getSimulationStep)
+     */
+    int getSimulationTick() const { return simulationStep; }
+    
+    /**
      * Reset simulation to initial state
      */
     void resetSimulation();
+    
+    /**
+     * Start continuous simulation (sets running flag)
+     */
+    void startSimulation() { simulationRunning = true; }
+    
+    /**
+     * Stop continuous simulation (clears running flag)
+     */
+    void stopSimulation() { simulationRunning = false; }
+    
+    /**
+     * Check if simulation is currently running
+     */
+    bool isSimulationRunning() const { return simulationRunning; }
     
     /**
      * Simulate one step for all public buses.
@@ -292,6 +322,9 @@ public:
 private:
     string trim(const string& s) const;
     Vector<string> parseRoute(const string& routeStr) const;
+    
+    // Simulation running flag
+    bool simulationRunning;
 };
 
 // ============================================================================
@@ -305,7 +338,7 @@ inline TransportManager::TransportManager()
       ambulances(), ambulanceLookup(53), 
       hospitalAmbulanceLookup(53), sectorAmbulanceLookup(53),
       transferQueue(), activeTransfers(), stopQueues(201),
-      simulationStep(0),
+      simulationStep(0), simulationRunning(false),
       totalTransferRequests(0), transferIDCounter(1000) {}
 
 inline TransportManager::~TransportManager() {

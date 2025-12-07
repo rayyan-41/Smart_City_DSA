@@ -11,7 +11,7 @@ const double pi = 3.14159265358979323846;
 const int INF = 1e9;
 const double Rad = 6371.0;
 
-#define MAX_NODES 250
+#define MAX_NODES 500
 #define SECTOR_COUNT 30
 #define MAX_ROADS_PER_NODE 5
 #define MAX_SCHOOLS_PER_SECTOR 3
@@ -117,7 +117,7 @@ struct SectorBox {
     double getHeight() const { return maxLat - minLat; }
     
     bool containsPoint(double lat, double lon) const {
-        return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+        return lat >= minLat && lat < maxLat && lon >= minLon && lon < maxLon;
     }
     
     // ==================== SETTERS ====================
@@ -129,43 +129,107 @@ struct SectorBox {
     void setInitialized(bool init) { initialized = init; }
 };
 
+/*
+ * ============================================================================
+ * ISLAMABAD SECTOR GRID - NON-OVERLAPPING BOUNDARIES
+ * ============================================================================
+ * 
+ * Grid Layout (looking from top/north):
+ * 
+ *           72.96   72.98   73.00   73.02   73.04   73.06   73.08   73.10
+ *              |       |       |       |       |       |       |       |
+ *  33.74 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             |       |       |       |       | E-7   | F-6   |       |
+ *  33.72 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             |       |       |       | E-8   | F-7   | G-6   |       |
+ *  33.70 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             |       |       | E-9   | F-8   | G-7   | H-8   | I-8   |
+ *  33.68 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             |       | E-10  | F-9   | G-8   | H-9   | I-9   |       |
+ *  33.66 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             | E-11  | F-10  | G-9   | H-10  | I-10  |       |       |
+ *  33.64 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             | F-11  | G-10  | H-11  | I-11  |       |       |       |
+ *  33.62 -----+-------+-------+-------+-------+-------+-------+-------+
+ *             | G-11  | H-12  | I-12  |       |       |       |       |
+ *  33.60 -----+-------+-------+-------+-------+-------+-------+-------+
+ * 
+ * Each sector is exactly 0.02 degrees in both lat and lon (approximately 2km x 2km)
+ * ============================================================================
+ */
+
+// Define grid parameters
+const double SECTOR_SIZE_LAT = 0.02;  // ~2.2 km
+const double SECTOR_SIZE_LON = 0.02;  // ~1.8 km at this latitude
+
+// Base coordinates for the grid
+const double BASE_LAT = 33.60;  // Southern boundary
+const double BASE_LON = 72.96;  // Western boundary
+
 static SectorBox SECTOR_GRID[] = { 
-    // --- E-Series (Most Northern) ---
-    {"E-7", 33.730, 33.750, 73.055, 73.075},
-    {"E-8", 33.720, 33.740, 73.040, 73.060},
-    {"E-9", 33.710, 33.730, 73.025, 73.045},
-    {"E-10", 33.700, 33.720, 73.010, 73.030},
-    {"E-11", 33.690, 33.710, 72.990, 73.010},
+    // --- E-Series (Northern Row 7) ---
+    // E-7: Row 7 from top (lat 33.72-33.74), Column 5 (lon 73.04-73.06)
+    {"E-7",  33.72, 33.74, 73.04, 73.06},
+    // E-8: Row 6 from top (lat 33.70-33.72), Column 4 (lon 73.02-73.04)  
+    {"E-8",  33.70, 33.72, 73.02, 73.04},
+    // E-9: Row 5 from top (lat 33.68-33.70), Column 3 (lon 73.00-73.02)
+    {"E-9",  33.68, 33.70, 73.00, 73.02},
+    // E-10: Row 4 from top (lat 33.66-33.68), Column 2 (lon 72.98-73.00)
+    {"E-10", 33.66, 33.68, 72.98, 73.00},
+    // E-11: Row 3 from top (lat 33.64-33.66), Column 1 (lon 72.96-72.98)
+    {"E-11", 33.64, 33.66, 72.96, 72.98},
 
-    // --- F-Series (North) ---
-    {"F-6", 33.720, 33.740, 73.060, 73.085},
-    {"F-7", 33.710, 33.730, 73.045, 73.065},
-    {"F-8", 33.700, 33.720, 73.030, 73.050},
-    {"F-9", 33.690, 33.710, 73.015, 73.035},
-    {"F-10", 33.680, 33.700, 73.000, 73.020},
-    {"F-11", 33.670, 33.690, 72.980, 73.000},
+    // --- F-Series (One row South of E) ---
+    // F-6: Row 7 (lat 33.72-33.74), Column 6 (lon 73.06-73.08)
+    {"F-6",  33.72, 33.74, 73.06, 73.08},
+    // F-7: Row 6 (lat 33.70-33.72), Column 5 (lon 73.04-73.06)
+    {"F-7",  33.70, 33.72, 73.04, 73.06},
+    // F-8: Row 5 (lat 33.68-33.70), Column 4 (lon 73.02-73.04)
+    {"F-8",  33.68, 33.70, 73.02, 73.04},
+    // F-9: Row 4 (lat 33.66-33.68), Column 3 (lon 73.00-73.02)
+    {"F-9",  33.66, 33.68, 73.00, 73.02},
+    // F-10: Row 3 (lat 33.64-33.66), Column 2 (lon 72.98-73.00)
+    {"F-10", 33.64, 33.66, 72.98, 73.00},
+    // F-11: Row 2 (lat 33.62-33.64), Column 1 (lon 72.96-72.98)
+    {"F-11", 33.62, 33.64, 72.96, 72.98},
 
-    // --- G-Series (Central) ---
-    {"G-6", 33.710, 33.730, 73.070, 73.090},
-    {"G-7", 33.700, 33.720, 73.050, 73.070},
-    {"G-8", 33.690, 33.710, 73.030, 73.050},
-    {"G-9", 33.680, 33.700, 73.010, 73.030},
-    {"G-10", 33.670, 33.690, 72.990, 73.010},
-    {"G-11", 33.660, 33.680, 72.970, 72.990},
+    // --- G-Series (One row South of F) ---
+    // G-6: Row 6 (lat 33.70-33.72), Column 6 (lon 73.06-73.08)
+    {"G-6",  33.70, 33.72, 73.06, 73.08},
+    // G-7: Row 5 (lat 33.68-33.70), Column 5 (lon 73.04-73.06)
+    {"G-7",  33.68, 33.70, 73.04, 73.06},
+    // G-8: Row 4 (lat 33.66-33.68), Column 4 (lon 73.02-73.04)
+    {"G-8",  33.66, 33.68, 73.02, 73.04},
+    // G-9: Row 3 (lat 33.64-33.66), Column 3 (lon 73.00-73.02)
+    {"G-9",  33.64, 33.66, 73.00, 73.02},
+    // G-10: Row 2 (lat 33.62-33.64), Column 2 (lon 72.98-73.00)
+    {"G-10", 33.62, 33.64, 72.98, 73.00},
+    // G-11: Row 1 (lat 33.60-33.62), Column 1 (lon 72.96-72.98)
+    {"G-11", 33.60, 33.62, 72.96, 72.98},
 
-    // --- H-Series (Education/Institutions) ---
-    {"H-8", 33.680, 33.700, 73.040, 73.060},
-    {"H-9", 33.670, 33.690, 73.020, 73.040},
-    {"H-10", 33.660, 33.680, 73.000, 73.020},
-    {"H-11", 33.650, 33.670, 72.980, 73.000},
-    {"H-12", 33.640, 33.660, 72.960, 72.980}, 
+    // --- H-Series (One row South of G for most) ---
+    // H-8: Row 5 (lat 33.68-33.70), Column 6 (lon 73.06-73.08)
+    {"H-8",  33.68, 33.70, 73.06, 73.08},
+    // H-9: Row 4 (lat 33.66-33.68), Column 5 (lon 73.04-73.06)
+    {"H-9",  33.66, 33.68, 73.04, 73.06},
+    // H-10: Row 3 (lat 33.64-33.66), Column 4 (lon 73.02-73.04)
+    {"H-10", 33.64, 33.66, 73.02, 73.04},
+    // H-11: Row 2 (lat 33.62-33.64), Column 3 (lon 73.00-73.02)
+    {"H-11", 33.62, 33.64, 73.00, 73.02},
+    // H-12: Row 1 (lat 33.60-33.62), Column 2 (lon 72.98-73.00)
+    {"H-12", 33.60, 33.62, 72.98, 73.00},
 
-    // I-Series is directly South of H-Series 
-    {"I-8", 33.670, 33.690, 73.050, 73.070},
-    {"I-9", 33.660, 33.680, 73.030, 73.050},
-    {"I-10", 33.650, 33.670, 73.010, 73.030},
-    {"I-11", 33.640, 33.660, 72.990, 73.010},
-    {"I-12", 33.630, 33.650, 72.970, 72.990}
+    // --- I-Series (Easternmost) ---
+    // I-8: Row 5 (lat 33.68-33.70), Column 7 (lon 73.08-73.10)
+    {"I-8",  33.68, 33.70, 73.08, 73.10},
+    // I-9: Row 4 (lat 33.66-33.68), Column 6 (lon 73.06-73.08)
+    {"I-9",  33.66, 33.68, 73.06, 73.08},
+    // I-10: Row 3 (lat 33.64-33.66), Column 5 (lon 73.04-73.06)
+    {"I-10", 33.64, 33.66, 73.04, 73.06},
+    // I-11: Row 2 (lat 33.62-33.64), Column 4 (lon 73.02-73.04)
+    {"I-11", 33.62, 33.64, 73.02, 73.04},
+    // I-12: Row 1 (lat 33.60-33.62), Column 3 (lon 73.00-73.02)
+    {"I-12", 33.60, 33.62, 73.00, 73.02}
 };
 
 // ============================================================================
@@ -173,12 +237,47 @@ static SectorBox SECTOR_GRID[] = {
 // ============================================================================
 class GeometryUtils {
 public:
+    // Resolve sector from coordinates - uses strict boundary checking
     static string resolveSector(double lat, double lon) {
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            // Use exclusive upper bounds to avoid overlaps
+            if (lat >= SECTOR_GRID[i].minLat && lat < SECTOR_GRID[i].maxLat &&
+                lon >= SECTOR_GRID[i].minLon && lon < SECTOR_GRID[i].maxLon) {
+                return SECTOR_GRID[i].name;
+            }
+        }
+        // Check for points exactly on the upper boundary
         for (int i = 0; i < SECTOR_COUNT; i++) {
             if (lat >= SECTOR_GRID[i].minLat && lat <= SECTOR_GRID[i].maxLat &&
                 lon >= SECTOR_GRID[i].minLon && lon <= SECTOR_GRID[i].maxLon) {
                 return SECTOR_GRID[i].name;
             }
+        }
+        return "Unknown Sector";
+    }
+    
+    // Find the best matching sector (nearest center if not within bounds)
+    static string resolveSectorFuzzy(double lat, double lon) {
+        // First try exact match
+        string exact = resolveSector(lat, lon);
+        if (exact != "Unknown Sector") return exact;
+        
+        // Find nearest sector by center distance
+        double minDist = 1e9;
+        int bestIdx = -1;
+        
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            double centerLat = SECTOR_GRID[i].getCenterLat();
+            double centerLon = SECTOR_GRID[i].getCenterLon();
+            double dist = getHaversineDistance(lat, lon, centerLat, centerLon);
+            if (dist < minDist) {
+                minDist = dist;
+                bestIdx = i;
+            }
+        }
+        
+        if (bestIdx != -1) {
+            return SECTOR_GRID[bestIdx].name;
         }
         return "Unknown Sector";
     }
@@ -203,19 +302,57 @@ public:
     static void generateCoords(string sector, double& lat, double& lon) {
         int idx = getSectorIndex(sector);
         if (idx != -1) {
-            double f1 = (double)rand() / RAND_MAX;
-            double f2 = (double)rand() / RAND_MAX;
-            lat = SECTOR_GRID[idx].minLat + f1 * (SECTOR_GRID[idx].maxLat - SECTOR_GRID[idx].minLat);
-            lon = SECTOR_GRID[idx].minLon + f2 * (SECTOR_GRID[idx].maxLon - SECTOR_GRID[idx].minLon);
+            // Generate coordinates within the sector (avoiding boundaries)
+            double margin = 0.001; // Small margin to stay inside
+            double f1 = 0.1 + ((double)rand() / RAND_MAX) * 0.8; // 10%-90% range
+            double f2 = 0.1 + ((double)rand() / RAND_MAX) * 0.8;
+            lat = SECTOR_GRID[idx].minLat + margin + f1 * (SECTOR_GRID[idx].maxLat - SECTOR_GRID[idx].minLat - 2*margin);
+            lon = SECTOR_GRID[idx].minLon + margin + f2 * (SECTOR_GRID[idx].maxLon - SECTOR_GRID[idx].minLon - 2*margin);
             return;
         }
-        lat = 33.69; lon = 73.04;
+        // Default to G-9 center if sector not found
+        lat = 33.65; lon = 73.01;
     }
     
     static SectorBox* getSectorBox(const string& name) {
         int idx = getSectorIndex(name);
         if (idx != -1) return &SECTOR_GRID[idx];
         return nullptr;
+    }
+    
+    // Get all adjacent sectors for a given sector
+    static Vector<string> getAdjacentSectors(const string& sectorName) {
+        Vector<string> adjacent;
+        int idx = getSectorIndex(sectorName);
+        if (idx == -1) return adjacent;
+        
+        SectorBox& box = SECTOR_GRID[idx];
+        double centerLat = box.getCenterLat();
+        double centerLon = box.getCenterLon();
+        
+        // Check all other sectors for adjacency
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            if (i == idx) continue;
+            
+            SectorBox& other = SECTOR_GRID[i];
+            double otherCenterLat = other.getCenterLat();
+            double otherCenterLon = other.getCenterLon();
+            
+            // Adjacent if centers are within ~1.5 sector widths
+            double latDiff = std::abs(centerLat - otherCenterLat);
+            double lonDiff = std::abs(centerLon - otherCenterLon);
+            
+            if (latDiff <= SECTOR_SIZE_LAT * 1.1 && lonDiff <= SECTOR_SIZE_LON * 1.1) {
+                adjacent.push_back(other.name);
+            }
+        }
+        
+        return adjacent;
+    }
+    
+    // Validate that a point is within Islamabad's bounds
+    static bool isWithinIslamabad(double lat, double lon) {
+        return lat >= 33.60 && lat <= 33.74 && lon >= 72.96 && lon <= 73.10;
     }
 };
 

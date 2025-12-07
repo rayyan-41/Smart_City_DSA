@@ -165,6 +165,9 @@
     <ClInclude Include="SmartCity.h">
       <Filter>Header Files\Modules</Filter>
     </ClInclude>
+    <ClInclude Include="source\Simulator\CitySimulator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">

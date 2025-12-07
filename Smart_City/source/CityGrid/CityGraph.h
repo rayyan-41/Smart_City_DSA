@@ -526,9 +526,7 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
         stopID = databaseID;
         
         while (i < (int)line.size() && line[i] != ',') name += line[i++];
-        if (i >= (int)line.size()) continue;
-        i++;
-        
+
         while (i < (int)line.size() && (line[i] == '"' || line[i] == ' ')) i++;
         while (i < (int)line.size() && line[i] != ',') lat_str += line[i++];
         if (i >= (int)line.size()) continue;
@@ -767,6 +765,30 @@ inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const str
 
 inline Vector<int> CityGraph::calculateBusRoute(int startNodeID, int endNodeID, double& distance) {
     return findShortestPath(startNodeID, endNodeID, distance);
+}
+
+inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon) {
+    minLat = 90.0;
+    maxLat = -90.0;
+    minLon = 180.0;
+    maxLon = -180.0;
+    
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] != nullptr) {
+            if (nodes[i]->lat < minLat) minLat = nodes[i]->lat;
+            if (nodes[i]->lat > maxLat) maxLat = nodes[i]->lat;
+            if (nodes[i]->lon < minLon) minLon = nodes[i]->lon;
+            if (nodes[i]->lon > maxLon) maxLon = nodes[i]->lon;
+        }
+    }
+    
+    // Add a small padding
+    double latPadding = (maxLat - minLat) * 0.05;
+    double lonPadding = (maxLon - minLon) * 0.05;
+    minLat -= latPadding;
+    maxLat += latPadding;
+    minLon -= lonPadding;
+    maxLon += lonPadding;
 }
 
 
