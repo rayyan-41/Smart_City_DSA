@@ -23,7 +23,7 @@ struct Patient {
     Patient() : profile(nullptr), id(IDGenerator::generatePatientID()), disease(""), severity(10) {}
 
     Patient(Citizen* c, string dis, int sev)
-        : profile(c), id(IDGenerator::genetatePatientID()), disease(dis), severity(sev) {
+        : profile(c), id(IDGenerator::generatePatientID()), disease(dis), severity(sev) {
         if (c) {
             c->currentStatus = "Hospitalized"; // Update status in Population System
         }

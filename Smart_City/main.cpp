@@ -4,147 +4,101 @@
 #include "source/HousingSystem/PopulationManager.h"
 #include "source/SchoolSystem/SchoolManager.h"
 #include "source/MedicalSystem/MedicalManager.h"
-
+#include "CityGraph.h"
+#include "source/Graphics.h"
+#include <chrono>
+#include <thread>
 using namespace std;
+#include <fstream>
+#include <sstream>
 
-// Utility to print citizens and their status
-void printCitizens(PopulationManager& pop) {
-    cout << "\n===== CURRENT CITIZENS =====\n";
-    for (int i = 0; i < pop.masterList.getSize(); i++) {
-        Citizen* c = pop.masterList[i];
-        cout << "CNIC: " << c->cnic
-            << " | Name: " << c->name
-            << " | Age: " << c->age
-            << " | Sector: " << c->sector
-            << " | Status: " << c->currentStatus
-            << endl;
+void LoadStopsData(CityGraph& graph, string filename) {
+    ifstream file(filename);
+    string line;
+
+    // Skip Header
+    getline(file, line);
+
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        string stopID, name, coords, segment;
+
+        // 1. Read StopID (until comma)
+        getline(ss, stopID, ',');
+
+        // 2. Read Name (until comma)
+        getline(ss, name, ',');
+
+        // 3. Read Coordinates (Handle Quotes)
+        // Checks if next char is a quote
+        if (ss.peek() == '"') {
+            ss.ignore(); // skip first quote
+            getline(ss, coords, '"'); // read until closing quote
+            ss.ignore(); // skip closing quote
+        }
+        else {
+            getline(ss, coords, ',');
+        }
+
+        // 4. Parse Lat/Lon from the coords string "33.684, 73.025"
+        size_t commaPos = coords.find(',');
+        if (commaPos != string::npos) {
+            double lat = stod(coords.substr(0, commaPos));
+            double lon = stod(coords.substr(commaPos + 1));
+
+            // Use your CityGraph's addLocation
+            // Format: dbID, stopID, name, type, lat, lon
+            graph.addLocation(stopID, stopID, name, "Transport", lat, lon);
+        }
     }
-    cout << "Total Citizens: " << pop.masterList.getSize() << endl;
 }
 
+
 int main() {
-    srand((unsigned)time(0));
-    cout << "=== SMART CITY INTEGRATION TEST ===\n";
+	cin.get(); // Pause before starting
+    // 1. Initialize Engine (Full HD approximate for terminal)
+    // Using 600x300 ensures it fits on most maximized terminals
+    const int W = 1100;
+    const int H = 700;
+    SquarePixelEngine engine(W, H);
 
-    // -------------------------------------------------------------------------
-    // 1. POPULATION SETUP
-    // -------------------------------------------------------------------------
-    PopulationManager popMgr;
-    cout << "\n[TEST] Creating citizens and housing hierarchy...\n";
+    // 2. Initialize Logic
+    CityGraph city;
 
-    // Add some citizens
-    popMgr.addCitizen("1234", "Ali", 20, "SectorA", 1, 1, "sdfsdf");
-	popMgr.addCitizen("5678", "Zara", 30, "SectorA", 1, 1, "dfwefs");
-	popMgr.addCitizen("A001", "Omar", 45, "SectorA", 1, 2, "sdfs");
+    // 3. Load Data
+    // Ensure "stops.csv" is in the same folder as the exe
+    LoadStopsData(city, "dataset/stops.csv");
 
-    popMgr.addCitizen("Sara", 17, "SectorA", 1, 2);
-    popMgr.addCitizen("Bilal", 35, "SectorB", 2, 1);
-    popMgr.addCitizen("Hina", 40, "SectorB", 3, 1);
-    popMgr.addCitizen("Tariq", 9, "SectorC", 5, 2);
-    popMgr.addCitizen("Ahmad", 50, "SectorC", 5, 3);
+    // Manually add some roads for testing (since CSV only has nodes)
+    // Connect G-10 (Index 0) to F-10 (Index 1)
+    if (city.getNodeCount() > 1) {
+        city.addRoad(0, 1);
+        city.addRoad(1, 2); // F-10 to PIMS
+        city.addRoad(2, 5); // PIMS to Blue Area
+    }
 
-    printCitizens(popMgr);
+    // 4. Initialize Visualizer
+    CityVisualizer viz(city, engine);
 
-    // -------------------------------------------------------------------------
-    // 2. SCHOOL SYSTEM SETUP
-    // -------------------------------------------------------------------------
-    cout << "\n[TEST] Building school system...\n";
-    SchoolManager schoolMgr;
+    // CRITICAL: Calculate scaling based on loaded data
+    viz.CalculateBounds(W, H);
 
-    // Create one school manually (simulate CSV load)
-    School* s1 = new School("S01", "City Grammar", "SectorA", 4.5);
-    s1->setSubjects({ "Math", "Science", "English", "Urdu" });
-    s1->buildDepartmentsForSchool(); // internally adds depts/classes
-    schoolMgr.addSchool(s1);
+    // 5. Game Loop
+    while (true) {
+        // Clear background to Dark Grey
+        engine.Clear({ 20, 20, 20 });
 
-    // Enroll some citizens as students
-    Citizen* cAli = popMgr.getCitizenByName("Ali");
-    Citizen* cSara = popMgr.getCitizenByName("Sara");
-    Citizen* cTariq = popMgr.getCitizenByName("Tariq");
+        // Draw the City
+        viz.Draw();
 
-    schoolMgr.addStudent("S01", "Science", cAli, 10);
-    schoolMgr.addStudent("S01", "Science", cSara, 9);
-    schoolMgr.addStudent("S01", "Science", cTariq, 4);
+        // Update Screen
+        engine.Display();
 
-    cout << "\n[TEST] Simulating bus arrival (students go to school)...\n";
-    School* school = schoolMgr.getSchoolByID("S01");
-    school->processArrival(s1->findStudentByCNIC(cAli->cnic));
-    school->processArrival(s1->findStudentByCNIC(cSara->cnic));
+        // Slow down slightly to reduce CPU usage
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
 
-    printCitizens(popMgr);
-
-    cout << "\n[TEST] Students leaving school...\n";
-    school->processDeparture(s1->findStudentByCNIC(cAli->cnic));
-    school->processDeparture(s1->findStudentByCNIC(cSara->cnic));
-    printCitizens(popMgr);
-
-    // -------------------------------------------------------------------------
-    // 3. MEDICAL SYSTEM SETUP
-    // -------------------------------------------------------------------------
-    cout << "\n[TEST] Building hospital & pharmacy system...\n";
-    MedicalManager medMgr;
-
-    medMgr.addHospital("H01", "Shifa International", "SectorB", 10);
-    medMgr.addPharmacy("P01", "HealthPlus", "SectorB");
-
-    Hospital* hosp = medMgr.getHospitalByID("H01");
-
-    cout << "\n[TEST] Admitting some citizens to hospital...\n";
-    Citizen* cBilal = popMgr.getCitizenByName("Bilal");
-    Citizen* cHina = popMgr.getCitizenByName("Hina");
-    Patient p1(cBilal, "Flu", 3);
-    Patient p2(cHina, "Heart Attack", 1);
-
-    hosp->admitPatient(p1);
-    hosp->admitPatient(p2);
-    printCitizens(popMgr);
-
-    cout << "\n[TEST] Discharging Bilal...\n";
-    hosp->dischargePatient(p1.id);
-    printCitizens(popMgr);
-
-    cout << "\n[TEST] Simulating random disaster casualties...\n";
-    hosp->simulateDisasterCasualties(&popMgr);
-    printCitizens(popMgr);
-
-    // -------------------------------------------------------------------------
-    // 4. DELETION VERIFICATION
-    // -------------------------------------------------------------------------
-    cout << "\n[TEST] Deletion and housing hierarchy verification...\n";
-    cout << "Removing a citizen manually: Tariq\n";
-    popMgr.removeCitizen(cTariq->cnic);
-    printCitizens(popMgr);
-
-    cout << "\nVerifying Tariq no longer in any house or hash map:\n";
-    if (popMgr.getCitizenByCNIC(cTariq->cnic) == nullptr)
-        cout << "[PASS] Tariq successfully deleted.\n";
-    else
-        cout << "[FAIL] Tariq still found in hash map!\n";
-
-    // -------------------------------------------------------------------------
-    // 5. EDGE CASES
-    // -------------------------------------------------------------------------
-    cout << "\n[TEST] Adding duplicate citizen (should fail gracefully)...\n";
-    bool ok = popMgr.addCitizen("Ali", 22, "SectorA", 1, 1);
-    if (!ok) cout << "[PASS] Duplicate CNIC/name check prevented re-add.\n";
-
-    cout << "\n[TEST] Admitting non-existent citizen to hospital (should fail)...\n";
-    Citizen fake("0000000000000", "Ghost", 99, "SectorZ", 0, 0);
-    Patient ghost(&fake, "Nothing", 5);
-    bool admit = hosp->admitPatient(ghost);
-    if (!admit) cout << "[PASS] Ghost patient rejected.\n";
-
-    // -------------------------------------------------------------------------
-    // 6. FINAL SUMMARY
-    // -------------------------------------------------------------------------
-    cout << "\n=== FINAL SYSTEM STATE ===\n";
-    printCitizens(popMgr);
-
-    cout << "\nRemaining hospitals: " << medMgr.getHospitalCount()
-        << " | Pharmacies: " << medMgr.getPharmacyCount()
-        << " | Schools: " << schoolMgr.getSchoolCount()
-        << endl;
-
-    cout << "\n=== INTEGRATION TEST COMPLETE ===\n";
     return 0;
 }
