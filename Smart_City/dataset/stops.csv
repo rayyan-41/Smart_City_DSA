@@ -1,32 +1,55 @@
-
 StopID,Name,Sector
-Stop1,G-10 Markaz,G-10
-Stop2,F-10 Park,F-10
-Stop3,PIMS Hospital Stop,G-8
-Stop4,F-8 Kacheri,F-8
-Stop5,G-9 Bus Adda,G-9
-Stop6,Blue Area Stop,F-6
-Stop7,Centaurus Stop,F-8
-Stop8,Faisal Mosque Stop,E-7
-Stop9,Lake View Park Stop,G-6
-Stop10,F-7 Jinnah Super,F-7
-Stop11,F-6 Super Market,F-6
-Stop12,G-6 Melody,G-6
-Stop13,H-9 Center,H-9
-Stop14,I-8 Markaz,I-8
-Stop15,G-7 Main,G-7
-Stop16,E-8 Markaz,E-8
-Stop17,H-8 Center,H-8
-Stop18,I-9 Markaz,I-9
-Stop19,G-11 Markaz,G-11
-Stop20,F-11 Markaz,F-11
-Stop21,E-9 Stop,E-9
-Stop22,E-10 Stop,E-10
-Stop23,E-11 Stop,E-11
-Stop24,H-10 Center,H-10
-Stop25,H-11 Center,H-11
-Stop26,H-12 Center,H-12
-Stop27,I-10 Markaz,I-10
-Stop28,I-11 Markaz,I-11
-Stop29,I-12 Markaz,I-12
-Stop30,G-8 Markaz,G-8
+Stop1,Faisal Mosque,E-7
+Stop2,Zoo Park,E-7
+Stop3,Bahria University,E-8
+Stop4,Naval Complex,E-8
+Stop5,Air University,E-9
+Stop6,PAF Hospital,E-9
+Stop7,Main Road Stop,E-10
+Stop8,Shaheen Chowk,E-10
+Stop9,E-11 Markaz,E-11
+Stop10,Doctors Town,E-11
+Stop11,Super Market,F-6
+Stop12,Kohsar Market,F-6
+Stop13,Jinnah Super,F-7
+Stop14,Safa Gold Mall,F-7
+Stop15,F-8 Markaz (Kacheri),F-8
+Stop16,Centaurus Mall,F-8
+Stop17,Fatima Jinnah Park,F-9
+Stop18,Bolan Gate,F-9
+Stop19,F-10 Markaz,F-10
+Stop20,Silver Oaks,F-10
+Stop21,F-11 Markaz,F-11
+Stop22,Hamza Tower,F-11
+Stop23,Aabpara Market,G-6
+Stop24,Melody Market,G-6
+Stop25,Sitara Market,G-7
+Stop26,Iqbal Hall,G-7
+Stop27,G-8 Markaz,G-8
+Stop28,PIMS Hospital,G-8
+Stop29,Karachi Company,G-9
+Stop30,Community Center,G-9
+Stop31,G-10 Markaz,G-10
+Stop32,High Court,G-10
+Stop33,G-11 Markaz,G-11
+Stop34,Real Estate Market,G-11
+Stop35,Shifa Int. Hospital,H-8
+Stop36,Allama Iqbal Open Uni,H-8
+Stop37,Sunday Bazaar,H-9
+Stop38,NUML University,H-9
+Stop39,IIUI University,H-10
+Stop40,New Campus,H-10
+Stop41,Police Lines,H-11
+Stop42,Nespak Office,H-11
+Stop43,NUST (Gate 1),H-12
+Stop44,NUST (Gate 2),H-12
+Stop45,I-8 Markaz,I-8
+Stop46,Kachnar Park,I-8
+Stop47,I-9 Markaz,I-9
+Stop48,Industrial Area,I-9
+Stop49,I-10 Markaz,I-10
+Stop50,GPO Office,I-10
+Stop51,Sabzi Mandi,I-11
+Stop52,Metro Depot,I-11
+Stop53,Main Road,I-12
+Stop54,Construction Site,I-12
