@@ -84,9 +84,6 @@
     <ClInclude Include="data_structures\Stack.h">
       <Filter>Header Files\Custom_DS</Filter>
     </ClInclude>
-    <ClInclude Include="CityGraph.h">
-      <Filter>Header Files\City Map</Filter>
-    </ClInclude>
     <ClInclude Include="source\SchoolSystem\Class.h">
       <Filter>Header Files\Modules\SchoolSystem</Filter>
     </ClInclude>
@@ -168,6 +165,15 @@
     <ClInclude Include="source\Simulator\CitySimulator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="source\Simulator\CityManagement.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CityGrid\CityGraph.h">
+      <Filter>Header Files\City Map</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CityGrid\CityUtils.h">
+      <Filter>Header Files\City Map</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">
@@ -190,9 +196,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CityUtils.h">
-      <Filter>Header Files\City Map</Filter>
-    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

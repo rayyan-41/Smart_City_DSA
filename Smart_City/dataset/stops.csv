@@ -1,21 +1,32 @@
-StopID,Name,Coordinates
-Stop1,G-10 Markaz,"33.63, 72.99"
-Stop2,F-10 Park,"33.65, 72.99"
-Stop3,PIMS Hospital G-8,"33.67, 73.03"
-Stop4,F-8 Kacheri,"33.69, 73.03"
-Stop5,G-9 Bus Adda,"33.65, 73.01"
-Stop6,Blue Area F-6,"33.73, 73.07"
-Stop7,Centaurus F-8,"33.69, 73.03"
-Stop8,Faisal Mosque E-7,"33.73, 73.05"
-Stop9,Lake View Park,"33.71, 73.07"
-Stop10,F-7 Jinnah Super,"33.71, 73.05"
-Stop11,F-6 Super Market,"33.73, 73.07"
-Stop12,G-6 Melody,"33.71, 73.07"
-Stop13,H-9 Center,"33.67, 73.05"
-Stop14,I-8 Markaz,"33.69, 73.09"
-Stop15,G-7 Main,"33.69, 73.05"
-Stop16,E-8 Markaz,"33.71, 73.03"
-Stop17,H-8 Center,"33.69, 73.07"
-Stop18,I-9 Markaz,"33.67, 73.07"
-Stop19,G-11 Markaz,"33.61, 72.97"
-Stop20,F-11 Markaz,"33.63, 72.97"
+
+StopID,Name,Sector
+Stop1,G-10 Markaz,G-10
+Stop2,F-10 Park,F-10
+Stop3,PIMS Hospital Stop,G-8
+Stop4,F-8 Kacheri,F-8
+Stop5,G-9 Bus Adda,G-9
+Stop6,Blue Area Stop,F-6
+Stop7,Centaurus Stop,F-8
+Stop8,Faisal Mosque Stop,E-7
+Stop9,Lake View Park Stop,G-6
+Stop10,F-7 Jinnah Super,F-7
+Stop11,F-6 Super Market,F-6
+Stop12,G-6 Melody,G-6
+Stop13,H-9 Center,H-9
+Stop14,I-8 Markaz,I-8
+Stop15,G-7 Main,G-7
+Stop16,E-8 Markaz,E-8
+Stop17,H-8 Center,H-8
+Stop18,I-9 Markaz,I-9
+Stop19,G-11 Markaz,G-11
+Stop20,F-11 Markaz,F-11
+Stop21,E-9 Stop,E-9
+Stop22,E-10 Stop,E-10
+Stop23,E-11 Stop,E-11
+Stop24,H-10 Center,H-10
+Stop25,H-11 Center,H-11
+Stop26,H-12 Center,H-12
+Stop27,I-10 Markaz,I-10
+Stop28,I-11 Markaz,I-11
+Stop29,I-12 Markaz,I-12
+Stop30,G-8 Markaz,G-8

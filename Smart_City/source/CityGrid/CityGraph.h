@@ -217,22 +217,13 @@ inline int CityGraph::addLocation(string databaseID, string stopID, string name,
     nodes[newID] = new CityNode(newID, databaseID, stopID, name, type, lat, lon);
     nodeCount++;
 
-    //3. Anchor Logic: Connect to nearest frame corner
+    //3. Connect to ALL FOUR corners of the sector (not just nearest)
     if (type != FacilityType::CORNER && sector != "Unknown" && sector != "Unknown Sector") {
-        int nearestCorner = -1;
-        double minDst = 99999.0;
-
+        // Find all 4 corners of this sector and connect to each
         for (int i = 0; i < nodeCount - 1; i++) {
             if (nodes[i]->sector == sector && nodes[i]->type == FacilityType::CORNER) {
-                double d = GeometryUtils::getHaversineDistance(lat, lon, nodes[i]->lat, nodes[i]->lon);
-                if (d < minDst) {
-                    minDst = d;
-                    nearestCorner = i;
-                }
+                addRoad(newID, i);
             }
-        }
-        if (nearestCorner != -1) {
-            addRoad(newID, nearestCorner);
         }
     }
 
@@ -465,7 +456,57 @@ inline void CityGraph::addRoad(int id1, int id2) {
     nodes[id2]->roads.push_back(e2);
 }
 
-/*------ Generic Building Loader ------*/
+/*------ Stop Loader (Sector-Based Coordinates) ------*/
+inline void CityGraph::loadStopsCSV(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        return;
+    }
+
+    string line;
+    getline(file, line); // Skip header: StopID,Name,Sector
+
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        string databaseID = "", name = "", sector = "";
+        int i = 0;
+
+        // Parse StopID
+        while (i < (int)line.size() && line[i] != ',') databaseID += line[i++];
+        if (i >= (int)line.size()) continue;
+        i++; // skip comma
+        
+        // Parse Name
+        while (i < (int)line.size() && line[i] != ',') name += line[i++];
+        if (i >= (int)line.size()) continue;
+        i++; // skip comma
+        
+        // Parse Sector (rest of line, trim whitespace)
+        while (i < (int)line.size() && (line[i] == ' ' || line[i] == '\t')) i++;
+        while (i < (int)line.size() && line[i] != '\r' && line[i] != '\n') {
+            sector += line[i++];
+        }
+        // Trim trailing whitespace
+        while (!sector.empty() && (sector.back() == ' ' || sector.back() == '\t' || sector.back() == '\r')) {
+            sector.pop_back();
+        }
+
+        if (databaseID.empty() || name.empty() || sector.empty()) {
+            continue;
+        }
+
+        // Generate coordinates within the sector bounds
+        double lat = 0.0, lon = 0.0;
+        GeometryUtils::generateCoords(sector, lat, lon);
+        
+        // Use databaseID as stopID as well
+        addLocation(databaseID, databaseID, name, FacilityType::STOP, lat, lon);
+    }
+    file.close();
+}
+
+/*------ Generic Building Loader (Sector-Based Coordinates) ------*/
 inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
     ifstream file(filename);
     if (!file.is_open()) {
@@ -473,7 +514,7 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
     }
 
     string line;
-    getline(file, line); //Skip header
+    getline(file, line); // Skip header
 
     int successCount = 0;
 
@@ -485,6 +526,7 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
         string sector = "";
         int i = 0;
 
+        // Parse databaseID
         bool inQuotes = false;
         while (i < (int)line.size()) {
             char c = line[i++];
@@ -493,6 +535,7 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
             databaseID += c;
         }
 
+        // Parse name
         inQuotes = false;
         while (i < (int)line.size()) {
             char c = line[i++];
@@ -501,69 +544,31 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, string type) {
             name += c;
         }
 
+        // Parse sector
         inQuotes = false;
         while (i < (int)line.size()) {
             char c = line[i++];
             if (c == '"') { inQuotes = !inQuotes; continue; }
             if (c == ',' && !inQuotes) break;
-            sector += c;
+            if (c != '\r' && c != '\n') sector += c;
+        }
+        
+        // Trim whitespace from sector
+        while (!sector.empty() && (sector.front() == ' ' || sector.front() == '\t')) {
+            sector = sector.substr(1);
+        }
+        while (!sector.empty() && (sector.back() == ' ' || sector.back() == '\t' || sector.back() == '\r')) {
+            sector.pop_back();
         }
 
         if (sector.empty()) continue;
 
+        // Generate coordinates within the sector bounds
         double lat = 0.0, lon = 0.0;
         GeometryUtils::generateCoords(sector, lat, lon);
 
         if (addLocation(databaseID, "", name, type, lat, lon) != -1) {
             successCount++;
-        }
-    }
-    file.close();
-}
-
-/*------ Stop Loader (With Coords) ------*/
-inline void CityGraph::loadStopsCSV(const string& filename) {
-    ifstream file(filename);
-    if (!file.is_open()) {
-        return;
-    }
-
-    string line;
-    getline(file, line); //Skip header
-
-    while (getline(file, line)) {
-        if (line.empty()) continue;
-
-        string databaseID = "", stopID = "", name = "", lat_str = "", lon_str = "";
-        int i = 0;
-
-        while (i < (int)line.size() && line[i] != ',') databaseID += line[i++];
-        if (i >= (int)line.size()) continue;
-        i++;
-        
-        stopID = databaseID;
-        
-        while (i < (int)line.size() && line[i] != ',') name += line[i++];
-
-        while (i < (int)line.size() && (line[i] == '"' || line[i] == ' ')) i++;
-        while (i < (int)line.size() && line[i] != ',') lat_str += line[i++];
-        if (i >= (int)line.size()) continue;
-        i++;
-        
-        while (i < (int)line.size() && (line[i] == '"' || line[i] == ' ')) i++;
-        while (i < (int)line.size() && line[i] != '"' && line[i] != '\r' && line[i] != '\n') lon_str += line[i++];
-
-        if (databaseID.empty() || name.empty() || lat_str.empty() || lon_str.empty()) {
-            continue;
-        }
-
-        try {
-            double lat = stod(lat_str);
-            double lon = stod(lon_str);
-            addLocation(databaseID, stopID, name, FacilityType::STOP, lat, lon);
-        }
-        catch (...) {
-            continue;
         }
     }
     file.close();
@@ -808,6 +813,14 @@ inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon,
     minLon -= lonPadding;
     maxLon += lonPadding;
 }
+
+
+
+
+
+
+
+
 
 
 
