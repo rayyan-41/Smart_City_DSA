@@ -292,6 +292,8 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include "../../data_structures/CustomSTL.h"
+#include "../../utils/ModuleUtils.h"
 #include "Mall.h"
 #include "Shop.h"
 #include "Product.h"

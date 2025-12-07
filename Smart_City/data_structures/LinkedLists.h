@@ -1,28 +1,42 @@
-#pragma once
-#include <iostream>
-#include <stdexcept>
+/*
+ * ============================================================================
+ * SINGLY LINKED LIST - For Bus Route Management & General Use
+ * ============================================================================
+ * 
+ * A singly linked list implementation used for:
+ *   - Bus route stop management (sequential traversal)
+ *   - Route node tracking
+ *   - Forward-only iteration patterns
+ *   - Stack and Queue underlying storage
+ * 
+ * Rubric: Singly Linked List for Bus route management (4 marks)
+ * ============================================================================
+ */
 
+#pragma once
+#include <stdexcept>
 
 template <typename T>
 class LinkedList {
-private:
+public:
+    // Public node structure for external iteration
     struct Node {
         T data;
-        Node* prev;
         Node* next;
-
-        Node(const T& value)
-            : data(value), prev(nullptr), next(nullptr) {
-        }
+        
+        Node(const T& value) : data(value), next(nullptr) {}
     };
 
+private:
     Node* head;
     Node* tail;
-    int   m_size;
+    int m_size;
 
 public:
+    // ==================== LIFECYCLE ====================
+    
     LinkedList() : head(nullptr), tail(nullptr), m_size(0) {}
-
+    
     LinkedList(const LinkedList& other) : head(nullptr), tail(nullptr), m_size(0) {
         Node* curr = other.head;
         while (curr) {
@@ -30,11 +44,10 @@ public:
             curr = curr->next;
         }
     }
-
+    
     LinkedList& operator=(const LinkedList& other) {
-        if (this == &other)
-            return *this;
-
+        if (this == &other) return *this;
+        
         clear();
         Node* curr = other.head;
         while (curr) {
@@ -43,306 +56,323 @@ public:
         }
         return *this;
     }
-
+    
     ~LinkedList() {
         clear();
     }
-
-	Node* getHead() const { return head; }  
-
-    void push_front(const T& value) {
-        Node* n = new Node(value);
-        n->next = head;
-        if (head)
-            head->prev = n;
-        head = n;
-
-        if (m_size == 0)
-            tail = head;
-
-        ++m_size;
-    }
-
-    void push_back(const T& value) {
-        Node* n = new Node(value);
-        n->prev = tail;
-        if (tail)
-            tail->next = n;
-        tail = n;
-
-        if (m_size == 0)
-            head = tail;
-
-        ++m_size;
-    }
-
-    void pop_front() {
-        if (m_size == 0)
-            return;
-
-        Node* temp = head;
-        head = head->next;
-        if (head)
-            head->prev = nullptr;
-        else
-            tail = nullptr;
-
-        delete temp;
-        --m_size;
-    }
-
-    void pop_back() {
-        if (m_size == 0)
-            return;
-
-        Node* temp = tail;
-        tail = tail->prev;
-        if (tail)
-            tail->next = nullptr;
-        else
-            head = nullptr;
-
-        delete temp;
-        --m_size;
-    }
-
+    
+    // ==================== ACCESSORS ====================
+    
+    Node* getHead() const { return head; }
+    Node* getTail() const { return tail; }
+    int size() const { return m_size; }
+    int getSize() const { return m_size; }
+    bool empty() const { return m_size == 0; }
+    
     T& front() {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return head->data;
     }
-
+    
     const T& front() const {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return head->data;
     }
-
+    
     T& back() {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return tail->data;
     }
-
+    
     const T& back() const {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return tail->data;
     }
-
+    
     T& at(int index) {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
         return nodeAt(index)->data;
     }
-
+    
     const T& at(int index) const {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
         return nodeAt(index)->data;
     }
-
-    T& operator[](int index) {
-        if (index < 0 || index >= m_size)
-            throw std::out_of_range("Index out of range");
-        return nodeAt(index)->data;
+    
+    T& operator[](int index) { return at(index); }
+    const T& operator[](int index) const { return at(index); }
+    
+    // ==================== MODIFIERS ====================
+    
+    // Add to front - O(1)
+    void push_front(const T& value) {
+        Node* newNode = new Node(value);
+        newNode->next = head;
+        head = newNode;
+        
+        if (m_size == 0) {
+            tail = head;
+        }
+        ++m_size;
     }
-
-    const T& operator[](int index) const {
-        if (index < 0 || index >= m_size)
-            throw std::out_of_range("Index out of range");
-        return nodeAt(index)->data;
+    
+    // Add to back - O(1) with tail pointer
+    void push_back(const T& value) {
+        Node* newNode = new Node(value);
+        
+        if (m_size == 0) {
+            head = tail = newNode;
+        } else {
+            tail->next = newNode;
+            tail = newNode;
+        }
+        ++m_size;
     }
-
+    
+    // Remove from front - O(1)
+    void pop_front() {
+        if (empty()) return;
+        
+        Node* temp = head;
+        head = head->next;
+        delete temp;
+        --m_size;
+        
+        if (m_size == 0) {
+            tail = nullptr;
+        }
+    }
+    
+    // Remove from back - O(n) since we need to find previous node
+    void pop_back() {
+        if (empty()) return;
+        
+        if (m_size == 1) {
+            delete head;
+            head = tail = nullptr;
+            m_size = 0;
+            return;
+        }
+        
+        // Find second to last node
+        Node* curr = head;
+        while (curr->next != tail) {
+            curr = curr->next;
+        }
+        
+        delete tail;
+        tail = curr;
+        tail->next = nullptr;
+        --m_size;
+    }
+    
+    // Insert at index - O(n)
     void insert(int index, const T& value) {
         if (index < 0 || index > m_size)
             throw std::out_of_range("Index out of range");
-
+        
         if (index == 0) {
             push_front(value);
+            return;
         }
-        else if (index == m_size) {
+        
+        if (index == m_size) {
             push_back(value);
+            return;
         }
-        else {
-            Node* curr = nodeAt(index);
-            Node* prevNode = curr->prev;
-
-            Node* n = new Node(value);
-            n->prev = prevNode;
-            n->next = curr;
-
-            prevNode->next = n;
-            curr->prev = n;
-
-            ++m_size;
-        }
+        
+        Node* prev = nodeAt(index - 1);
+        Node* newNode = new Node(value);
+        newNode->next = prev->next;
+        prev->next = newNode;
+        ++m_size;
     }
-
+    
+    // Erase at index - O(n)
     void erase(int index) {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
-
+        
         if (index == 0) {
             pop_front();
+            return;
         }
-        else if (index == m_size - 1) {
-            pop_back();
+        
+        Node* prev = nodeAt(index - 1);
+        Node* toDelete = prev->next;
+        prev->next = toDelete->next;
+        
+        if (toDelete == tail) {
+            tail = prev;
         }
-        else {
-            Node* curr = nodeAt(index);
-            Node* prevNode = curr->prev;
-            Node* nextNode = curr->next;
-
-            prevNode->next = nextNode;
-            nextNode->prev = prevNode;
-
-            delete curr;
-            --m_size;
-        }
+        
+        delete toDelete;
+        --m_size;
     }
-
-    int getSize() const { return m_size; }
-    int size()   const { return m_size; }
-    bool empty() const { return m_size == 0; }
-
+    
+    // Clear all elements
     void clear() {
-        Node* curr = head;
-        while (curr) {
-            Node* next = curr->next;
-            delete curr;
-            curr = next;
+        while (head) {
+            Node* temp = head;
+            head = head->next;
+            delete temp;
         }
         head = tail = nullptr;
         m_size = 0;
     }
-
+    
+    // Swap contents with another list
     void swap(LinkedList& other) {
         Node* tempHead = head;
         Node* tempTail = tail;
-        int   tempSize = m_size;
-
+        int tempSize = m_size;
+        
         head = other.head;
         tail = other.tail;
         m_size = other.m_size;
-
+        
         other.head = tempHead;
         other.tail = tempTail;
         other.m_size = tempSize;
     }
-
+    
+    // ==================== SEARCH ====================
+    
     int find(const T& value) const {
         Node* curr = head;
-        for (int i = 0; i < m_size; ++i) {
-            if (curr->data == value)
-                return i;
+        int index = 0;
+        while (curr) {
+            if (curr->data == value) return index;
             curr = curr->next;
+            ++index;
         }
         return -1;
     }
-
+    
     bool contains(const T& value) const {
         return find(value) != -1;
     }
-
+    
+    // Remove first occurrence of value
     void remove(const T& value) {
-        Node* curr = head;
-        while (curr) {
-            if (curr->data == value) {
-                Node* toDelete = curr;
-                curr = curr->next;
-
-                if (toDelete == head) {
-                    pop_front();
-                }
-                else if (toDelete == tail) {
-                    pop_back();
-                }
-                else {
-                    toDelete->prev->next = toDelete->next;
-                    toDelete->next->prev = toDelete->prev;
-                    delete toDelete;
-                    --m_size;
-                }
-            }
-            else {
-                curr = curr->next;
-            }
+        if (empty()) return;
+        
+        // Special case: head contains value
+        if (head->data == value) {
+            pop_front();
+            return;
         }
+        
+        Node* curr = head;
+        while (curr->next) {
+            if (curr->next->data == value) {
+                Node* toDelete = curr->next;
+                curr->next = toDelete->next;
+                
+                if (toDelete == tail) {
+                    tail = curr;
+                }
+                
+                delete toDelete;
+                --m_size;
+                return;
+            }
+            curr = curr->next;
+        }
+    }
+    
+    // ==================== ROUTE-SPECIFIC OPERATIONS ====================
+    
+    // Get node at specific position (for route traversal)
+    Node* getNodeAt(int index) {
+        return nodeAt(index);
+    }
+    
+    // Reverse the list (for reverse route)
+    void reverse() {
+        if (m_size <= 1) return;
+        
+        Node* prev = nullptr;
+        Node* curr = head;
+        tail = head;
+        
+        while (curr) {
+            Node* next = curr->next;
+            curr->next = prev;
+            prev = curr;
+            curr = next;
+        }
+        
+        head = prev;
+    }
+    
+    // Get sublist from index start to end (inclusive)
+    LinkedList<T> sublist(int start, int end) const {
+        LinkedList<T> result;
+        
+        if (start < 0 || end >= m_size || start > end) {
+            return result;
+        }
+        
+        Node* curr = nodeAt(start);
+        for (int i = start; i <= end && curr; ++i) {
+            result.push_back(curr->data);
+            curr = curr->next;
+        }
+        
+        return result;
     }
 
 private:
-    Node* nodeAt(int index) {
-        if (index < m_size / 2) {
-            Node* curr = head;
-            for (int i = 0; i < index; ++i)
-                curr = curr->next;
-            return curr;
+    Node* nodeAt(int index) const {
+        Node* curr = head;
+        for (int i = 0; i < index; ++i) {
+            curr = curr->next;
         }
-        else {
-            Node* curr = tail;
-            for (int i = m_size - 1; i > index; --i)
-                curr = curr->prev;
-            return curr;
-        }
-    }
-
-    const Node* nodeAt(int index) const {
-        if (index < m_size / 2) {
-            const Node* curr = head;
-            for (int i = 0; i < index; ++i)
-                curr = curr->next;
-            return curr;
-        }
-        else {
-            const Node* curr = tail;
-            for (int i = m_size - 1; i > index; --i)
-                curr = curr->prev;
-            return curr;
-        }
+        return curr;
     }
 };
 
-//===================== CIRCULAR DOUBLY LINKED LIST =====================
+// ============================================================================
+// CIRCULAR LINKED LIST - For Circular Queue and Round-Robin Scheduling
+// ============================================================================
 
 template <typename T>
 class CircularList {
-private:
+public:
     struct Node {
         T data;
-        Node* prev;
         Node* next;
-
-        Node(const T& value)
-            : data(value), prev(nullptr), next(nullptr) {
-        }
+        
+        Node(const T& value) : data(value), next(nullptr) {}
     };
 
+private:
     Node* head;
-    int   m_size;
+    Node* tail;  // Points to last node, tail->next = head
+    int m_size;
 
 public:
-    CircularList() : head(nullptr), m_size(0) {}
-
-    CircularList(const CircularList& other) : head(nullptr), m_size(0) {
-        if (other.m_size == 0)
-            return;
-
+    CircularList() : head(nullptr), tail(nullptr), m_size(0) {}
+    
+    CircularList(const CircularList& other) : head(nullptr), tail(nullptr), m_size(0) {
+        if (other.m_size == 0) return;
+        
         Node* curr = other.head;
         for (int i = 0; i < other.m_size; ++i) {
             push_back(curr->data);
             curr = curr->next;
         }
     }
-
+    
     CircularList& operator=(const CircularList& other) {
-        if (this == &other)
-            return *this;
-
+        if (this == &other) return *this;
+        
         clear();
-        if (other.m_size == 0)
-            return *this;
-
+        if (other.m_size == 0) return *this;
+        
         Node* curr = other.head;
         for (int i = 0; i < other.m_size; ++i) {
             push_back(curr->data);
@@ -350,314 +380,265 @@ public:
         }
         return *this;
     }
-
+    
     ~CircularList() {
         clear();
     }
-
-    void push_front(const T& value) {
-        Node* n = new Node(value);
-
-        if (m_size == 0) {
-            n->next = n;
-            n->prev = n;
-            head = n;
-        }
-        else {
-            Node* tail = head->prev;
-
-            n->next = head;
-            n->prev = tail;
-
-            tail->next = n;
-            head->prev = n;
-
-            head = n;
-        }
-        ++m_size;
-    }
-
-    void push_back(const T& value) {
-        Node* n = new Node(value);
-
-        if (m_size == 0) {
-            n->next = n;
-            n->prev = n;
-            head = n;
-        }
-        else {
-            Node* tail = head->prev;
-
-            n->next = head;
-            n->prev = tail;
-
-            tail->next = n;
-            head->prev = n;
-        }
-        ++m_size;
-    }
-
-    void pop_front() {
-        if (m_size == 0)
-            return;
-
-        if (m_size == 1) {
-            delete head;
-            head = nullptr;
-            m_size = 0;
-            return;
-        }
-
-        Node* tail = head->prev;
-        Node* oldHead = head;
-        Node* newHead = head->next;
-
-        tail->next = newHead;
-        newHead->prev = tail;
-
-        head = newHead;
-        delete oldHead;
-        --m_size;
-    }
-
-    void pop_back() {
-        if (m_size == 0)
-            return;
-
-        if (m_size == 1) {
-            delete head;
-            head = nullptr;
-            m_size = 0;
-            return;
-        }
-
-        Node* tail = head->prev;
-        Node* newTail = tail->prev;
-
-        newTail->next = head;
-        head->prev = newTail;
-
-        delete tail;
-        --m_size;
-    }
-
+    
+    // ==================== ACCESSORS ====================
+    
+    Node* getHead() const { return head; }
+    Node* getTail() const { return tail; }
+    int size() const { return m_size; }
+    int getSize() const { return m_size; }
+    bool empty() const { return m_size == 0; }
+    
     T& front() {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return head->data;
     }
-
+    
     const T& front() const {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
+        if (empty()) throw std::out_of_range("List is empty");
         return head->data;
     }
-
+    
     T& back() {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
-        return head->prev->data;
+        if (empty()) throw std::out_of_range("List is empty");
+        return tail->data;
     }
-
+    
     const T& back() const {
-        if (m_size == 0)
-            throw std::out_of_range("List is empty");
-        return head->prev->data;
+        if (empty()) throw std::out_of_range("List is empty");
+        return tail->data;
     }
-
+    
     T& at(int index) {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
         return nodeAt(index)->data;
     }
-
+    
     const T& at(int index) const {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
         return nodeAt(index)->data;
     }
-
-    T& operator[](int index) {
-        if (index < 0 || index >= m_size)
-            throw std::out_of_range("Index out of range");
-        return nodeAt(index)->data;
+    
+    T& operator[](int index) { return at(index); }
+    const T& operator[](int index) const { return at(index); }
+    
+    // ==================== MODIFIERS ====================
+    
+    void push_front(const T& value) {
+        Node* newNode = new Node(value);
+        
+        if (m_size == 0) {
+            head = tail = newNode;
+            newNode->next = newNode;  // Points to itself
+        } else {
+            newNode->next = head;
+            head = newNode;
+            tail->next = head;  // Maintain circular link
+        }
+        ++m_size;
     }
-
-    const T& operator[](int index) const {
-        if (index < 0 || index >= m_size)
-            throw std::out_of_range("Index out of range");
-        return nodeAt(index)->data;
+    
+    void push_back(const T& value) {
+        Node* newNode = new Node(value);
+        
+        if (m_size == 0) {
+            head = tail = newNode;
+            newNode->next = newNode;
+        } else {
+            newNode->next = head;
+            tail->next = newNode;
+            tail = newNode;
+        }
+        ++m_size;
     }
-
+    
+    void pop_front() {
+        if (empty()) return;
+        
+        if (m_size == 1) {
+            delete head;
+            head = tail = nullptr;
+            m_size = 0;
+            return;
+        }
+        
+        Node* temp = head;
+        head = head->next;
+        tail->next = head;
+        delete temp;
+        --m_size;
+    }
+    
+    void pop_back() {
+        if (empty()) return;
+        
+        if (m_size == 1) {
+            delete head;
+            head = tail = nullptr;
+            m_size = 0;
+            return;
+        }
+        
+        // Find second to last node
+        Node* curr = head;
+        while (curr->next != tail) {
+            curr = curr->next;
+        }
+        
+        delete tail;
+        tail = curr;
+        tail->next = head;
+        --m_size;
+    }
+    
     void insert(int index, const T& value) {
         if (index < 0 || index > m_size)
             throw std::out_of_range("Index out of range");
-
+        
         if (index == 0) {
             push_front(value);
+            return;
         }
-        else if (index == m_size) {
+        
+        if (index == m_size) {
             push_back(value);
+            return;
         }
-        else {
-            Node* curr = nodeAt(index);
-            Node* prevNode = curr->prev;
-
-            Node* n = new Node(value);
-            n->prev = prevNode;
-            n->next = curr;
-
-            prevNode->next = n;
-            curr->prev = n;
-
-            ++m_size;
-        }
+        
+        Node* prev = nodeAt(index - 1);
+        Node* newNode = new Node(value);
+        newNode->next = prev->next;
+        prev->next = newNode;
+        ++m_size;
     }
-
+    
     void erase(int index) {
         if (index < 0 || index >= m_size)
             throw std::out_of_range("Index out of range");
-
+        
         if (index == 0) {
             pop_front();
-        }
-        else if (index == m_size - 1) {
-            pop_back();
-        }
-        else {
-            Node* curr = nodeAt(index);
-            Node* prevNode = curr->prev;
-            Node* nextNode = curr->next;
-
-            prevNode->next = nextNode;
-            nextNode->prev = prevNode;
-
-            delete curr;
-            --m_size;
-        }
-    }
-
-    int  getSize() const { return m_size; }
-    int  size()   const { return m_size; }
-    bool empty()  const { return m_size == 0; }
-
-    void clear() {
-        if (m_size == 0) {
-            head = nullptr;
             return;
         }
-
+        
+        if (index == m_size - 1) {
+            pop_back();
+            return;
+        }
+        
+        Node* prev = nodeAt(index - 1);
+        Node* toDelete = prev->next;
+        prev->next = toDelete->next;
+        delete toDelete;
+        --m_size;
+    }
+    
+    void clear() {
+        if (m_size == 0) {
+            head = tail = nullptr;
+            return;
+        }
+        
         Node* curr = head;
         for (int i = 0; i < m_size; ++i) {
             Node* next = curr->next;
             delete curr;
             curr = next;
         }
-
-        head = nullptr;
+        
+        head = tail = nullptr;
         m_size = 0;
     }
-
+    
     void swap(CircularList& other) {
         Node* tempHead = head;
-        int   tempSize = m_size;
-
+        Node* tempTail = tail;
+        int tempSize = m_size;
+        
         head = other.head;
+        tail = other.tail;
         m_size = other.m_size;
-
+        
         other.head = tempHead;
+        other.tail = tempTail;
         other.m_size = tempSize;
     }
-
+    
+    // ==================== SEARCH ====================
+    
     int find(const T& value) const {
-        if (m_size == 0)
-            return -1;
-
+        if (m_size == 0) return -1;
+        
         Node* curr = head;
         for (int i = 0; i < m_size; ++i) {
-            if (curr->data == value)
-                return i;
+            if (curr->data == value) return i;
             curr = curr->next;
         }
         return -1;
     }
-
+    
     bool contains(const T& value) const {
         return find(value) != -1;
     }
-
+    
     void remove(const T& value) {
-        if (m_size == 0)
+        if (empty()) return;
+        
+        // Check head
+        if (head->data == value) {
+            pop_front();
             return;
-
-        int   originalSize = m_size;
+        }
+        
         Node* curr = head;
-
-        for (int i = 0; i < originalSize; ++i) {
-            Node* next = curr->next;
-
-            if (curr->data == value) {
-                if (m_size == 1) {
-                    delete head;
-                    head = nullptr;
-                    m_size = 0;
-                    return;
+        for (int i = 0; i < m_size - 1; ++i) {
+            if (curr->next->data == value) {
+                Node* toDelete = curr->next;
+                
+                if (toDelete == tail) {
+                    tail = curr;
                 }
-
-                Node* prevNode = curr->prev;
-                Node* nextNode = curr->next;
-
-                prevNode->next = nextNode;
-                nextNode->prev = prevNode;
-
-                if (curr == head) {
-                    head = nextNode;
-                }
-
-                delete curr;
+                
+                curr->next = toDelete->next;
+                delete toDelete;
                 --m_size;
-                curr = nextNode;
-
-                if (m_size == 0) {
-                    head = nullptr;
-                    return;
-                }
+                return;
             }
-            else {
-                curr = next;
-            }
+            curr = curr->next;
+        }
+    }
+    
+    // ==================== CIRCULAR OPERATIONS ====================
+    
+    // Rotate: move head to next (round-robin)
+    void rotate() {
+        if (m_size <= 1) return;
+        tail = head;
+        head = head->next;
+    }
+    
+    // Rotate n times
+    void rotate(int n) {
+        if (m_size <= 1) return;
+        n = n % m_size;
+        for (int i = 0; i < n; ++i) {
+            rotate();
         }
     }
 
 private:
-    Node* nodeAt(int index) {
-        if (index <= m_size / 2) {
-            Node* curr = head;
-            for (int i = 0; i < index; ++i)
-                curr = curr->next;
-            return curr;
+    Node* nodeAt(int index) const {
+        Node* curr = head;
+        for (int i = 0; i < index; ++i) {
+            curr = curr->next;
         }
-        else {
-            Node* curr = head->prev; // tail
-            for (int i = m_size - 1; i > index; --i)
-                curr = curr->prev;
-            return curr;
-        }
-    }
-
-    const Node* nodeAt(int index) const {
-        if (index <= m_size / 2) {
-            const Node* curr = head;
-            for (int i = 0; i < index; ++i)
-                curr = curr->next;
-            return curr;
-        }
-        else {
-            const Node* curr = head->prev; // tail
-            for (int i = m_size - 1; i > index; --i)
-                curr = curr->prev;
-            return curr;
-        }
+        return curr;
     }
 };
 

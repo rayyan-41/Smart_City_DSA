@@ -1,13 +1,11 @@
 #pragma once
 #include <string>
-#include "customSTL.h"
-#include "ModuleUtils.h"
+#include "../../data_structures/CustomSTL.h"
+#include "../../utils/ModuleUtils.h"
 #include "Patient.h"
 #include "Doctor.h"
-#include "../HousingSystem/PopulationManager.h"
 
 using std::string;
-
 
 class Hospital {
 public:
@@ -16,14 +14,11 @@ public:
     string sector;
 
     int totalBeds;
-    // Stores actual Patient objects (which contain Citizen* pointers)
     Vector<Patient> admittedPatients;
-
     Vector<Doctor> doctors;
     Vector<string> specializations;
 
     // EMERGENCY ROOM (ER) QUEUE (Min-Heap / Priority Queue)
-    // Most critical patients bubble to the top
     PriorityQueue<Patient> emergencyRoom;
 
     Location location;
@@ -37,114 +32,70 @@ public:
         location(sector, x, y), graphNodeID(graphNodeID) {
     }
 
-    // --- Core Hospital Logic ---
-
-    int getAvailableBeds() const {
-        return totalBeds - admittedPatients.getSize();
+    // ==================== GETTERS ====================
+    string getId() const { return id; }
+    string getName() const { return name; }
+    string getSector() const { return sector; }
+    int getTotalBeds() const { return totalBeds; }
+    int getOccupiedBeds() const { return admittedPatients.getSize(); }
+    int getAvailableBeds() const { return totalBeds - admittedPatients.getSize(); }
+    int getERQueueSize() const { return emergencyRoom.size(); }
+    int getDoctorCount() const { return doctors.getSize(); }
+    int getSpecializationCount() const { return specializations.getSize(); }
+    string getGraphNodeID() const { return graphNodeID; }
+    double getLatitude() const { return location.coord.x; }
+    double getLongitude() const { return location.coord.y; }
+    const Location& getLocation() const { return location; }
+    const Vector<Patient>& getAdmittedPatients() const { return admittedPatients; }
+    const Vector<Doctor>& getDoctors() const { return doctors; }
+    const Vector<string>& getSpecializations() const { return specializations; }
+    
+    // Occupancy percentage for rendering
+    double getOccupancyRate() const {
+        if (totalBeds == 0) return 0.0;
+        return (double)admittedPatients.getSize() / totalBeds * 100.0;
     }
+    
+    // Check if hospital is at capacity
+    bool isAtCapacity() const { return getAvailableBeds() <= 0; }
+    bool hasEmergencyQueue() const { return !emergencyRoom.empty(); }
 
-    // Attempts to admit a patient
+    // ==================== SETTERS ====================
+    void setId(const string& newId) { id = newId; }
+    void setName(const string& newName) { name = newName; }
+    void setSector(const string& newSector) { sector = newSector; location.sector = newSector; }
+    void setTotalBeds(int beds) { totalBeds = beds; }
+    void setGraphNodeID(const string& nodeID) { graphNodeID = nodeID; }
+    void setCoordinates(double lat, double lon) { location.coord.x = lat; location.coord.y = lon; }
+    void setLocation(const Location& loc) { location = loc; }
+
+    // ==================== CORE HOSPITAL LOGIC ====================
+
     bool admitPatient(const Patient& p) {
         if (getAvailableBeds() > 0) {
             admittedPatients.push_back(p);
-            return true; // Admitted to bed
+            return true;
         }
         else {
             emergencyRoom.push(p);
-            return false; // Queued in ER
+            return false;
         }
     }
 
-    // Batch Arrival (e.g., from an Ambulance/Bus)
     void processAmbulanceArrival(const Vector<Patient>& victims) {
         for (int i = 0; i < victims.getSize(); i++) {
             admitPatient(victims[i]);
         }
     }
 
-    // --- Disaster Simulation Logic ---
-
-   // Calculates death rate (40-60%) for CRITICAL patients (Severity 1)
-   // Removes them from Hospital AND Population Manager
-    //void simulateDisasterCasualties(PopulationManager* popMgr) {
-    //    if (!popMgr) return;
-
-    //    // 1. Identify Critical Patients (Severity == 1)
-    //    Vector<Patient> criticalList;
-    //    for (int i = 0; i < admittedPatients.getSize(); i++) {
-    //        if (admittedPatients[i].severity == 1) {
-    //            criticalList.push_back(admittedPatients[i]);
-    //        }
-    //    }
-
-    //    if (criticalList.getSize() == 0) return;
-
-    //    // 2. Calculate Casualties (Random 40-60%)
-    //    int percent = 40 + (rand() % 21); // 40 to 60
-    //    int deathCount = (criticalList.getSize() * percent) / 100;
-    //    if (deathCount == 0 && criticalList.getSize() > 0) deathCount = 1;
-
-    //    // 3. Process Deaths
-    //    // We collect the CNICs first. We CANNOT delete from PopulationManager yet,
-    //    // because we need the Citizen pointers to stay valid while we remove them from admittedPatients.
-    //    Vector<string> deceasedCNICs;
-
-    //    for (int k = 0; k < deathCount; k++) {
-    //        Patient deceased = criticalList[k];
-    //        // std::cout << " [Alert] Patient " << deceased.getName() << " (Severity: 1) has passed away." << std::endl;
-
-    //        // Store CNIC for later deletion from Population System
-    //        string cnic = deceased.getCNIC();
-    //        if (!cnic.empty()) deceasedCNICs.push_back(cnic);
-    //    }
-
-    //    // 4. Update Hospital Records (Remove deceased from admittedPatients)
-    //    // We rebuild the list, excluding those who died.
-    //    Vector<Patient> survivors;
-    //    for (int i = 0; i < admittedPatients.getSize(); i++) {
-    //        bool isDeceased = false;
-    //        string currentCNIC = admittedPatients[i].getCNIC();
-
-    //        for (int j = 0; j < deceasedCNICs.getSize(); j++) {
-    //            if (currentCNIC == deceasedCNICs[j]) {
-    //                isDeceased = true;
-    //                break;
-    //            }
-    //        }
-
-    //        if (!isDeceased) {
-    //            survivors.push_back(admittedPatients[i]);
-    //        }
-    //    }
-
-    //    // Replace admitted list with survivors
-    //    // (Manual copy because we don't have a simple vector assignment overload setup for this scenario in context)
-    //    admittedPatients.clear();
-    //    for (int i = 0; i < survivors.getSize(); i++) {
-    //        admittedPatients.push_back(survivors[i]);
-    //    }
-
-    //    // 5. FINAL STEP: Remove from Population Manager
-    //    // Now that Hospital no longer holds pointers to them, it is safe to delete the memory.
-    //    for (int i = 0; i < deceasedCNICs.getSize(); i++) {
-    //        popMgr->removeCitizen(deceasedCNICs[i]);
-    //    }
-    //}
-
-    // Discharge
     bool dischargePatient() {
         if (admittedPatients.getSize() > 0) {
-            // First in First Out discharge
             Patient p = admittedPatients[0];
-            if (p.profile) p.profile->currentStatus = "Home"; // Recovered
-
-            // Shift Logic
+            if (p.profile) p.profile->currentStatus = "Home";
             for (int j = 0; j < admittedPatients.getSize() - 1; j++) {
                 admittedPatients[j] = admittedPatients[j + 1];
             }
             admittedPatients.pop_back();
-
-            // Auto-Admit from ER
             if (!emergencyRoom.empty()) {
                 Patient next = emergencyRoom.top();
                 emergencyRoom.pop();
@@ -159,13 +110,11 @@ public:
         for (int i = 0; i < admittedPatients.getSize(); i++) {
             if (admittedPatients[i].id == pID) {
                 Patient p = admittedPatients[i];
-                if (p.profile) p.profile->currentStatus = "Home"; // Recovered
-                // Shift Logic
+                if (p.profile) p.profile->currentStatus = "Home";
                 for (int j = i; j < admittedPatients.getSize() - 1; j++) {
                     admittedPatients[j] = admittedPatients[j + 1];
                 }
                 admittedPatients.pop_back();
-                // Auto-Admit from ER
                 if (!emergencyRoom.empty()) {
                     Patient next = emergencyRoom.top();
                     emergencyRoom.pop();
@@ -175,37 +124,7 @@ public:
             }
         }
         return false;
-	}
-
-	//bool killPatient(const string& pID, PopulationManager* popMgr) {
- //       for (int i = 0; i < admittedPatients.getSize(); i++) {
- //           if (admittedPatients[i].id == pID) {
- //               Patient p = admittedPatients[i];
- //               string cnic = p.getCNIC();
- //               // Shift Logic
- //               for (int j = i; j < admittedPatients.getSize() - 1; j++) {
- //                   admittedPatients[j] = admittedPatients[j + 1];
- //               }
- //               admittedPatients.pop_back();
- //               // Auto-Admit from ER
- //               if (!emergencyRoom.empty()) {
- //                   Patient next = emergencyRoom.top();
- //                   emergencyRoom.pop();
- //                   admittedPatients.push_back(next);
- //               }
- //               // Remove from Population Manager
- //               if (popMgr && !cnic.empty()) {
- //                   popMgr->removeCitizen(cnic);
- //               }
- //               return true;
- //           }
- //       }
- //       return false;
- //   }
-
-    Vector<Patient> getAdmittedPatients() const {
-        return admittedPatients;
-	}
+    }
 
     Patient* findPatient(const string& pID) {
         for (int i = 0; i < admittedPatients.getSize(); i++) {
@@ -223,5 +142,9 @@ public:
             if (specializations[i] == spec) return true;
         }
         return false;
+    }
+
+    void addDoctor(const Doctor& doc) {
+        doctors.push_back(doc);
     }
 };

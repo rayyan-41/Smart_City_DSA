@@ -13,6 +13,16 @@ struct Medicine {
         : name(name), formula(formula), price(price) {
     }
 
+    // ==================== GETTERS ====================
+    string getName() const { return name; }
+    string getFormula() const { return formula; }
+    float getPrice() const { return price; }
+
+    // ==================== SETTERS ====================
+    void setName(const string& n) { name = n; }
+    void setFormula(const string& f) { formula = f; }
+    void setPrice(float p) { price = p; }
+
     // Equality check for search/hashing collisions
     bool operator==(const Medicine& other) const {
         return name == other.name && formula == other.formula;

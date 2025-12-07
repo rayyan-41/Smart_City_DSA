@@ -1,7 +1,27 @@
+/*
+ * ============================================================================
+ * SCHOOL MANAGER - Education System Controller
+ * ============================================================================
+ * 
+ * PURPOSE:
+ * Manages all schools in the Smart City with a 3-level hierarchical tree
+ * structure (School ? Department ? Class). Provides O(1) lookups by school ID
+ * and subject offerings, enabling efficient student enrollment and school
+ * discovery across the city's education system.
+ * 
+ * DATA STRUCTURES USED:
+ *   - Vector<School*>: Store all schools for iteration
+ *   - HashTable<string, School*>: O(1) school lookup by ID
+ *   - HashTable<string, Vector<School*>>: O(1) schools by subject
+ *   - 3-Level Tree: School ? Department ? Class hierarchy
+ * 
+ * ============================================================================
+ */
+
 #pragma once
 #include <string>
 #include <fstream>
-#include "CustomSTL.h"
+#include "../../data_structures/CustomSTL.h"
 #include "School.h"
 #include "Department.h"
 #include "Class.h"
@@ -13,13 +33,7 @@ using std::ifstream;
 class SchoolManager {
 public:
     Vector<School*> schools;
-
-    // Hash Table for O(1) Lookup by ID
-    // Key: School ID (string), Value: School Pointer (School*)
     HashTable<string, School*> schoolLookup;
-
-    // Hash Table for O(1) Lookup by Subject
-    // Key: Subject Name (string), Value: List of Schools offering it
     HashTable<string, Vector<School*>> subjectLookup;
 
     SchoolManager();
@@ -28,55 +42,36 @@ public:
     SchoolManager(const SchoolManager& other) = delete;
     SchoolManager& operator=(const SchoolManager& other) = delete;
 
-    // ------- School Creation API -------
-    School* createSchool(const string& id,
-        const string& name,
-        const string& sector,
-        float rating,
-        const string& graphNodeID = "",
-        double x = 0.0,
-        double y = 0.0);
-
+    School* createSchool(const string& id, const string& name, const string& sector,
+        float rating, const string& graphNodeID = "", double x = 0.0, double y = 0.0);
     void addSchool(School* school);
 
-    // Administrative: Enroll a student into a specific class
     bool addStudent(const string& schoolID, const string& deptName, Citizen* studentInfo, int classNumber);
-	bool removeStudent(const string& schoolID, const string& cnic);
-	bool removeStudentFromAllSchools(const string& cnic);
+    bool removeStudent(const string& schoolID, const string& cnic);
+    bool removeStudentFromAllSchools(const string& cnic);
 
-	bool addFacultyToSchoolDepartment(const string& schoolID, const string& deptName, Faculty* faculty);
-	bool removeFacultyFromSchoolDepartment(const string& schoolID, const string& deptName, const string& employeeID);   
-	bool removeFacultyFromAllSchools(const string& employeeID);
+    bool addFacultyToSchoolDepartment(const string& schoolID, const string& deptName, Faculty* faculty);
+    bool removeFacultyFromSchoolDepartment(const string& schoolID, const string& deptName, const string& employeeID);   
+    bool removeFacultyFromAllSchools(const string& employeeID);
 
-    // Simulation: Process a bus arrival (Batch update of student locations)
     void processBusArrival(const string& schoolID, const Vector<Student*>& incomingStudents);
-
     void setSchoolSubjects(School* school, const Vector<string>& subjects);
-
     void buildDepartmentsForSchool(School* school);
     void buildDepartmentsForAllSchools();
 
-    // ------- Lookup API -------
     School* findSchoolByID(const string& id) const;
     Vector<School*> findSchoolsBySubject(const string& subject) const;
-
     void setGraphNodeForSchool(const string& schoolID, const string& graphNodeID);
 
-    // ------- CSV Loading -------
     bool loadFromCSV(const string& filename, bool hasHeader = true);
 
 private:
     string mapSubjectToDepartment(const string& subject) const;
-
     Department* findDepartmentInSchool(School* school, const string& deptName) const;
-
     Department* createDepartmentInSchool(School* school, const string& deptName);
-
     void addClassesToDepartment(Department* dept);
-
     string trim(const string& s) const;
 };
-
 
 // ================= IMPLEMENTATION =================
 
@@ -88,19 +83,11 @@ inline SchoolManager::~SchoolManager() {
     }
 }
 
-inline School* SchoolManager::createSchool(const string& id,
-    const string& name,
-    const string& sector,
-    float rating,
-    const string& graphNodeID,
-    double x,
-    double y)
-{
+inline School* SchoolManager::createSchool(const string& id, const string& name, const string& sector,
+    float rating, const string& graphNodeID, double x, double y) {
     School* s = new School(id, name, sector, rating, graphNodeID, x, y);
-
-    schools.push_back(s);           // Store in Vector for iteration
-    schoolLookup.insert(id, s);     // Store in ID Hash Table
-
+    schools.push_back(s);
+    schoolLookup.insert(id, s);
     return s;
 }
 
@@ -111,12 +98,9 @@ inline void SchoolManager::addSchool(School* school) {
     }
 }
 
-inline bool SchoolManager::addStudent(const string& schoolID,
-    const string& deptName,
-    Citizen* studentInfo,
-    int classNumber)
-{
-	Student* student = new Student(studentInfo);
+inline bool SchoolManager::addStudent(const string& schoolID, const string& deptName,
+    Citizen* studentInfo, int classNumber) {
+    Student* student = new Student(studentInfo);
     School* s = findSchoolByID(schoolID);
     if (s) {
         return s->addStudentToDepartment(deptName, student, classNumber);
@@ -124,14 +108,15 @@ inline bool SchoolManager::addStudent(const string& schoolID,
     return false;
 }
 
-bool SchoolManager::removeStudent(const string& schoolID, const string& cnic) {
+inline bool SchoolManager::removeStudent(const string& schoolID, const string& cnic) {
     School* s = findSchoolByID(schoolID);
     if (s) {
         return s->removeStudent(cnic);
     }
     return false;
 }
-bool SchoolManager::removeStudentFromAllSchools(const string& cnic) {
+
+inline bool SchoolManager::removeStudentFromAllSchools(const string& cnic) {
     bool removed = false;
     for (int i = 0; i < schools.getSize(); i++) {
         if (schools[i]->removeStudent(cnic)) {
@@ -141,21 +126,18 @@ bool SchoolManager::removeStudentFromAllSchools(const string& cnic) {
     return removed;
 }
 
-bool SchoolManager::addFacultyToSchoolDepartment(const string& schoolID,
-    const string& deptName,
-    Faculty* faculty)
-{
-	School* s = findSchoolByID(schoolID);
+inline bool SchoolManager::addFacultyToSchoolDepartment(const string& schoolID,
+    const string& deptName, Faculty* faculty) {
+    School* s = findSchoolByID(schoolID);
     if (s) {
         return s->addFacultyToDepartment(deptName, faculty);
     }
-	return false;
+    return false;
 }
-bool SchoolManager::removeFacultyFromSchoolDepartment(const string& schoolID,
-    const string& deptName,
-    const string& employeeID)
-{
-	School* s = findSchoolByID(schoolID);
+
+inline bool SchoolManager::removeFacultyFromSchoolDepartment(const string& schoolID,
+    const string& deptName, const string& employeeID) {
+    School* s = findSchoolByID(schoolID);
     if (s) {
         Department* dept = s->findDepartment(deptName);
         if (dept) {
@@ -167,10 +149,11 @@ bool SchoolManager::removeFacultyFromSchoolDepartment(const string& schoolID,
                 }
             }
         }
-	}
-	return false;
+    }
+    return false;
 }
-bool SchoolManager::removeFacultyFromAllSchools(const string& employeeID) {
+
+inline bool SchoolManager::removeFacultyFromAllSchools(const string& employeeID) {
     bool removed = false;
     for (int i = 0; i < schools.getSize(); i++) {
         School* s = schools[i];
@@ -189,33 +172,25 @@ bool SchoolManager::removeFacultyFromAllSchools(const string& employeeID) {
     return removed;
 }
 
-
-// SIMULATION LOGIC: Handle bus arrival
 inline void SchoolManager::processBusArrival(const string& schoolID, const Vector<Student*>& incomingStudents) {
     School* s = findSchoolByID(schoolID);
     if (s) {
         for (int i = 0; i < incomingStudents.getSize(); i++) {
             Student* student = incomingStudents.at(i);
-            // Mark student as "Arrived" at this school
             s->processArrival(student);
         }
     }
 }
 
-inline void SchoolManager::setSchoolSubjects(School* school,
-    const Vector<string>& subjects) {
+inline void SchoolManager::setSchoolSubjects(School* school, const Vector<string>& subjects) {
     if (!school) return;
     school->subjects = subjects;
-
-    // Populate Subject Lookup
     for (int i = 0; i < subjects.getSize(); i++) {
         string subj = subjects[i];
         Vector<School*>* existingList = subjectLookup.get(subj);
-
         if (existingList != nullptr) {
             existingList->push_back(school);
-        }
-        else {
+        } else {
             Vector<School*> newList;
             newList.push_back(school);
             subjectLookup.insert(subj, newList);
@@ -226,17 +201,13 @@ inline void SchoolManager::setSchoolSubjects(School* school,
 inline void SchoolManager::buildDepartmentsForSchool(School* school) {
     if (!school) return;
     if (school->departments.getSize() > 0) return;
-
     for (int i = 0; i < school->subjects.getSize(); i++) {
         const string& subj = school->subjects[i];
         string deptName = mapSubjectToDepartment(subj);
-
         Department* dept = findDepartmentInSchool(school, deptName);
         if (!dept) dept = createDepartmentInSchool(school, deptName);
-
         dept->addSubject(subj);
     }
-
     for (int i = 0; i < school->departments.getSize(); i++) {
         addClassesToDepartment(school->departments[i]);
     }
@@ -250,22 +221,17 @@ inline void SchoolManager::buildDepartmentsForAllSchools() {
 
 inline School* SchoolManager::findSchoolByID(const string& id) const {
     School** result = schoolLookup.get(id);
-    if (result != nullptr) {
-        return *result;
-    }
+    if (result != nullptr) return *result;
     return nullptr;
 }
 
 inline Vector<School*> SchoolManager::findSchoolsBySubject(const string& subject) const {
     Vector<School*>* result = subjectLookup.get(subject);
-    if (result != nullptr) {
-        return *result;
-    }
+    if (result != nullptr) return *result;
     return Vector<School*>();
 }
 
-inline void SchoolManager::setGraphNodeForSchool(const string& schoolID,
-    const string& graphNodeID) {
+inline void SchoolManager::setGraphNodeForSchool(const string& schoolID, const string& graphNodeID) {
     School* s = findSchoolByID(schoolID);
     if (s) s->graphNodeID = graphNodeID;
 }
@@ -273,47 +239,34 @@ inline void SchoolManager::setGraphNodeForSchool(const string& schoolID,
 inline bool SchoolManager::loadFromCSV(const string& filename, bool hasHeader) {
     ifstream file(filename);
     if (!file.is_open()) return false;
-
     string line;
     if (hasHeader) std::getline(file, line);
-
     while (std::getline(file, line)) {
         if (line.empty()) continue;
-
         string fields[5];
         int idx = 0;
         string cur = "";
-
         for (int i = 0; i < (int)line.size(); i++) {
             char c = line[i];
             if (c == ',' && idx < 4) {
                 fields[idx++] = trim(cur);
                 cur.clear();
-            }
-            else {
+            } else {
                 cur += c;
             }
         }
         fields[idx] = trim(cur);
-
         string id = trim(fields[0]);
         string name = trim(fields[1]);
         string sector = trim(fields[2]);
         string ratingStr = trim(fields[3]);
         string subjectsField = trim(fields[4]);
-
         float rating = 0.0f;
         try { if (!ratingStr.empty()) rating = std::stof(ratingStr); }
         catch (...) {}
-
-        if (!subjectsField.empty() &&
-            subjectsField.front() == '"' &&
-            subjectsField.back() == '"' &&
-            subjectsField.size() >= 2)
-        {
+        if (!subjectsField.empty() && subjectsField.front() == '"' && subjectsField.back() == '"' && subjectsField.size() >= 2) {
             subjectsField = subjectsField.substr(1, subjectsField.size() - 2);
         }
-
         Vector<string> subjects;
         string curSub = "";
         for (int i = 0; i < (int)subjectsField.size(); i++) {
@@ -321,53 +274,40 @@ inline bool SchoolManager::loadFromCSV(const string& filename, bool hasHeader) {
                 string t = trim(curSub);
                 if (!t.empty()) subjects.push_back(t);
                 curSub.clear();
-            }
-            else {
+            } else {
                 curSub += subjectsField[i];
             }
         }
         string t = trim(curSub);
         if (!t.empty()) subjects.push_back(t);
-
         School* s = createSchool(id, name, sector, rating);
         setSchoolSubjects(s, subjects);
         buildDepartmentsForSchool(s);
     }
-
     file.close();
     return true;
 }
 
-// ---------------- Private Helpers ----------------
-
 inline string SchoolManager::mapSubjectToDepartment(const string& subject) const {
-    if (subject == "English" || subject == "Urdu" ||
-        subject == "Islamiat" || subject == "Arabic")
+    if (subject == "English" || subject == "Urdu" || subject == "Islamiat" || subject == "Arabic")
         return "Arts";
-
-    if (subject == "Math" || subject == "Mathematics" ||
-        subject == "Physics" || subject == "Chemistry" ||
-        subject == "Chem" || subject == "Biology" || subject == "Bio")
+    if (subject == "Math" || subject == "Mathematics" || subject == "Physics" || 
+        subject == "Chemistry" || subject == "Chem" || subject == "Biology" || subject == "Bio")
         return "Science";
-
-    if (subject == "CS" || subject == "Computer Science" ||
-        subject == "AI" || subject == "Artificial Intelligence" ||
-        subject == "Robotics")
+    if (subject == "CS" || subject == "Computer Science" || subject == "AI" || 
+        subject == "Artificial Intelligence" || subject == "Robotics")
         return "Computing";
-
     return "General";
 }
 
-inline Department* SchoolManager::findDepartmentInSchool(School* school,
-    const string& deptName) const {
+inline Department* SchoolManager::findDepartmentInSchool(School* school, const string& deptName) const {
     for (int i = 0; i < school->departments.getSize(); i++) {
         if (school->departments[i]->name == deptName) return school->departments[i];
     }
     return nullptr;
 }
 
-inline Department* SchoolManager::createDepartmentInSchool(School* school,
-    const string& deptName) {
+inline Department* SchoolManager::createDepartmentInSchool(School* school, const string& deptName) {
     Department* d = new Department(deptName);
     school->departments.push_back(d);
     return d;

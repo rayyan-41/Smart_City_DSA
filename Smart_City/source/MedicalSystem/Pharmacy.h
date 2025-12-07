@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
-#include "customSTL.h" 
-#include "ModuleUtils.h"
+#include "../../data_structures/CustomSTL.h" 
+#include "../../utils/ModuleUtils.h"
 #include "Medicine.h"
 
 using std::string;
@@ -24,8 +24,62 @@ public:
         : id(id), name(name), sector(sector), location(sector, x, y), graphNodeID(graphNodeID) {
     }
 
-    // Add medicine to inventory
-    // This is called repeatedly when parsing rows with the same PharmacyID
+    // ==================== GETTERS ====================
+    string getId() const { return id; }
+    string getName() const { return name; }
+    string getSector() const { return sector; }
+    string getGraphNodeID() const { return graphNodeID; }
+    double getLatitude() const { return location.coord.x; }
+    double getLongitude() const { return location.coord.y; }
+    const Location& getLocation() const { return location; }
+    int getMedicineCount() const { return inventory.getSize(); }
+    const Vector<Medicine>& getInventory() const { return inventory; }
+    
+    // Get medicine by index
+    const Medicine* getMedicine(int index) const {
+        if (index >= 0 && index < inventory.getSize()) return &inventory[index];
+        return nullptr;
+    }
+    
+    // Get medicine by name
+    const Medicine* getMedicineByName(const string& medName) const {
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory[i].name == medName) return &inventory[i];
+        }
+        return nullptr;
+    }
+    
+    // Get total inventory value
+    double getTotalInventoryValue() const {
+        double total = 0.0;
+        for (int i = 0; i < inventory.getSize(); i++) {
+            total += inventory[i].price;
+        }
+        return total;
+    }
+    
+    // Get list of all formulas available
+    Vector<string> getAvailableFormulas() const {
+        Vector<string> formulas;
+        for (int i = 0; i < inventory.getSize(); i++) {
+            bool found = false;
+            for (int j = 0; j < formulas.getSize(); j++) {
+                if (formulas[j] == inventory[i].formula) { found = true; break; }
+            }
+            if (!found) formulas.push_back(inventory[i].formula);
+        }
+        return formulas;
+    }
+
+    // ==================== SETTERS ====================
+    void setId(const string& newId) { id = newId; }
+    void setName(const string& newName) { name = newName; }
+    void setSector(const string& newSector) { sector = newSector; location.sector = newSector; }
+    void setGraphNodeID(const string& nodeID) { graphNodeID = nodeID; }
+    void setCoordinates(double lat, double lon) { location.coord.x = lat; location.coord.y = lon; }
+    void setLocation(const Location& loc) { location = loc; }
+
+    // ==================== MEDICINE OPERATIONS ====================
     void addMedicine(const Medicine& med) {
         //Check for duplicates
 		for (int i = 0; i < inventory.getSize(); i++) {
@@ -45,6 +99,13 @@ public:
         }
         return false;
     }
+    
+    bool hasMedicineByFormula(const string& formula) const {
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory[i].formula == formula) return true;
+        }
+        return false;
+    }
 
     // Helper to get price if medicine exists
     float getPrice(const string& medName) const {
@@ -52,5 +113,15 @@ public:
             if (inventory[i].name == medName) return inventory[i].price;
         }
         return -1.0f; // Not found
+    }
+    
+    bool removeMedicine(const string& medName) {
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory[i].name == medName) {
+                inventory.erase(i);
+                return true;
+            }
+        }
+        return false;
     }
 };

@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include "Student.h"
-#include "CustomSTL.h"
+#include "../../data_structures/CustomSTL.h"
 
 using std::string;
 
@@ -9,7 +9,7 @@ using std::string;
 class Class {
 public:
     int classNumber;
-    Vector<Student*> students; // Renamed from enrolledStudents to match your preference
+    Vector<Student*> students;
 
     // Rule of three
     Class();
@@ -18,8 +18,36 @@ public:
     Class& operator=(const Class& other);
     ~Class();
 
-    int getStudentCount() const;
+    // ==================== GETTERS ====================
+    int getClassNumber() const { return classNumber; }
+    int getStudentCount() const { return students.getSize(); }
+    const Vector<Student*>& getStudents() const { return students; }
+    
+    Student* getStudent(int index) const {
+        if (index >= 0 && index < students.getSize()) return students[index];
+        return nullptr;
+    }
+    
+    Student* findStudentByCNIC(const string& cnic) const {
+        for (int i = 0; i < students.getSize(); i++) {
+            if (students[i]->getCNIC() == cnic) return students[i];
+        }
+        return nullptr;
+    }
+    
+    Student* findStudentByRollNo(const string& rollNo) const {
+        for (int i = 0; i < students.getSize(); i++) {
+            if (students[i]->rollNumber == rollNo) return students[i];
+        }
+        return nullptr;
+    }
+    
+    bool isEmpty() const { return students.getSize() == 0; }
 
+    // ==================== SETTERS ====================
+    void setClassNumber(int num) { classNumber = num; }
+
+    // ==================== OPERATIONS ====================
     bool addStudent(Student* student);
     bool removeStudent(const string& cnic);
 };
@@ -48,10 +76,6 @@ inline Class::~Class() {
     for (int i = 0; i < students.getSize(); i++) {
         delete students[i];
     }
-}
-
-inline int Class::getStudentCount() const {
-    return students.getSize();
 }
 
 inline bool Class::addStudent(Student* student) {

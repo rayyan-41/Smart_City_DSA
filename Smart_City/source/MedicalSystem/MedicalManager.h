@@ -1,7 +1,30 @@
+/*
+ * ============================================================================
+ * MEDICAL MANAGER - Healthcare System Controller
+ * ============================================================================
+ * 
+ * PURPOSE:
+ * Manages all healthcare facilities in the Smart City, including hospitals
+ * with emergency queues and pharmacies with medicine inventory. Provides
+ * O(1) medicine lookups by name and formula, priority-based emergency
+ * patient admission, and cross-hospital patient tracking.
+ * 
+ * DATA STRUCTURES USED:
+ *   - Vector<Hospital*>: All hospitals for iteration
+ *   - Vector<Pharmacy*>: All pharmacies for iteration
+ *   - HashTable<string, Hospital*>: O(1) hospital by ID
+ *   - HashTable<string, Pharmacy*>: O(1) pharmacy by ID
+ *   - HashTable<string, Vector<Pharmacy*>>: O(1) pharmacies by medicine name
+ *   - HashTable<string, Vector<Pharmacy*>>: O(1) pharmacies by formula
+ *   - Priority Queue (in Hospital): Emergency patient queue
+ * 
+ * ============================================================================
+ */
+
 #pragma once
 #include <fstream>
 #include <string>
-#include "CustomSTL.h"
+#include "../../data_structures/CustomSTL.h"
 #include "Hospital.h"
 #include "Pharmacy.h"
 
@@ -13,15 +36,9 @@ class MedicalManager {
 public:
     Vector<Hospital*> hospitals;
     Vector<Pharmacy*> pharmacies;
-
-    // Lookup Tables
     HashTable<string, Hospital*> hospitalLookup;
     HashTable<string, Pharmacy*> pharmacyIdLookup;
-
-    // Existing: Name -> Pharmacies
     HashTable<string, Vector<Pharmacy*>> medicineLookup;
-
-    // NEW: Formula -> Pharmacies (e.g., "Paracetamol" -> List of Pharmacies)
     HashTable<string, Vector<Pharmacy*>> formulaLookup;
 
     MedicalManager();
@@ -32,14 +49,8 @@ public:
 
     Hospital* findHospitalByID(const string& id) const;
     Vector<Pharmacy*> findMedicine(const string& medName) const;
-
-    // NEW: Find by Formula
     Vector<Pharmacy*> findMedicineByFormula(const string& formula) const;
-
-    // NEW: Locate a patient in ANY hospital
-    // Returns a pointer to the Hospital they are in, or nullptr
     Hospital* findPatientRecord(const string& patientID) const;
-
     bool processEmergency(const string& hospitalID, const Patient& p);
 
 private:
@@ -51,15 +62,12 @@ private:
 // ==========================================
 
 inline MedicalManager::MedicalManager()
-    : hospitalLookup(53), pharmacyIdLookup(53), medicineLookup(200), formulaLookup(100) {
-}
+    : hospitalLookup(53), pharmacyIdLookup(53), medicineLookup(200), formulaLookup(100) {}
 
 inline MedicalManager::~MedicalManager() {
     for (int i = 0; i < hospitals.getSize(); i++) delete hospitals[i];
     for (int i = 0; i < pharmacies.getSize(); i++) delete pharmacies[i];
 }
-
-// ---------------- CSV Loading ----------------
 
 inline bool MedicalManager::loadHospitals(const string& filename) {
     ifstream file(filename);
@@ -78,7 +86,6 @@ inline bool MedicalManager::loadHospitals(const string& filename) {
         string id = fields[0]; string name = fields[1]; string sector = fields[2];
         int beds = 0; if (!fields[3].empty()) beds = std::stoi(fields[3]);
         string specsRaw = fields[4];
-
         Hospital* h = new Hospital(id, name, sector, beds);
         if (!specsRaw.empty() && specsRaw.front() == '"') specsRaw = specsRaw.substr(1, specsRaw.size() - 2);
         string curSpec = "";
@@ -87,7 +94,6 @@ inline bool MedicalManager::loadHospitals(const string& filename) {
             else curSpec += c;
         }
         if (!trim(curSpec).empty()) h->addSpecialization(trim(curSpec));
-
         hospitals.push_back(h);
         hospitalLookup.insert(id, h);
     }
@@ -99,7 +105,6 @@ inline bool MedicalManager::loadPharmacies(const string& filename) {
     if (!file.is_open()) return false;
     string line;
     std::getline(file, line);
-
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         string fields[6];
@@ -109,11 +114,9 @@ inline bool MedicalManager::loadPharmacies(const string& filename) {
             else cur += line[i];
         }
         fields[idx] = trim(cur);
-
         string pID = fields[0]; string pName = fields[1]; string pSector = fields[2];
         string medName = fields[3]; string medFormula = fields[4];
         float price = 0.0f; if (!fields[5].empty()) price = std::stof(fields[5]);
-
         Pharmacy* p = nullptr;
         Pharmacy** existing = pharmacyIdLookup.get(pID);
         if (existing) p = *existing;
@@ -122,38 +125,29 @@ inline bool MedicalManager::loadPharmacies(const string& filename) {
             pharmacies.push_back(p);
             pharmacyIdLookup.insert(pID, p);
         }
-
         Medicine m(medName, medFormula, price);
         p->addMedicine(m);
-
-        // 1. Index Name
         Vector<Pharmacy*>* sellers = medicineLookup.get(medName);
         if (sellers) {
             bool found = false;
             for (int i = 0; i < sellers->getSize(); i++) if (sellers->at(i)->id == p->id) found = true;
             if (!found) sellers->push_back(p);
-        }
-        else {
+        } else {
             Vector<Pharmacy*> list; list.push_back(p);
             medicineLookup.insert(medName, list);
         }
-
-        // 2. Index Formula (NEW)
         Vector<Pharmacy*>* fSellers = formulaLookup.get(medFormula);
         if (fSellers) {
             bool found = false;
             for (int i = 0; i < fSellers->getSize(); i++) if (fSellers->at(i)->id == p->id) found = true;
             if (!found) fSellers->push_back(p);
-        }
-        else {
+        } else {
             Vector<Pharmacy*> list; list.push_back(p);
             formulaLookup.insert(medFormula, list);
         }
     }
     return true;
 }
-
-// ---------------- Queries ----------------
 
 inline Hospital* MedicalManager::findHospitalByID(const string& id) const {
     Hospital** h = hospitalLookup.get(id);
@@ -165,16 +159,12 @@ inline Vector<Pharmacy*> MedicalManager::findMedicine(const string& medName) con
     return result ? *result : Vector<Pharmacy*>();
 }
 
-// NEW: Search by Formula
 inline Vector<Pharmacy*> MedicalManager::findMedicineByFormula(const string& formula) const {
     Vector<Pharmacy*>* result = formulaLookup.get(formula);
     return result ? *result : Vector<Pharmacy*>();
 }
 
-// NEW: Find Patient in ANY hospital
 inline Hospital* MedicalManager::findPatientRecord(const string& patientID) const {
-    // Iterate through all hospitals (This is O(Hospitals * Patients_per_Hospital))
-    // Not O(1), but acceptable since Hospital count is low (<100).
     for (int i = 0; i < hospitals.getSize(); i++) {
         Hospital* h = hospitals[i];
         if (h->findPatient(patientID) != nullptr) {

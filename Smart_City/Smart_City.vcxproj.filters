@@ -31,17 +31,17 @@
     <Filter Include="Header Files\Modules\SchoolSystem">
       <UniqueIdentifier>{6e43646e-fba7-4148-8565-7e0a5ebb0857}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Modules\BusSystem">
-      <UniqueIdentifier>{f63598ca-3b3d-4c46-ba38-c98c0c9ce76a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Modules\MedicalSystem">
       <UniqueIdentifier>{e0570fea-2905-4b5c-a806-b87e9e2f589d}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\Modules\HousingSystem">
       <UniqueIdentifier>{7829994f-76a9-45c1-8c68-776e36be8f44}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Modules\Smart City">
-      <UniqueIdentifier>{22ceb272-4b7f-4efe-9d5e-66fb7e67015a}</UniqueIdentifier>
+    <Filter Include="Header Files\Modules\CommercialSystem">
+      <UniqueIdentifier>{6e08117a-7048-455e-8f99-6356a0f61be7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Modules\TransportSystem">
+      <UniqueIdentifier>{c67ffa9b-f981-4764-92f6-4f10958a788a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -87,9 +87,6 @@
     <ClInclude Include="CityGraph.h">
       <Filter>Header Files\City Map</Filter>
     </ClInclude>
-    <ClInclude Include="SmartCity.h">
-      <Filter>Header Files\Modules\Smart City</Filter>
-    </ClInclude>
     <ClInclude Include="source\SchoolSystem\Class.h">
       <Filter>Header Files\Modules\SchoolSystem</Filter>
     </ClInclude>
@@ -107,12 +104,6 @@
     </ClInclude>
     <ClInclude Include="source\SchoolSystem\Student.h">
       <Filter>Header Files\Modules\SchoolSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\TransportSystem\Bus.h">
-      <Filter>Header Files\Modules\BusSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="source\TransportSystem\BusManager.h">
-      <Filter>Header Files\Modules\BusSystem</Filter>
     </ClInclude>
     <ClInclude Include="source\MedicalSystem\Doctor.h">
       <Filter>Header Files\Modules\MedicalSystem</Filter>
@@ -141,7 +132,40 @@
     <ClInclude Include="source\MedicalSystem\Medicine.h">
       <Filter>Header Files\Modules\MedicalSystem</Filter>
     </ClInclude>
-    <ClInclude Include="source\Graphics.h">
+    <ClInclude Include="source\CommercialSystem\CommercialManager.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Mall.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Product.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CommercialSystem\Shop.h">
+      <Filter>Header Files\Modules\CommercialSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="data_structures\CircularQueue.h">
+      <Filter>Header Files\Custom_DS</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Ambulance.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\SchoolBus.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Vehicle.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\TransportManager.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TransportSystem\Bus.h">
+      <Filter>Header Files\Modules\TransportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="SmartCity.h">
+      <Filter>Header Files\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CitySimulator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -164,8 +188,6 @@
     <None Include="dataset\stops.csv">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="TRANSPORT_MODULE_DOCUMENTATION.md" />
-    <None Include="SMARTCITY_FIXES_NEEDED.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CityUtils.h">

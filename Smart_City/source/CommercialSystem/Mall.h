@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include "../../data_structures/CustomSTL.h"
+#include "../../utils/Location.h"
 #include "Shop.h"
 
 using std::string;
@@ -75,9 +77,11 @@ public:
 
 // Implementation
 
+inline void Mall::addShop(Shop* s) {
     shops.push_back(s);
 }
 
+inline Shop* Mall::findShop(const string& shopName) {
     for (int i = 0; i < shops.getSize(); i++) {
         if (shops[i]->name == shopName) {
             return shops[i];
@@ -86,6 +90,7 @@ public:
     return nullptr;
 }
 
+inline Shop* Mall::findShopByID(const string& shopID) {
     for (int i = 0; i < shops.getSize(); i++) {
         if (shops[i]->id == shopID) {
             return shops[i];
