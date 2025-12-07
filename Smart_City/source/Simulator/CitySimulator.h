@@ -1479,6 +1479,76 @@ inline void CitySimulator::runDatabaseView() {
                     detailItems.push_back(hbox({text("Waiting: ") | bold, text(std::to_string(waiting) + " passengers") | color(Color::Yellow)}));
                 }
             }
+            else if (selectedNode->type == "MALL") {
+                // Get mall details with shops and products
+                if (islamabad && islamabad->getCommercialManager()) {
+                    CommercialManager* cm = islamabad->getCommercialManager();
+                    Mall* mall = nullptr;
+                    
+                    // Find mall by ID or name
+                    for (int m = 0; m < cm->malls.getSize(); m++) {
+                        if (cm->malls[m]->id == selectedNode->databaseID || 
+                            cm->malls[m]->name == selectedNode->name) {
+                            mall = cm->malls[m];
+                            break;
+                        }
+                    }
+                    
+                    if (mall) {
+                        detailItems.push_back(text("MALL INFO") | bold | color(Color::Yellow));
+                        detailItems.push_back(hbox({text("Shops: ") | bold, text(std::to_string(mall->getShopCount())) | color(Color::Green)}));
+                        detailItems.push_back(hbox({text("Products: ") | bold, text(std::to_string(mall->getTotalProductCount())) | color(Color::Cyan)}));
+                        
+                        // Show categories in mall
+                        Vector<string> cats = mall->getCategories();
+                        string catLine = "";
+                        for (int c = 0; c < cats.getSize() && c < 4; c++) {
+                            if (c > 0) catLine += ", ";
+                            catLine += cats[c];
+                        }
+                        if (cats.getSize() > 4) catLine += "...";
+                        if (!catLine.empty()) {
+                            detailItems.push_back(hbox({text("Categories: ") | bold, text(catLine) | dim}));
+                        }
+                        
+                        detailItems.push_back(separator());
+                        detailItems.push_back(text("SHOPS:") | bold | color(Color::Magenta));
+                        
+                        // List shops with products
+                        int showShops = std::min(mall->getShopCount(), 6);
+                        for (int s = 0; s < showShops; s++) {
+                            Shop* shop = mall->getShop(s);
+                            if (!shop) continue;
+							
+							string shopName = shop->name;
+							if (shopName.length() > 20) shopName = shopName.substr(0, 17) + "...";
+							detailItems.push_back(text(" ▸ " + shopName) | color(Color::White));
+							detailItems.push_back(text("   [" + shop->getCategory() + "]") | dim);
+							
+							// Show sample products
+							int showProds = std::min(shop->getProductCount(), 3);
+							if (showProds > 0) {
+								string prodList = "   ";
+								for (int p = 0; p < showProds; p++) {
+									const Product* prod = shop->getProduct(p);
+									if (prod) {
+										if (p > 0) prodList += ", ";
+										string pname = prod->name;
+										if (pname.length() > 12) pname = pname.substr(0, 10) + "..";
+										prodList += pname;
+									}
+								}
+								if (shop->getProductCount() > 3) prodList += "...";
+								detailItems.push_back(text(prodList) | color(Color::GrayLight));
+							}
+                        }
+                        
+                        if (mall->getShopCount() > 6) {
+                            detailItems.push_back(text("   +" + std::to_string(mall->getShopCount() - 6) + " more shops...") | dim);
+                        }
+                    }
+                }
+            }
             
             // Show residents in this sector
             detailItems.push_back(separator());

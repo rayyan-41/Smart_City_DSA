@@ -149,6 +149,7 @@
     <ClInclude Include="source\CommercialSystem\Mall.h" />
     <ClInclude Include="source\CommercialSystem\Product.h" />
     <ClInclude Include="source\CommercialSystem\Shop.h" />
+    <ClInclude Include="source\Graphics.h" />
     <ClInclude Include="source\HousingSystem\Citizen.h" />
     <ClInclude Include="source\HousingSystem\HousingHierarchy.h" />
     <ClInclude Include="source\HousingSystem\PopulationManager.h" />

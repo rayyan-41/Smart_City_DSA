@@ -333,6 +333,19 @@ inline bool SmartCity::initialize() {
     commercialManager->loadMalls(mallsCSV);
     commercialManager->loadShops(shopsCSV);
 
+    // Add malls to city graph as nodes
+    for (int i = 0; i < commercialManager->malls.getSize(); i++) {
+        Mall* mall = commercialManager->malls[i];
+        int graphID = cityGraph->addLocation(
+            mall->id, mall->id, mall->name, "MALL",
+            mall->getLatitude(), mall->getLongitude()
+        );
+        if (graphID != -1) {
+            // Store graph node ID in mall if needed
+            // mall->graphNodeID = graphID; // Uncomment if Mall class has this field
+        }
+    }
+
     cityInitialized = true;
     return true;
 }
@@ -693,12 +706,12 @@ inline bool SmartCity::dischargePatient(const string& hospitalID, const string& 
 }
 
 inline Vector<Pharmacy*> SmartCity::findPharmaciesByMedicine(const string& medicineName) {
-    if (!cityInitialized) return Vector<Pharmacy*>();
+    if (!cityInitialized) return Vector<Pharmacy[]>();
     return medicalManager->findMedicine(medicineName);
 }
 
 inline Vector<Pharmacy*> SmartCity::findPharmaciesByFormula(const string& formula) {
-    if (!cityInitialized) return Vector<Pharmacy*>();
+    if (!cityInitialized) return Vector<Pharmacy[]>();
     return medicalManager->findMedicineByFormula(formula);
 }
 

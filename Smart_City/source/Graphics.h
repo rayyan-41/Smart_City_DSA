@@ -6,6 +6,8 @@
 #include <limits>
 #include <list>
 #include <fstream>
+#include <chrono>
+#include <thread>
 #include "../CityGraph.h"
 using namespace std;
 
@@ -73,10 +75,7 @@ public:
         }
     }
 
-    // --- CORRECTED DRAW TEXT FUNCTION ---
     void DrawText(int x, int y, const std::string& text, Color fg = { 255, 255, 255 }) {
-        // Standard ASCII 5x7 Font (Columns are bytes)
-        // Space (32) to Tilde (126)
         static const uint8_t font[][5] = {
             {0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x5F, 0x00, 0x00}, {0x00, 0x07, 0x00, 0x07, 0x00},
             {0x14, 0x7F, 0x14, 0x7F, 0x14}, {0x24, 0x2A, 0x7F, 0x2A, 0x12}, {0x23, 0x13, 0x08, 0x64, 0x62},
@@ -114,24 +113,21 @@ public:
 
         int startX = x;
         for (char ch : text) {
-            // Map character to font index (32 = Space is index 0)
             int index = ch - 32;
-            if (index < 0 || index >= 95) index = 31; // Default to ? if invalid
+            if (index < 0 || index >= 95) index = 31;
 
             const uint8_t* glyph = font[index];
 
             for (int col = 0; col < 5; col++) {
                 uint8_t line = glyph[col];
                 for (int row = 0; row < 7; row++) {
-                    // TRANSPARENCY FIX:
-                    // Only draw if the bit is 1. If 0, skip (don't draw black).
                     if (line & 0x01) {
                         DrawPixel(startX + col, y + row, fg);
                     }
                     line >>= 1;
                 }
             }
-            startX += 6; // 5 pixel width + 1 pixel spacing
+            startX += 6;
         }
     }
 
@@ -159,277 +155,497 @@ public:
 };
 
 
-class AutoScalingCityGraph {
-private:
-    struct Node {
-        int id;
-        float logicX, logicY; // The ACTUAL map coordinates (e.g. Latitude/Longitude or Meters)
-        std::string name;
-    };
-
-    struct Edge {
-        int toNodeID;
-        int trafficWeight;
-    };
-
-    std::vector<Node> nodes;
-    std::vector<std::vector<Edge>> adjList;
-    SquarePixelEngine& engine;
-
-    // Bounds for normalization
-    float minX, maxX, minY, maxY;
-
-    // Dynamic sizing factors
-    int screenW, screenH;
-
-public:
-    AutoScalingCityGraph(SquarePixelEngine& eng, int w, int h)
-        : engine(eng), screenW(w), screenH(h) {
-        // Initialize bounds to inverse extremes so they adapt to first data point
-        minX = std::numeric_limits<float>::max();
-        maxX = std::numeric_limits<float>::min();
-        minY = std::numeric_limits<float>::max();
-        maxY = std::numeric_limits<float>::min();
-    }
-
-    // 1. Add Data in "Map Units" (Any range you want)
-    void AddNode(int id, float mapX, float mapY, std::string name = "") {
-        if (id >= nodes.size()) {
-            nodes.resize(id + 1);
-            adjList.resize(id + 1);
-        }
-        nodes[id] = { id, mapX, mapY, name };
-
-        // Update bounds automatically
-        if (mapX < minX) minX = mapX;
-        if (mapX > maxX) maxX = mapX;
-        if (mapY < minY) minY = mapY;
-        if (mapY > maxY) maxY = mapY;
-    }
-
-    void AddRoad(int src, int dest, int traffic) {
-        adjList[src].push_back({ dest, traffic });
-        adjList[dest].push_back({ src, traffic });
-    }
-
-    // 2. The Magic: Convert Logic -> Screen
-    void Draw() {
-        // Safety: If only 1 node or flat graph, prevent divide by zero
-        if (maxX == minX) maxX += 1.0f;
-        if (maxY == minY) maxY += 1.0f;
-
-        // CALCULATE DYNAMIC SIZES based on Resolution
-        // Node = 2% of screen width (Minimum 3 pixels)
-        int nodeSize = (int)(screenW * 0.02f);
-        if (nodeSize < 3) nodeSize = 3;
-
-        // Road = 25% of node size (Minimum 1 pixel)
-        int roadThick = nodeSize / 4;
-        if (roadThick < 1) roadThick = 1;
-
-        // Draw Roads First
-        for (int i = 0; i < nodes.size(); i++) {
-            // Convert start node to screen coords
-            int sx = Normalize(nodes[i].logicX, minX, maxX, screenW);
-            int sy = Normalize(nodes[i].logicY, minY, maxY, screenH);
-
-            for (const auto& edge : adjList[i]) {
-                if (i < edge.toNodeID) {
-                    // Convert end node
-                    int ex = Normalize(nodes[edge.toNodeID].logicX, minX, maxX, screenW);
-                    int ey = Normalize(nodes[edge.toNodeID].logicY, minY, maxY, screenH);
-
-                    Color c = GetTrafficColor(edge.trafficWeight);
-                    engine.DrawThickLine(sx, sy, ex, ey, roadThick, c);
-                }
-            }
-        }
-
-        // Draw Intersections Second
-        for (const auto& node : nodes) {
-            int sx = Normalize(node.logicX, minX, maxX, screenW);
-            int sy = Normalize(node.logicY, minY, maxY, screenH);
-
-            // Draw Node (Blue Square)
-            // Center the square by subtracting half size
-            int half = nodeSize / 2;
-            // Fill a square area
-            for (int dy = -half; dy <= half; dy++) {
-                for (int dx = -half; dx <= half; dx++) {
-                    engine.DrawPixel(sx + dx, sy + dy, { 50, 50, 255 });
-                }
-            }
-        }
-    }
-
-private:
-    // Helper: Map value from [min, max] to [0, screenDim]
-    int Normalize(float val, float min, float max, int dimension) {
-        // Add 10% padding so nodes aren't stuck on the exact edge of the screen
-        float padding = dimension * 0.05f;
-        float usableDim = dimension - (2 * padding);
-
-        float ratio = (val - min) / (max - min);
-        return (int)(padding + (ratio * usableDim));
-    }
-
-    Color GetTrafficColor(int w) {
-        if (w <= 3) return { 50, 255, 50 };   // Green
-        if (w <= 7) return { 255, 165, 0 };   // Orange
-        return { 255, 0, 0 };                 // Red
-    }
-};
-
-
-// Add this to your project
-class CityMap {
-private:
-    SquarePixelEngine& engine;
-    float scaleX, scaleY;
-
-public:
-    CityMap(SquarePixelEngine& eng, int mapMaxX, int mapMaxY) : engine(eng) {
-        // Calculate scaling factor based on current terminal resolution
-        // e.g. If map is 1000 units wide, but screen is 500 pixels wide -> scale is 0.5
-        // We use hardcoded screen dimensions from the engine usually
-        scaleX = 1.0f; // Simplified for now
-        scaleY = 1.0f;
-    }
-
-    // Convert City Node (e.g., Node 5 at x:500, y:500) to Screen Pixel
-    void DrawRoad(int x1, int y1, int x2, int y2, int congestionLevel) {
-        Color roadColor;
-        if (congestionLevel < 3) roadColor = { 100, 100, 100 };      // Grey (Clear)
-        else if (congestionLevel < 7) roadColor = { 255, 165, 0 };   // Orange (Busy)
-        else roadColor = { 255, 0, 0 };                              // Red (Jam)
-
-        engine.DrawLine(x1, y1, x2, y2, roadColor);
-    }
-
-    void DrawHospital(int x, int y, int size) {
-        // 1. Define Colors
-        Color wallColor = { 200, 200, 200 }; // Light Grey
-        Color crossColor = { 255, 0, 0 }; // White
-
-        // 2. Draw the Square Base (The Ward)
-        // 'y' is the top-left corner of the WALL.
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                // Using 'this->' assumes this function is inside your CityMap/Engine class
-                engine.DrawPixel(x + j, y + i, wallColor);
-            }
-        }
-
-        // 4. Draw the White Cross (On the Roof)
-        // We calculate the visual center of the roof area
-        int centerX = x + (size / 2);
-        int centerY = y - (size / 2) + 1;
-
-        // Safety: Only draw cross if the building is big enough (size >= 4)
-        if (size >= 4) {
-            int crossSize = size / 4;
-            if (crossSize < 1) crossSize = 1;
-
-            // Vertical bar of the cross
-            for (int i = -crossSize; i <= crossSize; i++) {
-                engine.DrawPixel(centerX, centerY + i, crossColor);
-            }
-
-            // Horizontal bar of the cross
-            for (int i = -crossSize; i <= crossSize; i++) {
-                engine.DrawPixel(centerX + i, centerY, crossColor);
-            }
-        }
-    }
-};
-
-
+// Simple Grid-Based City Visualizer (No rotation or complex normalization)
 class CityVisualizer {
 private:
     CityGraph& graph;
     SquarePixelEngine& engine;
-    double scaleFactor;
-    int offsetX, offsetY;
+
+    int screenW, screenH;
+
+    // Simple bounds from lat/lon
+    double minLat, maxLat, minLon, maxLon;
+
+    // Node visualization states
+    std::vector<Color> nodeColors;
+    std::vector<bool> isHighlighted;
 
 public:
-    CityVisualizer(CityGraph& g, SquarePixelEngine& e) : graph(g), engine(e), scaleFactor(1.0), offsetX(0), offsetY(0) {}
+    CityVisualizer(CityGraph& g, SquarePixelEngine& e)
+        : graph(g), engine(e) {
+
+        int count = graph.getNodeCount();
+        nodeColors.resize(count, { 50, 50, 255 }); // Default blue
+        isHighlighted.resize(count, false);
+    }
 
     void CalculateBounds(int width, int height) {
-        // Auto-fit the logical grid to the screen
-        // Logical Grid is roughly: 12 Cols * 200px wide, 5 Rows * 150px high
-        double mapWidth = GridUtils::MAX_SECTOR_NUM * (GridUtils::CELL_WIDTH + GridUtils::PADDING) + 200;
-        double mapHeight = 5 * (GridUtils::CELL_HEIGHT + GridUtils::PADDING) + 200;
+        screenW = width;
+        screenH = height;
 
-        double scaleX = width / mapWidth;
-        double scaleY = height / mapHeight;
-
-        scaleFactor = (scaleX < scaleY) ? scaleX : scaleY;
-
-        // Center the map
-        offsetX = (width - (mapWidth * scaleFactor)) / 2;
-        offsetY = (height - (mapHeight * scaleFactor)) / 2;
+        // Get bounds directly from CityUtils - these form a perfect grid
+        minLat = BASE_LAT;  // 33.60
+        maxLat = MAX_LAT;   // 33.74
+        minLon = BASE_LON;  // 72.96
+        maxLon = MAX_LON;   // 73.10
     }
 
-    struct Point { int x, y; };
+    struct Point { int x; int y; };
 
-    Point Project(double x, double y) {
-        return {
-            (int)(x * scaleFactor) + offsetX,
-            (int)(y * scaleFactor) + offsetY
-        };
+    // Simple linear mapping: lat/lon -> screen coordinates
+    // North (high lat) = top of screen (low y)
+    // East (high lon) = right of screen (high x)
+    Point Project(double lat, double lon) {
+        // Add padding
+        int padding = 20;
+        int usableWidth = screenW - (2 * padding);
+        int usableHeight = screenH - (2 * padding);
+
+        // Normalize lat/lon to [0, 1]
+        double normLon = (lon - minLon) / (maxLon - minLon);
+        double normLat = (lat - minLat) / (maxLat - minLat);
+
+        // Map to screen space
+        // X: West (minLon) = left, East (maxLon) = right
+        int x = padding + (int)(normLon * usableWidth);
+
+        // Y: North (maxLat) = top (low y), South (minLat) = bottom (high y)
+        int y = padding + (int)((1.0 - normLat) * usableHeight);
+
+        return { x, y };
     }
 
-    void Draw() {
+    // Set node color for visualization
+    void SetNodeColor(int nodeID, Color c) {
+        if (nodeID >= 0 && nodeID < nodeColors.size()) {
+            nodeColors[nodeID] = c;
+        }
+    }
+
+    // Highlight a node
+    void HighlightNode(int nodeID, bool highlight = true) {
+        if (nodeID >= 0 && nodeID < isHighlighted.size()) {
+            isHighlighted[nodeID] = highlight;
+        }
+    }
+
+    // Reset all visualization states with comprehensive color coding
+    void ResetVisualization() {
+        int count = graph.getNodeCount();
+        for (int i = 0; i < count; i++) {
+            CityNode* n = graph.getNode(i);
+            if (!n) continue;
+
+            // Comprehensive color coding for all facility types
+            if (n->type == "HOSPITAL") nodeColors[i] = { 255, 0, 0 };          // Red
+            else if (n->type == "SCHOOL") nodeColors[i] = { 255, 255, 0 };     // Yellow
+            else if (n->type == "STOP") nodeColors[i] = { 0, 200, 255 };       // Cyan
+            else if (n->type == "CORNER") nodeColors[i] = { 60, 60, 60 };      // Dark Gray
+            else if (n->type == "PHARMACY") nodeColors[i] = { 0, 255, 100 };   // Green
+            else if (n->type == "MALL") nodeColors[i] = { 255, 0, 255 };       // Magenta
+            else if (n->type == "SHOP") nodeColors[i] = { 255, 100, 200 };     // Pink
+
+            // Public Facilities
+            else if (n->type == "MOSQUE") nodeColors[i] = { 200, 255, 200 };   // Light Green
+            else if (n->type == "PARK") nodeColors[i] = { 50, 200, 50 };       // Dark Green
+            else if (n->type == "WATER_COOLER") nodeColors[i] = { 100, 150, 255 }; // Light Blue
+            else if (n->type == "PLAYGROUND") nodeColors[i] = { 255, 200, 100 };   // Orange
+            else if (n->type == "LIBRARY") nodeColors[i] = { 150, 100, 255 };      // Purple
+            else if (n->type == "COMMUNITY_CENTER") nodeColors[i] = { 200, 150, 100 }; // Brown
+            else if (n->type == "POLICE_STATION") nodeColors[i] = { 0, 0, 200 };   // Dark Blue
+            else if (n->type == "FIRE_STATION") nodeColors[i] = { 200, 0, 0 };     // Dark Red
+            else if (n->type == "POST_OFFICE") nodeColors[i] = { 100, 100, 150 };  // Gray Blue
+            else if (n->type == "BANK") nodeColors[i] = { 255, 215, 0 };           // Gold
+            else if (n->type == "ATM") nodeColors[i] = { 200, 200, 0 };            // Dark Yellow
+            else if (n->type == "PETROL_STATION") nodeColors[i] = { 255, 50, 50 }; // Bright Red
+            else if (n->type == "RESTAURANT") nodeColors[i] = { 255, 150, 50 };    // Orange Red
+            else if (n->type == "PUBLIC_TOILET") nodeColors[i] = { 150, 150, 150 }; // Gray
+
+            else nodeColors[i] = { 100, 100, 255 }; // Default Blue for unknown types
+
+            isHighlighted[i] = false;
+        }
+    }
+
+    // Get color for a specific node type (helper for legend)
+    static Color GetTypeColor(const string& type) {
+        if (type == "HOSPITAL") return { 255, 0, 0 };
+        else if (type == "SCHOOL") return { 255, 255, 0 };
+        else if (type == "STOP") return { 0, 200, 255 };
+        else if (type == "PHARMACY") return { 0, 255, 100 };
+        else if (type == "MALL") return { 255, 0, 255 };
+        else if (type == "SHOP") return { 255, 100, 200 };
+        else if (type == "MOSQUE") return { 200, 255, 200 };
+        else if (type == "PARK") return { 50, 200, 50 };
+        else if (type == "WATER_COOLER") return { 100, 150, 255 };
+        else if (type == "PLAYGROUND") return { 255, 200, 100 };
+        else if (type == "LIBRARY") return { 150, 100, 255 };
+        else if (type == "COMMUNITY_CENTER") return { 200, 150, 100 };
+        else if (type == "POLICE_STATION") return { 0, 0, 200 };
+        else if (type == "FIRE_STATION") return { 200, 0, 0 };
+        else if (type == "POST_OFFICE") return { 100, 100, 150 };
+        else if (type == "BANK") return { 255, 215, 0 };
+        else if (type == "ATM") return { 200, 200, 0 };
+        else if (type == "PETROL_STATION") return { 255, 50, 50 };
+        else if (type == "RESTAURANT") return { 255, 150, 50 };
+        else if (type == "PUBLIC_TOILET") return { 150, 150, 150 };
+        else return { 100, 100, 255 };
+    }
+
+    void Draw(bool showLegend = true) {
         int count = graph.getNodeCount();
 
-        // 1. Draw Roads
+        // Pass 1: Draw title
+        engine.DrawText(10, 2, "ISLAMABAD SMART CITY (North=Top, East=Right)", { 200, 200, 200 });
+
+        // Pass 2: Draw ALL Roads/Edges
+        int totalEdges = 0;
         for (int i = 0; i < count; i++) {
             CityNode* n1 = graph.getNode(i);
             if (!n1) continue;
-            Point p1 = Project(n1->lat, n1->lon); // using grid coords stored in lat/lon
+            Point p1 = Project(n1->lat, n1->lon);
 
-            const auto& roads = n1->getRoads();
+            // Draw each edge from this node's adjacency list
+            const LinkedList<Edge>& roads = n1->getRoads();
             for (int j = 0; j < roads.size(); j++) {
-                // Accessing list manually or via helper
-                // Assuming LinkedList exposes data via iteration or index
-                // For simplicity here, assuming we can iterate edges
-                // If LinkedList doesn't support index, use iterator logic
-                // [Adapting to LinkedList structure from prompt]
-                auto* curr = roads.getHead();
-                while (curr) {
-                    Edge edge = curr->data;
-                    if (n1->id < edge.destinationID) { // Draw once
-                        CityNode* n2 = graph.getNode(edge.destinationID);
-                        if (n2) {
-                            Point p2 = Project(n2->lat, n2->lon);
-                            engine.DrawLine(p1.x, p1.y, p2.x, p2.y, { 100, 100, 100 });
-                        }
+                Edge edge = roads[j];
+                CityNode* n2 = graph.getNode(edge.destinationID);
+                if (n2 && i < edge.destinationID) { // Draw each edge only once
+                    Point p2 = Project(n2->lat, n2->lon);
+                    totalEdges++;
+
+                    // Color coding for different types of connections
+                    Color roadColor = { 70, 70, 70 }; // Default gray
+
+                    if (n1->type == "CORNER" && n2->type == "CORNER") {
+                        roadColor = { 40, 40, 40 }; // Dark gray for sector boundaries
                     }
-                    curr = curr->next;
+                    else if (edge.weight > 5.0) {
+                        roadColor = { 255, 100, 0 }; // Orange for heavy traffic/long distance
+                    }
+                    else if (n1->type == "CORNER" || n2->type == "CORNER") {
+                        roadColor = { 90, 90, 90 }; // Light gray for connections to corners
+                    }
+                    else {
+                        roadColor = { 120, 120, 120 }; // Standard roads between facilities
+                    }
+
+                    engine.DrawLine(p1.x, p1.y, p2.x, p2.y, roadColor);
                 }
             }
         }
 
-        // 2. Draw Nodes
+        // Pass 3: Draw ALL Nodes (including corners for debugging)
+        int visibleNodes = 0;
         for (int i = 0; i < count; i++) {
             CityNode* n = graph.getNode(i);
             if (!n) continue;
             Point p = Project(n->lat, n->lon);
 
-            Color c = { 50, 255, 50 }; // Default Green
-            int size = 3;
+            Color nodeColor = nodeColors[i];
 
-            if (n->type == "CORNER") { c = { 100,100,100 }; size = 2; }
-            else if (n->type == "HOSPITAL") { c = { 255,0,0 }; size = 5; }
-            else if (n->type == "SCHOOL") { c = { 255,255,0 }; size = 5; }
-            else if (n->type == "STOP") { c = { 0,200,255 }; size = 4; }
+            // Size based on node type and highlight status
+            int size = 1;
+            if (isHighlighted[i]) size = 3;
+            else if (n->type == "HOSPITAL" || n->type == "SCHOOL" || n->type == "MALL") size = 2;
+            else if (n->type == "POLICE_STATION" || n->type == "FIRE_STATION") size = 2;
+            else if (n->type == "CORNER") size = 0; // Tiny dot for corners
 
-            engine.DrawRect(p.x, p.y, size, c);
+            // Draw all nodes (even corners, but make them tiny)
+            if (n->type == "CORNER") {
+                // Draw tiny corner markers
+                engine.DrawPixel(p.x, p.y, { 80, 80, 80 });
+            }
+            else {
+                visibleNodes++;
+                for (int dy = -size; dy <= size; dy++) {
+                    for (int dx = -size; dx <= size; dx++) {
+                        engine.DrawPixel(p.x + dx, p.y + dy, nodeColor);
+                    }
+                }
 
-            if (n->type != "CORNER") {
-                // Simple label
-                // engine.DrawText(p.x, p.y - 5, n->name, {200,200,200}); 
+                // Draw text for highlighted nodes or major facilities
+                if (isHighlighted[i] || n->type == "HOSPITAL" || n->type == "MALL") {
+                    Color textColor = isHighlighted[i] ? Color{ 255, 255, 0 } : Color{ 255, 255, 255 };
+                    string label = n->name;
+                    if (label.length() > 10) label = label.substr(0, 10);
+                    engine.DrawText(p.x + 4, p.y - 2, label, textColor);
+                }
             }
         }
+
+        // Pass 4: Draw legend and statistics
+        if (showLegend) {
+            DrawLegend();
+        }
+
+        // Draw graph statistics at bottom right
+        string statsText = "Nodes:" + std::to_string(visibleNodes) + " Edges:" + std::to_string(totalEdges);
+        engine.DrawText(screenW - 80, screenH - 10, statsText, { 200, 200, 200 });
+    }
+
+    // Draw color-coded legend with actual counts from graph
+    void DrawLegend() {
+        int startY = 10;
+        int startX = 10;
+
+        // Count each type and total edges
+        std::map<string, int> typeCounts;
+        int count = graph.getNodeCount();
+        int totalEdges = 0;
+
+        for (int i = 0; i < count; i++) {
+            CityNode* n = graph.getNode(i);
+            if (n) {
+                typeCounts[n->type]++;
+                // Count edges (each edge is counted once from both nodes, so divide by 2 later)
+                totalEdges += n->getRoads().size();
+            }
+        }
+
+        totalEdges /= 2; // Each edge counted twice
+
+        // Display title
+        engine.DrawText(startX, startY, "=== LEGEND ===", { 255, 255, 255 });
+        int row = 2;
+
+        // Draw legend for major types found in graph
+        if (typeCounts["HOSPITAL"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Hospital", GetTypeColor("HOSPITAL"), typeCounts["HOSPITAL"]);
+            row++;
+        }
+        if (typeCounts["SCHOOL"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "School", GetTypeColor("SCHOOL"), typeCounts["SCHOOL"]);
+            row++;
+        }
+        if (typeCounts["PHARMACY"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Pharmacy", GetTypeColor("PHARMACY"), typeCounts["PHARMACY"]);
+            row++;
+        }
+        if (typeCounts["MALL"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Mall", GetTypeColor("MALL"), typeCounts["MALL"]);
+            row++;
+        }
+        if (typeCounts["STOP"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Stop", GetTypeColor("STOP"), typeCounts["STOP"]);
+            row++;
+        }
+        if (typeCounts["MOSQUE"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Mosque", GetTypeColor("MOSQUE"), typeCounts["MOSQUE"]);
+            row++;
+        }
+        if (typeCounts["PARK"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Park", GetTypeColor("PARK"), typeCounts["PARK"]);
+            row++;
+        }
+        if (typeCounts["POLICE_STATION"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Police", GetTypeColor("POLICE_STATION"), typeCounts["POLICE_STATION"]);
+            row++;
+        }
+        if (typeCounts["FIRE_STATION"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Fire Stn", GetTypeColor("FIRE_STATION"), typeCounts["FIRE_STATION"]);
+            row++;
+        }
+        if (typeCounts["BANK"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Bank", GetTypeColor("BANK"), typeCounts["BANK"]);
+            row++;
+        }
+        if (typeCounts["ATM"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "ATM", GetTypeColor("ATM"), typeCounts["ATM"]);
+            row++;
+        }
+        if (typeCounts["RESTAURANT"] > 0) {
+            DrawLegendItem(startX, startY + row * 7, "Restaurant", GetTypeColor("RESTAURANT"), typeCounts["RESTAURANT"]);
+            row++;
+        }
+
+        // Show corner count (these form the sector grid)
+        if (typeCounts["CORNER"] > 0) {
+            row++;
+            string cornerInfo = "Grid Corners: " + std::to_string(typeCounts["CORNER"]);
+            engine.DrawText(startX, startY + row * 7, cornerInfo, { 150, 150, 150 });
+        }
+    }
+
+    void DrawLegendItem(int x, int y, const string& label, Color color, int count) {
+        // Draw colored square (3x3 pixels)
+        for (int dy = 0; dy < 3; dy++) {
+            for (int dx = 0; dx < 3; dx++) {
+                engine.DrawPixel(x + dx, y + dy + 1, color);
+            }
+        }
+
+        // Draw label with count (format: "Type: N")
+        string text = label + ": " + std::to_string(count);
+        engine.DrawText(x + 5, y, text, { 200, 200, 200 });
+    }
+};
+
+
+// Dijkstra Visualizer - Shows pathfinding in real-time
+class DijkstraVisualizer {
+private:
+    CityGraph& graph;
+    CityVisualizer& visualizer;
+    SquarePixelEngine& engine;
+    int delayMs;
+
+    // Colors for visualization
+    Color COLOR_UNVISITED = { 50, 50, 255 };      // Blue
+    Color COLOR_EXPLORING = { 0, 255, 0 };         // Green
+    Color COLOR_VISITED = { 100, 100, 100 };       // Gray
+    Color COLOR_PATH = { 255, 255, 0 };            // Yellow
+    Color COLOR_START = { 255, 0, 255 };           // Magenta
+    Color COLOR_END = { 255, 165, 0 };             // Orange
+
+public:
+    DijkstraVisualizer(CityGraph& g, CityVisualizer& v, SquarePixelEngine& e, int delay = 100)
+        : graph(g), visualizer(v), engine(e), delayMs(delay) {
+    }
+
+    void SetDelay(int ms) { delayMs = ms; }
+
+    // Visualize Dijkstra's algorithm step by step
+    Vector<int> VisualizePath(int startID, int endID, double& totalDistance) {
+        Vector<int> path;
+        totalDistance = 0.0;
+
+        int count = graph.getNodeCount();
+        if (startID < 0 || startID >= count || endID < 0 || endID >= count) {
+            return path;
+        }
+
+        // Reset visualization
+        visualizer.ResetVisualization();
+
+        // Mark start and end
+        visualizer.SetNodeColor(startID, COLOR_START);
+        visualizer.HighlightNode(startID, true);
+        visualizer.SetNodeColor(endID, COLOR_END);
+        visualizer.HighlightNode(endID, true);
+
+        engine.Clear();
+        visualizer.Draw();
+        engine.Display();
+        std::this_thread::sleep_for(std::chrono::milliseconds(delayMs * 2));
+
+        // Dijkstra's Algorithm with Visualization
+        double distance[MAX_NODES];
+        int parent[MAX_NODES];
+        bool visited[MAX_NODES];
+
+        for (int i = 0; i < MAX_NODES; i++) {
+            distance[i] = INF;
+            parent[i] = -1;
+            visited[i] = false;
+        }
+
+        PriorityQueue<DijkstraNode> pq;
+        distance[startID] = 0.0;
+        pq.push(DijkstraNode(startID, 0.0));
+
+        int nodesExplored = 0;
+
+        while (!pq.empty()) {
+            DijkstraNode current = pq.top();
+            pq.pop();
+
+            int u = current.nodeID;
+            if (visited[u]) continue;
+
+            nodesExplored++;
+
+            // Visualize current node being explored
+            if (u != startID && u != endID) {
+                visualizer.SetNodeColor(u, COLOR_EXPLORING);
+                visualizer.HighlightNode(u, true);
+            }
+
+            engine.Clear();
+            visualizer.Draw();
+
+            // Draw status text
+            CityNode* node = graph.getNode(u);
+            string status = "Exploring: " + (node ? node->name : "Node " + std::to_string(u));
+            engine.DrawText(10, 12, status, { 0, 255, 0 });
+
+            string stats = "Nodes explored: " + std::to_string(nodesExplored);
+            engine.DrawText(10, 19, stats, { 255, 255, 255 });
+
+            engine.Display();
+            std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+
+            visited[u] = true;
+
+            // Mark as visited (unless it's start/end)
+            if (u != startID && u != endID) {
+                visualizer.SetNodeColor(u, COLOR_VISITED);
+                visualizer.HighlightNode(u, false);
+            }
+
+            if (u == endID) break;
+
+            if (u < 0 || u >= count || graph.getNode(u) == nullptr) continue;
+
+            CityNode* uNode = graph.getNode(u);
+            for (int i = 0; i < uNode->roads.size(); i++) {
+                Edge edge = uNode->roads[i];
+                int v = edge.destinationID;
+                double weight = edge.weight;
+
+                if (!visited[v] && distance[u] + weight < distance[v]) {
+                    distance[v] = distance[u] + weight;
+                    parent[v] = u;
+                    pq.push(DijkstraNode(v, distance[v]));
+                }
+            }
+        }
+
+        // Reconstruct path
+        if (parent[endID] != -1 || startID == endID) {
+            int current = endID;
+            while (current != -1) {
+                path.push_back(current);
+                current = parent[current];
+            }
+
+            // Reverse path
+            for (int i = 0; i < path.getSize() / 2; i++) {
+                int temp = path[i];
+                path[i] = path[path.getSize() - 1 - i];
+                path[path.getSize() - 1 - i] = temp;
+            }
+
+            totalDistance = distance[endID];
+
+            // Visualize final path
+            for (int i = 0; i < path.getSize(); i++) {
+                int nodeID = path[i];
+                if (nodeID != startID && nodeID != endID) {
+                    visualizer.SetNodeColor(nodeID, COLOR_PATH);
+                    visualizer.HighlightNode(nodeID, true);
+                }
+            }
+
+            engine.Clear();
+            visualizer.Draw();
+
+            // Draw final status
+            string finalStatus = "PATH FOUND! Distance: " + std::to_string((int)totalDistance) + " km";
+            engine.DrawText(10, 12, finalStatus, { 0, 255, 0 });
+            string pathInfo = "Path: " + std::to_string(path.getSize()) + " nodes | Explored: " + std::to_string(nodesExplored);
+            engine.DrawText(10, 19, pathInfo, { 255, 255, 255 });
+
+            engine.Display();
+        }
+        else {
+            // No path found
+            engine.Clear();
+            visualizer.Draw();
+            engine.DrawText(10, 12, "NO PATH FOUND!", { 255, 0, 0 });
+            engine.Display();
+        }
+
+        return path;
     }
 };
