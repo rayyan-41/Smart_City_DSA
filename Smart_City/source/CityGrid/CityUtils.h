@@ -294,14 +294,14 @@ public:
         string exact = resolveSector(lat, lon);
         if (exact != "Unknown Sector") return exact;
         
-        // Find nearest sector by center distance
+        // Find nearest sector by center distance using grid distance
         double minDist = 1e9;
         int bestIdx = -1;
         
         for (int i = 0; i < SECTOR_COUNT; i++) {
             double centerLat = SECTOR_GRID[i].getCenterLat();
             double centerLon = SECTOR_GRID[i].getCenterLon();
-            double dist = getHaversineDistance(lat, lon, centerLat, centerLon);
+            double dist = getGridDistance(lat, lon, centerLat, centerLon);
             if (dist < minDist) {
                 minDist = dist;
                 bestIdx = i;
@@ -322,6 +322,42 @@ public:
             sin(dLon / 2) * sin(dLon / 2);
         double c = 2 * atan2(sqrt(a), sqrt(1 - a));
         return Rad * c;
+    }
+    
+    /**
+     * Grid-based distance calculation using simple Euclidean distance
+     * Treats lat/lon as a flat grid (suitable for small areas like a city)
+     * Returns distance in approximate kilometers
+     * 
+     * @param lat1, lon1 First point coordinates
+     * @param lat2, lon2 Second point coordinates
+     * @return Distance in km (approximate)
+     */
+    static double getGridDistance(double lat1, double lon1, double lat2, double lon2) {
+        // Convert lat/lon differences to approximate km
+        // At Islamabad's latitude (~33.6°), 1 degree lat ? 111 km, 1 degree lon ? 92 km
+        const double KM_PER_LAT_DEGREE = 111.0;
+        const double KM_PER_LON_DEGREE = 92.0;  // cos(33.6°) * 111 ? 92
+        
+        double dLat = (lat2 - lat1) * KM_PER_LAT_DEGREE;
+        double dLon = (lon2 - lon1) * KM_PER_LON_DEGREE;
+        
+        // Euclidean distance on the flat grid
+        return std::sqrt(dLat * dLat + dLon * dLon);
+    }
+    
+    /**
+     * Manhattan distance on grid (useful for city block calculations)
+     * Returns distance in approximate kilometers
+     */
+    static double getManhattanDistance(double lat1, double lon1, double lat2, double lon2) {
+        const double KM_PER_LAT_DEGREE = 111.0;
+        const double KM_PER_LON_DEGREE = 92.0;
+        
+        double dLat = std::abs(lat2 - lat1) * KM_PER_LAT_DEGREE;
+        double dLon = std::abs(lon2 - lon1) * KM_PER_LON_DEGREE;
+        
+        return dLat + dLon;
     }
     
     static int getSectorIndex(const string& name) {

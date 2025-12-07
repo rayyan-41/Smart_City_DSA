@@ -107,12 +107,6 @@
 
 int main() {
     CitySimulator simulator;
-    
-    // Use debug mode to bypass intro and go straight to graph view
-    simulator.runDebugMode();
-    
-    // Normal mode (uncomment to use):
-    // simulator.run();
-    
+    simulator.run();
     return 0;
 }
