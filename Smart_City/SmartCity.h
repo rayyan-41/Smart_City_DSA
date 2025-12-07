@@ -185,24 +185,11 @@ public:
 
     // ========== COMPREHENSIVE SIMULATION ==========
     
-    /**
-     * Run one complete simulation step for ALL transport systems
-     * This orchestrates: buses, school buses (with home pickups), and ambulances
-     */
     void runSimulation();
-    
-    /**
-     * Run multiple simulation steps
-     * @param steps Number of steps to simulate
-     */
     void runSimulation(int steps);
-
     void startSimulation();
-    
     void stopSimulation();
-  
     bool isSimulationRunning() const;
-    
     int getSimulationTick() const;
     
     // Legacy simulation methods (for backward compatibility)
@@ -324,6 +311,8 @@ inline bool SmartCity::initialize() {
     }
 
     populationManager->loadPopulation(populationCSV);
+	cityGraph->loadResidentialAreas(populationCSV);
+
     
     // Auto-generate pickup points for each sector based on corners/stops
     for (int i = 0; i < SECTOR_COUNT; i++) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "CityUtils.h"
+#include <unordered_map>  // For house deduplication in loadResidentialAreas
 
 class CityGraph {
 private:
@@ -64,6 +65,7 @@ public:
     void loadStopsCSV(const string& filename);
     void loadBuildingsCSV(const string& filename, const string& type);
     void loadPublicFacilitiesCSV(const string& filename);
+    void loadResidentialAreas(const string& filename);  // NEW: Load houses from population.csv
     
     // ==================== ID GENERATION ====================
     string generateStopID(const string& type);
@@ -710,5 +712,110 @@ inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
             if (!info.empty()) nodes[nodeID]->additionalInfo = info;
         }
     }
+    file.close();
+}
+
+/*
+ * CSV Format for residential areas: CNIC,Name,Age,Sector,Street,HouseNo,Occupation
+ * Extracts unique house locations (Sector + Street + HouseNo) and creates HOUSE nodes.
+ * Houses are represented as small nodes that can be displayed on the map.
+ */
+
+inline void CityGraph::loadResidentialAreas(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) return;
+    
+    string line;
+    getline(file, line);  // Skip header (CNIC,Name,Age,Sector,Street,HouseNo,Occupation)
+    
+    // Track unique houses to avoid duplicates
+    // Format: "Sector-Street-HouseNo" -> node ID
+    std::unordered_map<string, int> houseMap;
+    
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        string cnic, name, ageStr, sector, streetStr, houseStr, occupation;
+        int i = 0;
+        bool inQuotes = false;
+
+        // Helper lambda to parse next field
+        auto parseField = [&](string& field) {
+            inQuotes = false;
+            field.clear();
+            while (i < (int)line.size()) {
+                char c = line[i++];
+                if (c == '"') { inQuotes = !inQuotes; continue; }
+                if ((c == ',' || c == '\r' || c == '\n') && !inQuotes) break;
+                // Only add non-whitespace, or whitespace if field is not empty
+                if ((c != ' ' && c != '\t') || !field.empty()) field += c;
+            }
+            // Trim trailing whitespace
+            while (!field.empty() && (field.back() == ' ' || field.back() == '\t')) {
+                field.pop_back();
+            }
+        };
+        
+        parseField(cnic);
+        parseField(name);
+        parseField(ageStr);
+        parseField(sector);
+        parseField(streetStr);
+        parseField(houseStr);
+        parseField(occupation);
+        
+        if (sector.empty() || streetStr.empty() || houseStr.empty()) continue;
+        
+        // Create unique house identifier
+        string houseKey = sector + "-St" + streetStr + "-H" + houseStr;
+        
+        // Check if this house already exists
+        if (houseMap.find(houseKey) == houseMap.end()) {
+            // Check if we have room for more nodes
+            if (nodeCount >= MAX_NODES - 10) {
+                // Stop loading houses to prevent overflow
+                break;
+            }
+            
+            // Generate coordinates for this house within the sector
+            double lat, lon;
+            GeometryUtils::generateCoords(sector, lat, lon);
+            
+            // Add slight offset based on street and house number for variety
+            // This ensures houses in the same sector have slightly different positions
+            int street = 0, house = 0;
+            try {
+                if (!streetStr.empty()) street = std::stoi(streetStr);
+                if (!houseStr.empty()) house = std::stoi(houseStr);
+            } catch (...) {
+                // If parsing fails, use default values (0)
+                street = 0;
+                house = 0;
+            }
+            
+            // Apply small offset (0.0001 degrees ~ 11 meters)
+            double streetOffset = (street % 50) * 0.0001;
+            double houseOffset = (house % 200) * 0.0001;
+            lat += streetOffset;
+            lon += houseOffset;
+            
+            // Create house name
+            string houseName = "House " + houseStr + ", St " + streetStr;
+            
+            // Generate database ID
+            string houseID = "HOUSE-" + sector + "-" + streetStr + "-" + houseStr;
+            
+            // Add house node to graph
+            int nodeID = addLocation(houseID, "", houseName, FacilityType::HOUSE, lat, lon);
+            
+            if (nodeID != -1) {
+                houseMap[houseKey] = nodeID;
+                
+                // Add metadata
+                nodes[nodeID]->additionalInfo = "Residential";
+            }
+        }
+    }
+    
     file.close();
 }
