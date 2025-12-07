@@ -349,132 +349,181 @@ private:
     CityGraph& graph;
     SquarePixelEngine& engine;
 
-    // Bounds for Auto-Scaling
-    double minLat, maxLat, minLon, maxLon;
-    double scaleFactor; // Pixels per degree
-    int offsetX, offsetY;
+    // Visual Settings
+    double scaleFactor;
+    int screenW, screenH;
+
+    // The Anchor (Fixed Pivot Point)
+    double anchorLat, anchorLon;
+
+    // Rotation Angle (Radians)
+    double theta;
+
+    // Bounds for scaling
+    double minRotatedX, maxRotatedX;
+    double minRotatedY, maxRotatedY;
 
 public:
     CityVisualizer(CityGraph& g, SquarePixelEngine& e)
         : graph(g), engine(e) {
-        ResetBounds();
+
+        // 1. HARDCODE THE SPIN
+        // Islamabad is tilted ~14.5 degrees Counter-Clockwise from North.
+        // To fix it, we rotate 14.5 degrees Clockwise (negative angle).
+        double degrees = -14.5;
+        theta = degrees * (3.1415926535 / 180.0);
     }
 
-    void ResetBounds() {
-        minLat = 90.0; maxLat = -90.0;
-        minLon = 180.0; maxLon = -180.0;
+    // Helper: Rotates a (dLat, dLon) vector around (0,0)
+    struct RotatedCoord { double x; double y; };
+
+    RotatedCoord GetRotatedOffset(double targetLat, double targetLon) {
+        // Calculate distance from Anchor
+        double dLat = targetLat - anchorLat;
+        double dLon = (targetLon - anchorLon) * 0.84; // Longitude correction for 33N
+
+        // Apply 2D Rotation Matrix
+        // x' = x*cos(t) - y*sin(t)
+        // y' = x*sin(t) + y*cos(t)
+        double rX = dLon * cos(theta) - dLat * sin(theta);
+        double rY = dLon * sin(theta) + dLat * cos(theta);
+
+        return { rX, rY };
     }
 
-    // 1. Scan the graph to find the Map Boundaries
-    void CalculateBounds(int screenWidth, int screenHeight) {
-        ResetBounds();
+    // 2. FIND ANCHOR & CALCULATE ZOOM
+    void CalculateBounds(int width, int height) {
+        screenW = width;
+        screenH = height;
+
         int count = graph.getNodeCount();
-
         if (count == 0) return;
+
+        // Step A: Find the "Top Right" Node (The Anchor)
+        // In Lat/Lon, Top=MaxLat, Right=MaxLon.
+        // We find the node with the highest combined score.
+        int anchorIdx = -1;
+        double maxScore = -999999.0;
 
         for (int i = 0; i < count; i++) {
             CityNode* n = graph.getNode(i);
             if (!n) continue;
-            if (n->lat < minLat) minLat = n->lat;
-            if (n->lat > maxLat) maxLat = n->lat;
-            if (n->lon < minLon) minLon = n->lon;
-            if (n->lon > maxLon) maxLon = n->lon;
+            // Simple heuristic for North-East corner
+            double score = n->lat + (n->lon * 0.5);
+            if (score > maxScore) {
+                maxScore = score;
+                anchorIdx = i;
+            }
         }
 
-        // Add padding (approx 5%)
-        double latRange = maxLat - minLat;
-        double lonRange = maxLon - minLon;
-        if (latRange == 0) latRange = 0.01; // Prevent div by zero
-        if (lonRange == 0) lonRange = 0.01;
+        if (anchorIdx != -1) {
+            anchorLat = graph.getNode(anchorIdx)->lat;
+            anchorLon = graph.getNode(anchorIdx)->lon;
+        }
 
-        minLat -= latRange * 0.05; maxLat += latRange * 0.05;
-        minLon -= lonRange * 0.05; maxLon += lonRange * 0.05;
+        // Step B: Calculate Bounds relative to this Anchor
+        // We simulate the rotation for ALL nodes to see how "wide" the map becomes
+        minRotatedX = 0; maxRotatedX = 0;
+        minRotatedY = 0; maxRotatedY = 0;
 
-        // ASPECT RATIO CORRECTION
-        // We want 1 degree of Lat to look proportional to 1 degree of Lon
-        // Screen Y is inverted (0 is top), Lat is normal (90 is top)
+        for (int i = 0; i < count; i++) {
+            CityNode* n = graph.getNode(i);
+            if (!n) continue;
 
-        double latScale = screenHeight / (maxLat - minLat);
-        double lonScale = screenWidth / (maxLon - minLon);
+            RotatedCoord rc = GetRotatedOffset(n->lat, n->lon);
 
-        // Pick the smaller scale to ensure it fits entirely
-        scaleFactor = (latScale < lonScale) ? latScale : lonScale;
+            if (rc.x < minRotatedX) minRotatedX = rc.x;
+            if (rc.x > maxRotatedX) maxRotatedX = rc.x; // Should stay 0 if anchor is right-most
+            if (rc.y < minRotatedY) minRotatedY = rc.y;
+            if (rc.y > maxRotatedY) maxRotatedY = rc.y;
+        }
 
-        // Center the map
-        double mapPixelWidth = (maxLon - minLon) * scaleFactor;
-        double mapPixelHeight = (maxLat - minLat) * scaleFactor;
+        // Step C: Calculate Scale to fit the screen
+        // We use the absolute width/height of the rotated map
+        double mapWidth = maxRotatedX - minRotatedX;
+        double mapHeight = maxRotatedY - minRotatedY;
 
-        offsetX = (screenWidth - mapPixelWidth) / 2;
-        offsetY = (screenHeight - mapPixelHeight) / 2;
+        // Safety check to prevent div by zero
+        if (mapWidth == 0) mapWidth = 0.001;
+        if (mapHeight == 0) mapHeight = 0.001;
+
+        double scaleX = (screenW * 0.9) / mapWidth;  // 90% of screen width
+        double scaleY = (screenH * 0.9) / mapHeight; // 90% of screen height
+
+        // Use the smaller scale so everything fits
+        scaleFactor = (scaleX < scaleY) ? scaleX : scaleY;
     }
 
-    // 2. Converters
-    int LonToScreenX(double lon) {
-        return offsetX + (int)((lon - minLon) * scaleFactor);
+    // 3. PROJECT: Map World -> Screen
+    struct Point { int x; int y; };
+
+    Point Project(double lat, double lon) {
+        // Get the rotated distance from the anchor
+        RotatedCoord rc = GetRotatedOffset(lat, lon);
+
+        // Map to Screen:
+        // Anchor is fixed at Top-Right of screen (width-margin, margin)
+        int anchorScreenX = screenW - 50;
+        int anchorScreenY = 30;
+
+        // Since 'rc.x' is likely negative (nodes are left of anchor), we add it.
+        // Since 'rc.y' is likely negative (nodes are south of anchor), we subtract it (because Y goes down).
+
+        int finalX = anchorScreenX + (int)(rc.x * scaleFactor);
+        int finalY = anchorScreenY - (int)(rc.y * scaleFactor);
+
+        return { finalX, finalY };
     }
 
-    int LatToScreenY(double lat) {
-        // INVERT LATITUDE: Higher Lat = Lower Y (Top of screen)
-        return offsetY + (int)((maxLat - lat) * scaleFactor);
-    }
-
-    // 3. Render Loop
     void Draw() {
         int count = graph.getNodeCount();
 
-        // Pass 1: Draw Roads (Edges)
+        // Pass 1: Draw Roads
         for (int i = 0; i < count; i++) {
             CityNode* n1 = graph.getNode(i);
             if (!n1) continue;
+            Point p1 = Project(n1->lat, n1->lon);
 
-            int x1 = LonToScreenX(n1->lon);
-            int y1 = LatToScreenY(n1->lat);
-
-            // Access roads using your LinkedList logic
-            // Assuming your LinkedList works like an array based on your snippet
             for (int j = 0; j < n1->roads.size(); j++) {
-                // NOTE: Depending on your CustomSTL, access might be different.
-                // Based on snippet: nodes[u]->roads[i]
                 Edge edge = n1->roads[j];
-
                 CityNode* n2 = graph.getNode(edge.destinationID);
                 if (n2) {
-                    int x2 = LonToScreenX(n2->lon);
-                    int y2 = LatToScreenY(n2->lat);
+                    Point p2 = Project(n2->lat, n2->lon);
 
-                    // Traffic Color Logic
-                    Color roadColor = { 100, 100, 100 }; // Grey
-                    if (edge.weight > 5.0) roadColor = { 255, 100, 0 }; // Orange
+                    // Traffic Color
+                    Color roadColor = { 100, 100, 100 };
+                    if (edge.weight > 5.0) roadColor = { 255, 100, 0 };
 
-                    engine.DrawLine(x1, y1, x2, y2, roadColor);
+                    engine.DrawLine(p1.x, p1.y, p2.x, p2.y, roadColor);
                 }
             }
         }
 
-        // Pass 2: Draw Nodes (on top of roads)
+        // Pass 2: Draw Nodes
         for (int i = 0; i < count; i++) {
             CityNode* n = graph.getNode(i);
             if (!n) continue;
+            Point p = Project(n->lat, n->lon);
 
-            int x = LonToScreenX(n->lon);
-            int y = LatToScreenY(n->lat);
+            Color nodeColor = { 50, 255, 50 }; // Default Green
+            if (n->type == "Hospital") nodeColor = { 255, 0, 0 };
+            else if (n->type == "School") nodeColor = { 255, 255, 0 };
+            else if (n->type == "Transport") nodeColor = { 0, 200, 255 };
 
-            Color nodeColor;
-
-            // Color code based on your "Type" field from CSV
-            if (n->type == "Hospital")     nodeColor = { 255, 0, 0 };    // Red
-            else if (n->type == "School")  nodeColor = { 255, 255, 0 };  // Yellow
-            else if (n->type == "Transport") nodeColor = { 0, 200, 255 }; // Cyan
-            else                           nodeColor = { 50, 255, 50 };  // Green (Generic)
-
-            // Draw a small 3x3 pixel box for the node
+            // Draw Box
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dx = -1; dx <= 1; dx++) {
-                    engine.DrawPixel(x + dx, y + dy, nodeColor);
+                    engine.DrawPixel(p.x + dx, p.y + dy, nodeColor);
                 }
             }
-			// Optional: Draw the name next to the node (if your engine supports text)
-			engine.DrawText(x + 2, y - 2, n->name, { 255, 255, 255 });
+
+            // Draw Text (Top-Right node gets special color)
+            if (n->lat == anchorLat && n->lon == anchorLon) {
+                engine.DrawText(p.x - 10, p.y - 4, "ANCHOR", { 255, 0, 255 });
+            }
+            else {
+                engine.DrawText(p.x + 2, p.y - 2, n->name, { 255, 255, 255 });
+            }
         }
     }
 };

@@ -84,11 +84,14 @@ int main() {
 
     // CRITICAL: Calculate scaling based on loaded data
     viz.CalculateBounds(W, H);
-
+	int frameCount = 0;
     // 5. Game Loop
     while (true) {
+        // Write frames count at the top left corner of terminal. (1150, 02)
+        
         // Clear background to Dark Grey
         engine.Clear({ 20, 20, 20 });
+		engine.DrawText(10, 10, "Smart City Visualization - Frames: " + to_string(frameCount++), { 255, 255, 255 });
 
         // Draw the City
         viz.Draw();
