@@ -46,7 +46,7 @@ public:
     void findShortestPathOld(int startID, int endID); // Keep old version for compatibility
 	void getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon);
     void resetVisuals();
-
+    
     // Transport Module Functions
     int findNearestFacility(int fromNodeID, const string& facilityType);
     Vector<int> findAllNearestFacilities(int fromNodeID, const string& facilityType, int maxCount = 5);
@@ -159,23 +159,41 @@ inline string CityGraph::generateStopID(const string& type) {
 inline void CityGraph::initializeSectorFrame(string sectorName) {
     int idx = GeometryUtils::getSectorIndex(sectorName);
 
-    //Safety check
+    // Safety check
     if (idx == -1) return;
     if (SECTOR_GRID[idx].initialized) return;
 
     SectorBox box = SECTOR_GRID[idx];
 
-    // For corner nodes: databaseID and stopID are the same (corner identifier)
-    // stopID is empty since corners are not bus stops
-    int c1 = nodeCount; addLocation("C-" + sectorName + "-1", "", sectorName + " Corner 1", FacilityType::CORNER, box.minLat, box.minLon);
-    int c2 = nodeCount; addLocation("C-" + sectorName + "-2", "", sectorName + " Corner 2", FacilityType::CORNER, box.maxLat, box.minLon);
-    int c3 = nodeCount; addLocation("C-" + sectorName + "-3", "", sectorName + " Corner 3", FacilityType::CORNER, box.maxLat, box.maxLon);
-    int c4 = nodeCount; addLocation("C-" + sectorName + "-4", "", sectorName + " Corner 4", FacilityType::CORNER, box.minLat, box.maxLon);
+    // Create 4 corners of the sector rectangle
+    // Geographic coordinates: lat increases going North, lon increases going East
+    // Corner naming: SW (Southwest), NW (Northwest), NE (Northeast), SE (Southeast)
+    
+    // SW: minLat, minLon (bottom-left in standard map view)
+    int cSW = nodeCount; 
+    addLocation("C-" + sectorName + "-SW", "", sectorName + " SW", FacilityType::CORNER, box.minLat, box.minLon);
+    
+    // NW: maxLat, minLon (top-left)
+    int cNW = nodeCount; 
+    addLocation("C-" + sectorName + "-NW", "", sectorName + " NW", FacilityType::CORNER, box.maxLat, box.minLon);
+    
+    // NE: maxLat, maxLon (top-right)
+    int cNE = nodeCount; 
+    addLocation("C-" + sectorName + "-NE", "", sectorName + " NE", FacilityType::CORNER, box.maxLat, box.maxLon);
+    
+    // SE: minLat, maxLon (bottom-right)
+    int cSE = nodeCount; 
+    addLocation("C-" + sectorName + "-SE", "", sectorName + " SE", FacilityType::CORNER, box.minLat, box.maxLon);
 
-    addRoad(c1, c2);
-    addRoad(c2, c3);
-    addRoad(c3, c4);
-    addRoad(c4, c1);
+    // Connect corners to form a rectangle (perimeter roads)
+    // West edge: SW <-> NW
+    addRoad(cSW, cNW);
+    // North edge: NW <-> NE
+    addRoad(cNW, cNE);
+    // East edge: NE <-> SE
+    addRoad(cNE, cSE);
+    // South edge: SE <-> SW
+    addRoad(cSE, cSW);
 
     SECTOR_GRID[idx].initialized = true;
 }
@@ -790,6 +808,10 @@ inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon,
     minLon -= lonPadding;
     maxLon += lonPadding;
 }
+
+
+
+
 
 
 

@@ -2,18 +2,6 @@
  * ============================================================================
  * ENHANCED CITY SIMULATOR - With Interactive 2D Graph Visualization
  * ============================================================================
- *
- * COMPLETE WORKING VERSION with smooth UX
- *
- * Features:
- *   - Full menu navigation system
- *   - Interactive 2D graph with mouse hover
- *   - Zoom, pan, and view controls
- *   - Color-coded nodes and sectors
- *   - Complete loading experience
- *   - All database views functional
- *
- * ============================================================================
  */
 
 #ifndef CITY_SIMULATOR_ENHANCED_H
@@ -93,10 +81,12 @@ private:
     int canvasWidth, canvasHeight;
     double offsetX, offsetY;
     double zoom;
+    double rotationAngle;  // Rotation in radians
 
 public:
     GraphViewport() : minLat(33.60), maxLat(33.74), minLon(72.96), maxLon(73.10),
-        canvasWidth(160), canvasHeight(80), offsetX(0), offsetY(0), zoom(1.0) {
+        canvasWidth(160), canvasHeight(80), offsetX(0), offsetY(0), zoom(1.0),
+        rotationAngle(-0.785398) {  // -45 degrees to straighten the diagonal grid
     }
 
     void setBounds(double minLa, double maxLa, double minLo, double maxLo) {
@@ -107,22 +97,55 @@ public:
         canvasWidth = w; canvasHeight = h;
     }
 
+    void setRotation(double angle) {
+        rotationAngle = angle;
+    }
+
     Point2D geoToCanvas(double lat, double lon) const {
+        // Normalize to 0-1 range
         double normX = (lon - minLon) / (maxLon - minLon);
-        double normY = 1.0 - (lat - minLat) / (maxLat - minLat);
+        double normY = (lat - minLat) / (maxLat - minLat);
 
-        normX = normX * zoom + offsetX;
-        normY = normY * zoom + offsetY;
+        // Center for rotation
+        normX -= 0.5;
+        normY -= 0.5;
 
-        return Point2D(normX * canvasWidth, normY * canvasHeight);
+        // Apply rotation to straighten the tilted grid
+        double cosA = std::cos(rotationAngle);
+        double sinA = std::sin(rotationAngle);
+        double rotX = normX * cosA - normY * sinA;
+        double rotY = normX * sinA + normY * cosA;
+
+        // Scale to fit after rotation (rotation expands bounds by sqrt(2))
+        double scale = 0.7;  // Shrink to fit rotated content
+        rotX *= scale;
+        rotY *= scale;
+
+        // Move back from center
+        rotX += 0.5;
+        rotY += 0.5;
+
+        // Flip Y axis (higher latitude = top of screen)
+        rotY = 1.0 - rotY;
+
+        // Apply zoom and pan
+        rotX = (rotX - 0.5) * zoom + 0.5 + offsetX;
+        rotY = (rotY - 0.5) * zoom + 0.5 + offsetY;
+
+        // Padding
+        double pad = 0.05;
+        return Point2D(
+            pad * canvasWidth + rotX * canvasWidth * (1.0 - 2 * pad),
+            pad * canvasHeight + rotY * canvasHeight * (1.0 - 2 * pad)
+        );
     }
 
     void zoomIn() { zoom *= 1.2; if (zoom > 5.0) zoom = 5.0; }
     void zoomOut() { zoom /= 1.2; if (zoom < 0.5) zoom = 0.5; }
-    void panLeft() { offsetX -= 0.05 / zoom; }
-    void panRight() { offsetX += 0.05 / zoom; }
-    void panUp() { offsetY -= 0.05 / zoom; }
-    void panDown() { offsetY += 0.05 / zoom; }
+    void panLeft() { offsetX -= 0.1 / zoom; }
+    void panRight() { offsetX += 0.1 / zoom; }
+    void panUp() { offsetY -= 0.1 / zoom; }
+    void panDown() { offsetY += 0.1 / zoom; }
     void resetView() { zoom = 1.0; offsetX = 0; offsetY = 0; }
 
     double getZoom() const { return zoom; }
@@ -133,6 +156,9 @@ public:
 // ============================================================================
 
 enum class SimulatorState {
+    INTRO_PHASE_1,
+    INTRO_PHASE_2,
+    INTRO_PHASE_3,
     WELCOME_ANIMATION,
     MAIN_MENU,
     CSV_SELECTION,
@@ -148,14 +174,25 @@ enum class CSVLoadMode {
 };
 
 namespace ASCIIArt {
-    const string TITLE[] = {
-        R"(  _   _ _______        __ _____ ____  _        _    __  __    _    ____    _    ____  )",
-        R"( | \ | | ____\ \      / /|_   _/ ___|| |      / \  |  \/  |  / \  | __ )  / \  |  _ \ )",
-        R"( |  \| |  _|  \ \ /\ / /   | | \___ \| |     / _ \ | |\/| | / _ \ |  _ \ / _ \ | | | |)",
-        R"( | |\  | |___  \ V  V /    | |  ___) | |___ / ___ \| |  | |/ ___ \| |_) / ___ \| |_| |)",
-        R"( |_| \_|_____|  \_/\_/     |_| |____/|_____/_/   \_\_|  |_/_/   \_\____/_/   \_\____/ )",
+    const string ISLAMABAD_TITLE[] = {
+        R"( ██╗███████╗██╗      █████╗ ███╗   ███╗ █████╗ ██████╗  █████╗ ██████╗ )",
+        R"( ██║██╔════╝██║     ██╔══██╗████╗ ████║██╔══██╗██╔══██╗██╔══██╗██╔══██╗)",
+        R"( ██║███████╗██║     ███████║██╔████╔██║███████║██████╔╝███████║██║  ██║)",
+        R"( ██║╚════██║██║     ██╔══██║██║╚██╔╝██║██╔══██║██╔══██╗██╔══██║██║  ██║)",
+        R"( ██║███████║███████╗██║  ██║██║ ╚═╝ ██║██║  ██║██████╔╝██║  ██║██████╔╝)",
+        R"( ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═════╝ )",
     };
-    const int TITLE_HEIGHT = 5;
+    const int ISLAMABAD_TITLE_HEIGHT = 6;
+
+    const string REDEFINED_TITLE[] = {
+        R"( ██████╗ ███████╗██████╗ ███████╗███████╗██╗███╗   ██╗███████╗██████╗ )",
+        R"( ██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝██║████╗  ██║██╔════╝██╔══██╗)",
+        R"( ██████╔╝█████╗  ██║  ██║█████╗  █████╗  ██║██╔██╗ ██║█████╗  ██║  ██║)",
+        R"( ██╔══██╗██╔══╝  ██║  ██║██╔══╝  ██╔══╝  ██║██║╚██╗██║██╔══╝  ██║  ██║)",
+        R"( ██║  ██║███████╗██████╔╝███████╗██║     ██║██║ ╚████║███████╗██████╔╝)",
+        R"( ╚═╝  ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝  ╚═══╝╚══════╝╚═════╝ )",
+    };
+    const int REDEFINED_TITLE_HEIGHT = 6;
 }
 
 // ============================================================================
@@ -169,10 +206,10 @@ private:
     CSVLoadMode loadMode;
     bool cityInitialized;
 
-    // Graph visualization
     std::vector<GraphNode2D> graphNodes;
     std::vector<GraphEdge2D> graphEdges;
     std::vector<SectorRegion> sectorRegions;
+    std::vector<int> nodeIdToIndex;
     GraphViewport viewport;
 
     int mouseX, mouseY;
@@ -182,12 +219,11 @@ private:
     bool showCorners;
     bool showRoads;
 
-    // CSV paths
     string stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV;
     string busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV;
 
     Color getNodeColor(const string& type) {
-        if (type == "CORNER") return Color::Yellow;
+        if (type == "CORNER") return Color::White;
         if (type == "STOP") return Color::GreenLight;
         if (type == "SCHOOL") return Color::Blue;
         if (type == "HOSPITAL") return Color::Red;
@@ -195,8 +231,11 @@ private:
         if (type == "MOSQUE") return Color::Cyan;
         if (type == "PARK") return Color::Green;
         if (type == "POLICE_STATION") return Color::RedLight;
-        if (type == "FIRE_STATION") return Color::Red;
-        return Color::White;
+        if (type == "FIRE_STATION") return Color::Orange1;
+        if (type == "LIBRARY") return Color::Blue1;
+        if (type == "ATM") return Color::Yellow;
+        if (type == "RESTAURANT") return Color::Orange3;
+        return Color::GrayLight;
     }
 
 public:
@@ -204,8 +243,13 @@ public:
     ~CitySimulator();
 
     void run();
+    void runDebugMode();  // NEW: Bypass function for debugging
     void buildGraphVisualization();
 
+    void runIntroPhase1();
+    void runIntroPhase2();
+    void runIntroPhase3();
+    
     void runWelcomeAnimation();
     void runMainMenu();
     void runCSVSelection();
@@ -214,6 +258,7 @@ public:
     void runDatabaseView();
 
     Canvas renderGraphToCanvas(int width, int height);
+    Canvas renderGridBackground(int width, int height);
     void updateHoverState(int mx, int my);
     string getHoverInfo();
 
@@ -227,7 +272,7 @@ public:
 
 inline CitySimulator::CitySimulator()
     : islamabad(nullptr),
-    currentState(SimulatorState::WELCOME_ANIMATION),
+    currentState(SimulatorState::INTRO_PHASE_1),
     loadMode(CSVLoadMode::DEMO_MODE),
     cityInitialized(false),
     mouseX(0), mouseY(0),
@@ -266,36 +311,22 @@ inline void CitySimulator::buildGraphVisualization() {
     graphNodes.clear();
     graphEdges.clear();
     sectorRegions.clear();
+    nodeIdToIndex.clear();
 
     if (!islamabad || !islamabad->getCityGraph()) return;
-
     CityGraph* graph = islamabad->getCityGraph();
+    viewport.setBounds(33.60, 33.74, 72.96, 73.10);
 
-    double minLat = 33.60, maxLat = 33.74;
-    double minLon = 72.96, maxLon = 73.10;
-    viewport.setBounds(minLat, maxLat, minLon, maxLon);
-
-    // Build sector regions
-    for (int i = 0; i < SECTOR_COUNT; i++) {
-        SectorRegion region;
-        region.name = SECTOR_GRID[i].name;
-
-        Point2D tl = viewport.geoToCanvas(SECTOR_GRID[i].maxLat, SECTOR_GRID[i].minLon);
-        Point2D br = viewport.geoToCanvas(SECTOR_GRID[i].minLat, SECTOR_GRID[i].maxLon);
-
-        region.topLeft = tl;
-        region.bottomRight = br;
-        region.center = Point2D((tl.x + br.x) / 2, (tl.y + br.y) / 2);
-        region.isHovered = false;
-
-        sectorRegions.push_back(region);
+    int maxId = 0;
+    for (int i = 0; i < graph->getNodeCount(); i++) {
+        CityNode* node = graph->getNode(i);
+        if (node && node->id > maxId) maxId = node->id;
     }
+    nodeIdToIndex.resize(maxId + 1, -1);
 
-    // Build nodes
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
-
         GraphNode2D gNode;
         gNode.id = node->id;
         gNode.pos = viewport.geoToCanvas(node->lat, node->lon);
@@ -304,15 +335,13 @@ inline void CitySimulator::buildGraphVisualization() {
         gNode.sector = node->sector;
         gNode.color = getNodeColor(node->type);
         gNode.isCorner = (node->type == "CORNER");
-
+        nodeIdToIndex[node->id] = (int)graphNodes.size();
         graphNodes.push_back(gNode);
     }
 
-    // Build edges
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
-
         const LinkedList<Edge>& roads = node->getRoads();
         for (int j = 0; j < roads.size(); j++) {
             Edge edge = roads[j];
@@ -321,71 +350,108 @@ inline void CitySimulator::buildGraphVisualization() {
             }
         }
     }
+
+    for (int i = 0; i < SECTOR_COUNT; i++) {
+        SectorRegion region;
+        region.name = SECTOR_GRID[i].name;
+        Point2D tl = viewport.geoToCanvas(SECTOR_GRID[i].maxLat, SECTOR_GRID[i].minLon);
+        Point2D br = viewport.geoToCanvas(SECTOR_GRID[i].minLat, SECTOR_GRID[i].maxLon);
+        region.topLeft = Point2D(std::min(tl.x, br.x), std::min(tl.y, br.y));
+        region.bottomRight = Point2D(std::max(tl.x, br.x), std::max(tl.y, br.y));
+        region.center = Point2D((tl.x + br.x) / 2, (tl.y + br.y) / 2);
+        region.isHovered = false;
+        sectorRegions.push_back(region);
+    }
 }
 
 inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
     Canvas canvas(width * 2, height * 4);
-
     viewport.setCanvasSize(width * 2, height * 4);
     buildGraphVisualization();
 
-    // Draw sector boundaries (simple lines without color)
-    for (const auto& region : sectorRegions) {
-        int x1 = std::max(0, std::min((int)region.topLeft.x, width * 2 - 1));
-        int y1 = std::max(0, std::min((int)region.topLeft.y, height * 4 - 1));
-        int x2 = std::max(0, std::min((int)region.bottomRight.x, width * 2 - 1));
-        int y2 = std::max(0, std::min((int)region.bottomRight.y, height * 4 - 1));
+    int cw = width * 2;
+    int ch = height * 4;
 
-        // Draw rectangle outline
-        for (int x = x1; x <= x2; x++) {
+    // Draw sector grid
+    for (const auto& region : sectorRegions) {
+        int x1 = std::max(0, std::min((int)region.topLeft.x, cw - 1));
+        int y1 = std::max(0, std::min((int)region.topLeft.y, ch - 1));
+        int x2 = std::max(0, std::min((int)region.bottomRight.x, cw - 1));
+        int y2 = std::max(0, std::min((int)region.bottomRight.y, ch - 1));
+        for (int x = x1; x <= x2; x += 3) {
             canvas.DrawPoint(x, y1, true);
             canvas.DrawPoint(x, y2, true);
         }
-        for (int y = y1; y <= y2; y++) {
+        for (int y = y1; y <= y2; y += 3) {
             canvas.DrawPoint(x1, y, true);
             canvas.DrawPoint(x2, y, true);
         }
     }
 
-    // Draw edges (roads)
+    // Draw roads using nodeIdToIndex for fast lookup
     if (showRoads) {
         for (const auto& edge : graphEdges) {
-            if (edge.fromID >= 0 && edge.fromID < (int)graphNodes.size() &&
-                edge.toID >= 0 && edge.toID < (int)graphNodes.size()) {
-
-                const GraphNode2D& n1 = graphNodes[edge.fromID];
-                const GraphNode2D& n2 = graphNodes[edge.toID];
-
-                canvas.DrawPointLine(
-                    (int)n1.pos.x, (int)n1.pos.y,
-                    (int)n2.pos.x, (int)n2.pos.y
-                );
+            int idx1 = (edge.fromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 >= 0 && idx2 >= 0) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                int x1 = std::max(0, std::min((int)n1.pos.x, cw - 1));
+                int y1 = std::max(0, std::min((int)n1.pos.y, ch - 1));
+                int x2 = std::max(0, std::min((int)n2.pos.x, cw - 1));
+                int y2 = std::max(0, std::min((int)n2.pos.y, ch - 1));
+                canvas.DrawPointLine(x1, y1, x2, y2);
             }
         }
     }
 
-    // Draw nodes
+    // Draw nodes - corners small (white), facilities larger (colored)
     for (const auto& node : graphNodes) {
         if (!showCorners && node.isCorner) continue;
+        int x = std::max(0, std::min((int)node.pos.x, cw - 1));
+        int y = std::max(0, std::min((int)node.pos.y, ch - 1));
 
-        int x = (int)node.pos.x;
-        int y = (int)node.pos.y;
-
-        int radius = node.isCorner ? 2 : 3;
-        // Draw filled circle
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                if (dx * dx + dy * dy <= radius * radius) {
-                    int px = x + dx;
-                    int py = y + dy;
-                    if (px >= 0 && px < width * 2 && py >= 0 && py < height * 4) {
-                        canvas.DrawPoint(px, py, true);
+        if (node.isCorner) {
+            // Small 2x2 corner marker
+            for (int dx = 0; dx <= 1; dx++)
+                for (int dy = 0; dy <= 1; dy++)
+                    if (x+dx < cw && y+dy < ch) canvas.DrawPoint(x+dx, y+dy, true);
+        } else {
+            // Larger circle for facilities
+            int r = 3;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dy = -r; dy <= r; dy++) {
+                    if (dx*dx + dy*dy <= r*r) {
+                        int px = x + dx, py = y + dy;
+                        if (px >= 0 && px < cw && py >= 0 && py < ch)
+                            canvas.DrawPoint(px, py, true);
                     }
                 }
             }
         }
     }
 
+    return canvas;
+}
+
+inline Canvas CitySimulator::renderGridBackground(int width, int height) {
+    Canvas canvas(width, height);
+    
+    int gridSpacingX = 8;
+    int gridSpacingY = 8;
+    
+    for (int x = 0; x < width; x += gridSpacingX) {
+        for (int y = 0; y < height; y++) {
+            canvas.DrawPoint(x, y, true);
+        }
+    }
+    
+    for (int y = 0; y < height; y += gridSpacingY) {
+        for (int x = 0; x < width; x++) {
+            canvas.DrawPoint(x, y, true);
+        }
+    }
+    
     return canvas;
 }
 
@@ -398,7 +464,6 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
     int canvasX = mx * 2;
     int canvasY = my * 4;
 
-    // Check nodes
     double minDist = 15.0;
     for (const auto& node : graphNodes) {
         double dx = node.pos.x - canvasX;
@@ -411,7 +476,6 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
         }
     }
 
-    // Check sectors
     for (auto& region : sectorRegions) {
         region.isHovered = region.contains(Point2D(canvasX, canvasY));
         if (region.isHovered) {
@@ -425,20 +489,15 @@ inline string CitySimulator::getHoverInfo() {
 
     if (hoveredNodeID >= 0 && hoveredNodeID < (int)graphNodes.size()) {
         const GraphNode2D& node = graphNodes[hoveredNodeID];
-        ss << "╔═══════════════════════╗\n";
-        ss << "║ NODE INFORMATION      ║\n";
-        ss << "╠═══════════════════════╣\n";
-        ss << "║ ID: " << node.id << "\n";
-        ss << "║ Name: " << node.name << "\n";
-        ss << "║ Type: " << node.type << "\n";
-        ss << "║ Sector: " << node.sector << "\n";
-        ss << "╚═══════════════════════╝";
+        ss << "NODE INFORMATION\n";
+        ss << "----------------\n";
+        ss << "ID: " << node.id << "\n";
+        ss << "Name: " << node.name << "\n";
+        ss << "Type: " << node.type << "\n";
+        ss << "Sector: " << node.sector;
     }
     else if (!hoveredSector.empty()) {
-        int nodeCount = 0;
-        int stopCount = 0;
-        int schoolCount = 0;
-        int hospitalCount = 0;
+        int nodeCount = 0, stopCount = 0, schoolCount = 0, hospitalCount = 0;
 
         for (const auto& node : graphNodes) {
             if (node.sector == hoveredSector) {
@@ -449,26 +508,821 @@ inline string CitySimulator::getHoverInfo() {
             }
         }
 
-        ss << "╔═══════════════════════╗\n";
-        ss << "║ SECTOR: " << hoveredSector << "\n";
-        ss << "╠═══════════════════════╣\n";
-        ss << "║ Total Nodes: " << nodeCount << "\n";
-        ss << "║ Bus Stops: " << stopCount << "\n";
-        ss << "║ Schools: " << schoolCount << "\n";
-        ss << "║ Hospitals: " << hospitalCount << "\n";
-        ss << "╚═══════════════════════╝";
+        ss << "SECTOR: " << hoveredSector << "\n";
+        ss << "----------------\n";
+        ss << "Total Nodes: " << nodeCount << "\n";
+        ss << "Bus Stops: " << stopCount << "\n";
+        ss << "Schools: " << schoolCount << "\n";
+        ss << "Hospitals: " << hospitalCount;
     }
     else {
-        ss << "╔═══════════════════════╗\n";
-        ss << "║ HOVER OVER MAP        ║\n";
-        ss << "╠═══════════════════════╣\n";
-        ss << "║ Move your mouse over  ║\n";
-        ss << "║ nodes or sectors to   ║\n";
-        ss << "║ see detailed info     ║\n";
-        ss << "╚═══════════════════════╝";
+        ss << "HOVER OVER MAP\n";
+        ss << "----------------\n";
+        ss << "Move mouse over\n";
+        ss << "nodes or sectors\n";
+        ss << "to see details";
     }
 
     return ss.str();
+}
+
+// ============================================================================
+// INTRO PHASE 1 - Typewriter: "A product of Rayyan's Emporium"
+// ============================================================================
+
+inline void CitySimulator::runIntroPhase1() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    const string fullText = "A product of Rayyan's Emporium";
+    std::atomic<int> charIndex{ 0 };
+    std::atomic<bool> typingDone{ false };
+    std::atomic<bool> canProceed{ false };
+
+    auto renderer = Renderer([&] {
+        int idx = charIndex.load();
+        string displayText = fullText.substr(0, std::min(idx, (int)fullText.length()));
+        
+        if (!typingDone.load() && idx < (int)fullText.length()) {
+            displayText += "_";
+        }
+
+        string hint = canProceed.load() ? "Press Enter to continue" : "";
+
+        return vbox({
+            filler(),
+            text(displayText) | bold | color(Color::White) | center,
+            text("") | size(HEIGHT, EQUAL, 2),
+            text(hint) | center | dim,
+            filler(),
+        });
+    });
+
+    std::thread typewriter([&]() {
+        for (int i = 0; i <= (int)fullText.length(); i++) {
+            charIndex.store(i);
+            screen.PostEvent(Event::Custom);
+            sleepMs(50);
+        }
+        typingDone.store(true);
+        sleepMs(500);
+        canProceed.store(true);
+        screen.PostEvent(Event::Custom);
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        // Only Enter key advances
+        if (event == Event::Return && canProceed.load()) {
+            currentState = SimulatorState::INTRO_PHASE_2;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+    if (typewriter.joinable()) typewriter.join();
+}
+
+// ============================================================================
+// INTRO PHASE 2 - Typewriter: "Created by Rayyan, Omar and Aryan"
+// ============================================================================
+
+inline void CitySimulator::runIntroPhase2() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    const string fullText = "Created by Rayyan, Omar and Aryan";
+    std::atomic<int> charIndex{ 0 };
+    std::atomic<bool> typingDone{ false };
+    std::atomic<bool> canProceed{ false };
+
+    auto renderer = Renderer([&] {
+        int idx = charIndex.load();
+        string displayText = fullText.substr(0, std::min(idx, (int)fullText.length()));
+        
+        if (!typingDone.load() && idx < (int)fullText.length()) {
+            displayText += "_";
+        }
+
+        string hint = canProceed.load() ? "Press Enter to continue" : "";
+
+        return vbox({
+            filler(),
+            text(displayText) | bold | color(Color::White) | center,
+            text("") | size(HEIGHT, EQUAL, 2),
+            text(hint) | center | dim,
+            filler(),
+        });
+    });
+
+    std::thread typewriter([&]() {
+        sleepMs(200);
+        for (int i = 0; i <= (int)fullText.length(); i++) {
+            charIndex.store(i);
+            screen.PostEvent(Event::Custom);
+            sleepMs(45);
+        }
+        typingDone.store(true);
+        sleepMs(500);
+        canProceed.store(true);
+        screen.PostEvent(Event::Custom);
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::Return && canProceed.load()) {
+            currentState = SimulatorState::INTRO_PHASE_3;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+    if (typewriter.joinable()) typewriter.join();
+}
+
+// ============================================================================
+// INTRO PHASE 3 - "ISLAMABAD REDEFINED" Title Screen
+// ============================================================================
+
+inline void CitySimulator::runIntroPhase3() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    std::atomic<bool> showTitle{ false };
+    std::atomic<bool> canProceed{ false };
+    std::atomic<int> titleRevealLine{ 0 };
+
+    auto renderer = Renderer([&] {
+        Elements islamabadLines;
+        Elements redefinedLines;
+        
+        int revealLine = titleRevealLine.load();
+        
+        if (showTitle.load()) {
+            for (int i = 0; i < ASCIIArt::ISLAMABAD_TITLE_HEIGHT; i++) {
+                if (i <= revealLine) {
+                    islamabadLines.push_back(text(ASCIIArt::ISLAMABAD_TITLE[i]) | color(Color::White) | bold);
+                } else {
+                    islamabadLines.push_back(text(""));
+                }
+            }
+            
+            for (int i = 0; i < ASCIIArt::REDEFINED_TITLE_HEIGHT; i++) {
+                if (i <= revealLine - ASCIIArt::ISLAMABAD_TITLE_HEIGHT) {
+                    redefinedLines.push_back(text(ASCIIArt::REDEFINED_TITLE[i]) | color(Color::GrayLight) | bold);
+                } else {
+                    redefinedLines.push_back(text(""));
+                }
+            }
+        }
+
+        string prompt = canProceed.load() ? "Press Enter to begin" : "";
+
+        return vbox({
+            filler(),
+            vbox(islamabadLines) | center,
+            text("") | size(HEIGHT, EQUAL, 1),
+            vbox(redefinedLines) | center,
+            text("") | size(HEIGHT, EQUAL, 3),
+            text(prompt) | center | dim,
+            filler(),
+        });
+    });
+
+    std::thread animator([&]() {
+        sleepMs(300);
+        showTitle.store(true);
+        
+        for (int i = 0; i <= ASCIIArt::ISLAMABAD_TITLE_HEIGHT + ASCIIArt::REDEFINED_TITLE_HEIGHT; i++) {
+            titleRevealLine.store(i);
+            screen.PostEvent(Event::Custom);
+            sleepMs(80);
+        }
+        
+        sleepMs(400);
+        canProceed.store(true);
+        screen.PostEvent(Event::Custom);
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::Return && canProceed.load()) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+    if (animator.joinable()) animator.join();
+}
+
+// ============================================================================
+// WELCOME ANIMATION
+// ============================================================================
+
+inline void CitySimulator::runWelcomeAnimation() {
+    currentState = SimulatorState::MAIN_MENU;
+}
+
+// ============================================================================
+// MAIN MENU
+// ============================================================================
+
+inline void CitySimulator::runMainMenu() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    std::vector<string> options;
+    if (!cityInitialized) {
+        options = { "Initialize City", "Exit" };
+    } else {
+        options = { "Interactive Graph View", "Database Browser", "Exit" };
+    }
+
+    int selected = 0;
+
+    auto renderer = Renderer([&] {
+        string statusText = cityInitialized ? "CITY INITIALIZED" : "Not Initialized";
+        Color statusColor = cityInitialized ? Color::Green : Color::GrayDark;
+
+        Elements menuItems;
+        for (int i = 0; i < (int)options.size(); i++) {
+            string prefix = (i == selected) ? " > " : "   ";
+            menuItems.push_back(text(prefix + options[i]) | color(Color::White));
+        }
+
+        CityStats stats;
+        if (islamabad) stats = islamabad->getCityStats();
+
+        auto statsBox = cityInitialized ? vbox({
+            text(""),
+            text("  Nodes: " + std::to_string(stats.totalNodes)),
+            text("  Schools: " + std::to_string(stats.totalSchools)),
+            text("  Hospitals: " + std::to_string(stats.totalHospitals)),
+            text("  Buses: " + std::to_string(stats.totalBuses)),
+            text("  Citizens: " + std::to_string(stats.totalCitizens)),
+            text(""),
+        }) | border | color(Color::White) : vbox({text("")});
+
+        auto menuBox = vbox({
+            text(""),
+            text("  ISLAMABAD REDEFINED") | bold | center,
+            text("  Smart City System") | dim | center,
+            text(""),
+            separator(),
+            text(""),
+            text("  Status: " + statusText) | color(statusColor),
+            text(""),
+            separator(),
+            text(""),
+            vbox(menuItems),
+            text(""),
+            separator(),
+            text(""),
+            text("  Demo Mode: Uses sample data") | dim,
+            text("  Full Mode: Loads all CSVs") | dim,
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 50);
+
+        return vbox({
+            filler(),
+            hbox({
+                filler(),
+                vbox({
+                    menuBox,
+                    text("") | size(HEIGHT, EQUAL, 1),
+                    statsBox | size(WIDTH, EQUAL, 50),
+                }),
+                filler(),
+            }),
+            filler(),
+            text("Up/Down: Navigate | Enter: Select | Esc: Exit") | center | dim,
+            text("") | size(HEIGHT, EQUAL, 1),
+        });
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::ArrowUp) {
+            selected = (selected - 1 + options.size()) % options.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::ArrowDown) {
+            selected = (selected + 1) % options.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Return) {
+            if (!cityInitialized) {
+                if (selected == 0) currentState = SimulatorState::CSV_SELECTION;
+                else currentState = SimulatorState::EXIT;
+            } else {
+                if (selected == 0) currentState = SimulatorState::GRAPH_VIEW;
+                else if (selected == 1) currentState = SimulatorState::DATABASE_VIEW;
+                else currentState = SimulatorState::EXIT;
+            }
+            screen.Exit();
+            return true;
+        }
+        if (event == Event::Escape) {
+            currentState = SimulatorState::EXIT;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+}
+
+// ============================================================================
+// CSV SELECTION
+// ============================================================================
+
+inline void CitySimulator::runCSVSelection() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    std::vector<string> options = { "Demo Mode", "Full Mode", "Back to Menu" };
+    int selected = 0;
+
+    auto renderer = Renderer([&] {
+        // File status checks
+        auto fileStatus = [&](const string& name, const string& path) {
+            bool exists = fileExists(path);
+            string status = exists ? "[FOUND]" : "[MISSING]";
+            Color col = exists ? Color::Green : Color::Red;
+            return hbox({
+                text("  " + name) | size(WIDTH, EQUAL, 25),
+                text(status) | color(col),
+            });
+        };
+
+        Elements menuItems;
+        for (int i = 0; i < (int)options.size(); i++) {
+            string prefix = (i == selected) ? " > " : "   ";
+            menuItems.push_back(text(prefix + options[i]) | color(Color::White));
+        }
+
+        auto filesBox = vbox({
+            text(""),
+            text("  DATASET FILES") | bold,
+            text(""),
+            separator(),
+            text(""),
+            fileStatus("stops.csv", stopsCSV),
+            fileStatus("schools.csv", schoolsCSV),
+            fileStatus("hospitals.csv", hospitalsCSV),
+            fileStatus("pharmacies.csv", pharmaciesCSV),
+            fileStatus("buses.csv", busesCSV),
+            fileStatus("population.csv", populationCSV),
+            fileStatus("malls.csv", mallsCSV),
+            fileStatus("shops.csv", shopsCSV),
+            fileStatus("ambulances.csv", ambulancesCSV),
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 50);
+
+        auto optionsBox = vbox({
+            text(""),
+            text("  SELECT MODE") | bold,
+            text(""),
+            separator(),
+            text(""),
+            vbox(menuItems),
+            text(""),
+            separator(),
+            text(""),
+            text("  Demo Mode: Uses sample data") | dim,
+            text("  Full Mode: Loads all CSVs") | dim,
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 50);
+
+        return vbox({
+            filler(),
+            hbox({
+                filler(),
+                vbox({
+                    text("  INITIALIZE CITY") | bold | center,
+                    text("") | size(HEIGHT, EQUAL, 1),
+                    filesBox,
+                    text("") | size(HEIGHT, EQUAL, 1),
+                    optionsBox,
+                }),
+                filler(),
+            }),
+            filler(),
+            text("Up/Down: Navigate | Enter: Select | Esc: Back") | center | dim,
+            text("") | size(HEIGHT, EQUAL, 1),
+        });
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::ArrowUp) {
+            selected = (selected - 1 + options.size()) % options.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::ArrowDown) {
+            selected = (selected + 1) % options.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Return) {
+            if (selected == 2) {
+                currentState = SimulatorState::MAIN_MENU;
+            } else {
+                loadMode = (selected == 0) ? CSVLoadMode::DEMO_MODE : CSVLoadMode::FULL_MODE;
+                currentState = SimulatorState::LOADING;
+            }
+            screen.Exit();
+            return true;
+        }
+        if (event == Event::Escape) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+}
+
+// ============================================================================
+// LOADING SCREEN
+// ============================================================================
+
+inline void CitySimulator::runLoadingScreen() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    std::vector<string> steps = {
+        "Initializing infrastructure...",
+        "Loading geographic data...",
+        "Building sector grid...",
+        "Loading bus stops...",
+        "Loading schools...",
+        "Loading hospitals...",
+        "Setting up transport...",
+        "Loading routes...",
+        "Loading population...",
+        "Connecting nodes...",
+        "Finalizing...",
+        "Complete!"
+    };
+
+    std::atomic<int> currentStep{ 0 };
+    std::atomic<bool> done{ false };
+
+    auto renderer = Renderer([&] {
+        int step = currentStep.load();
+        float progress = (float)step / (float)(steps.size() - 1);
+        int barWidth = 40;
+        int filled = (int)(progress * barWidth);
+
+        string bar = "[";
+        for (int i = 0; i < barWidth; i++) {
+            bar += (i < filled) ? "#" : "-";
+        }
+        bar += "]";
+
+        string statusMsg = step < (int)steps.size() ? steps[step] : "Complete!";
+        string hint = done.load() ? "Press Enter to continue" : "";
+
+        auto loadingBox = vbox({
+            text(""),
+            text("  LOADING") | bold | center,
+            text(""),
+            separator(),
+            text(""),
+            text("  " + bar) | center,
+            text("  " + std::to_string((int)(progress * 100)) + "%") | center,
+            text(""),
+            text("  " + statusMsg) | center | dim,
+            text(""),
+            text("  " + hint) | center,
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 55);
+
+        return vbox({
+            filler(),
+            hbox({ filler(), loadingBox, filler() }),
+            filler(),
+        });
+    });
+
+    std::thread loader([&]() {
+        islamabad = new SmartCity();
+
+        for (int i = 0; i < (int)steps.size(); i++) {
+            currentStep.store(i);
+            screen.PostEvent(Event::Custom);
+
+            if (i == 2) {
+                islamabad->setDatasetPaths(
+                    stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV,
+                    busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV
+                );
+            }
+
+            if (i == 6) {
+                islamabad->initialize();
+                cityInitialized = true;
+            }
+
+            sleepMs(250);
+        }
+
+        done.store(true);
+        screen.PostEvent(Event::Custom);
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::Return && done.load()) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+    if (loader.joinable()) loader.join();
+}
+
+// ============================================================================
+// INTERACTIVE GRAPH VIEW
+// ============================================================================
+
+inline void CitySimulator::runGraphView() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    buildGraphVisualization();
+
+    auto renderer = Renderer([&] {
+        int termWidth = Terminal::Size().dimx;
+        int termHeight = Terminal::Size().dimy;
+
+        int canvasWidth = termWidth - 35;
+        int canvasHeight = termHeight - 8;
+
+        Canvas graphCanvas = renderGraphToCanvas(canvasWidth, canvasHeight);
+
+        CityStats stats;
+        if (islamabad) stats = islamabad->getCityStats();
+
+        string hoverText = getHoverInfo();
+
+        auto infoBox = vbox({
+            text("  INFO") | bold,
+            separator(),
+            text(""),
+            paragraph(hoverText),
+            text(""),
+            separator(),
+            text(""),
+            text("  Nodes: " + std::to_string(stats.totalNodes)),
+            text("  Edges: " + std::to_string(graphEdges.size())),
+            text("  Zoom: " + std::to_string((int)(viewport.getZoom() * 100)) + "%"),
+            text(""),
+            separator(),
+            text(""),
+            text("  CONTROLS") | bold,
+            text(""),
+            text("  +/-: Zoom"),
+            text("  Arrows: Pan"),
+            text("  C: Corners"),
+            text("  R: Roads"),
+            text("  0: Reset"),
+            text(""),
+            text("  Esc: Back"),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 28);
+
+        return vbox({
+            text("  CITY GRAPH VISUALIZATION") | bold | center,
+            text("") | size(HEIGHT, EQUAL, 1),
+            hbox({
+                canvas(graphCanvas) | border | color(Color::White) | flex,
+                text(" "),
+                infoBox,
+            }) | flex,
+        });
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event.is_mouse()) {
+            if (event.mouse().motion == Mouse::Moved) {
+                updateHoverState(event.mouse().x, event.mouse().y);
+                screen.PostEvent(Event::Custom);
+                return true;
+            }
+        }
+
+        if (event == Event::Character('+') || event == Event::Character('=')) {
+            viewport.zoomIn();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Character('-') || event == Event::Character('_')) {
+            viewport.zoomOut();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::ArrowLeft) { viewport.panLeft(); screen.PostEvent(Event::Custom); return true; }
+        if (event == Event::ArrowRight) { viewport.panRight(); screen.PostEvent(Event::Custom); return true; }
+        if (event == Event::ArrowUp) { viewport.panUp(); screen.PostEvent(Event::Custom); return true; }
+        if (event == Event::ArrowDown) { viewport.panDown(); screen.PostEvent(Event::Custom); return true; }
+
+        if (event == Event::Character('c') || event == Event::Character('C')) {
+            showCorners = !showCorners;
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Character('r') || event == Event::Character('R')) {
+            showRoads = !showRoads;
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Character('0')) {
+            viewport.resetView();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Escape) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+}
+
+// ============================================================================
+// DATABASE VIEW
+// ============================================================================
+
+inline void CitySimulator::runDatabaseView() {
+    auto screen = ScreenInteractive::Fullscreen();
+
+    std::vector<string> categories = {
+        "Sectors", "Graph Nodes", "Schools", "Hospitals",
+        "Pharmacies", "Buses", "School Buses", "Ambulances",
+        "Citizens", "Malls", "Shops", "Back to Menu"
+    };
+
+    int selected = 0;
+
+    auto renderer = Renderer([&] {
+        CityStats stats;
+        if (islamabad) stats = islamabad->getCityStats();
+
+        std::vector<string> counts = {
+            std::to_string(SECTOR_COUNT),
+            std::to_string(stats.totalNodes),
+            std::to_string(stats.totalSchools),
+            std::to_string(stats.totalHospitals),
+            std::to_string(stats.totalPharmacies),
+            std::to_string(stats.totalBuses),
+            std::to_string(stats.totalSchoolBuses),
+            std::to_string(stats.totalAmbulances),
+            std::to_string(stats.totalCitizens),
+            std::to_string(stats.totalMalls),
+            "N/A",
+            ""
+        };
+
+        Elements menuItems;
+        for (int i = 0; i < (int)categories.size(); i++) {
+            string prefix = (i == selected) ? " > " : "   ";
+            string countStr = counts[i].empty() ? "" : " (" + counts[i] + ")";
+            menuItems.push_back(text(prefix + categories[i] + countStr) | color(Color::White));
+        }
+
+        auto menuBox = vbox({
+            text(""),
+            text("  DATABASE BROWSER") | bold,
+            text(""),
+            separator(),
+            text(""),
+            vbox(menuItems),
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 45);
+
+        auto statsBox = vbox({
+            text(""),
+            text("  QUICK STATS") | bold,
+            text(""),
+            separator(),
+            text(""),
+            text("  Infrastructure:"),
+            text("    Nodes: " + std::to_string(stats.totalNodes)),
+            text("    Sectors: " + std::to_string(SECTOR_COUNT)),
+            text(""),
+            text("  Education:"),
+            text("    Schools: " + std::to_string(stats.totalSchools)),
+            text(""),
+            text("  Healthcare:"),
+            text("    Hospitals: " + std::to_string(stats.totalHospitals)),
+            text("    Pharmacies: " + std::to_string(stats.totalPharmacies)),
+            text(""),
+            text("  Transport:"),
+            text("    Buses: " + std::to_string(stats.totalBuses)),
+            text("    Active: " + std::to_string(stats.activeBuses)),
+            text(""),
+        }) | border | color(Color::White) | size(WIDTH, EQUAL, 35);
+
+        return vbox({
+            filler(),
+            hbox({
+                filler(),
+                menuBox,
+                text("  "),
+                statsBox,
+                filler(),
+            }),
+            filler(),
+            text("Up/Down: Navigate | Enter: Select | Esc: Back") | center | dim,
+            text("") | size(HEIGHT, EQUAL, 1),
+        });
+    });
+
+    auto component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::ArrowUp) {
+            selected = (selected - 1 + categories.size()) % categories.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::ArrowDown) {
+            selected = (selected + 1) % categories.size();
+            screen.PostEvent(Event::Custom);
+            return true;
+        }
+        if (event == Event::Return) {
+            if (selected == (int)categories.size() - 1) {
+                currentState = SimulatorState::MAIN_MENU;
+                screen.Exit();
+            }
+            return true;
+        }
+        if (event == Event::Escape) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(component);
+}
+
+// ============================================================================
+// DEBUG MODE - Bypass intro and go straight to graph view
+// ============================================================================
+
+inline void CitySimulator::runDebugMode() {
+    std::cout << "=== DEBUG MODE ===" << std::endl;
+    std::cout << "Loading city data directly..." << std::endl;
+
+    // Create SmartCity and load data
+    islamabad = new SmartCity();
+    islamabad->setDatasetPaths(
+        stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV,
+        busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV
+    );
+    
+    std::cout << "Initializing..." << std::endl;
+    islamabad->initialize();
+    cityInitialized = true;
+
+    // Print debug info
+    CityStats stats = islamabad->getCityStats();
+    std::cout << "Loaded:" << std::endl;
+    std::cout << "  Nodes: " << stats.totalNodes << std::endl;
+    std::cout << "  Schools: " << stats.totalSchools << std::endl;
+    std::cout << "  Hospitals: " << stats.totalHospitals << std::endl;
+    std::cout << "  Buses: " << stats.totalBuses << std::endl;
+    
+    // Print some node info for debugging
+    CityGraph* graph = islamabad->getCityGraph();
+    if (graph) {
+        std::cout << "\nFirst 20 nodes:" << std::endl;
+        for (int i = 0; i < std::min(20, graph->getNodeCount()); i++) {
+            CityNode* node = graph->getNode(i);
+            if (node) {
+                std::cout << "  [" << i << "] " << node->name 
+                          << " (" << node->type << ") "
+                          << "lat=" << node->lat << " lon=" << node->lon
+                          << " sector=" << node->sector << std::endl;
+            }
+        }
+    }
+
+    std::cout << "\nPress Enter to open graph view..." << std::endl;
+    std::cin.get();
+
+    // Go directly to graph view
+    runGraphView();
+
+    std::cout << "\nDebug session complete." << std::endl;
 }
 
 // ============================================================================
@@ -478,6 +1332,15 @@ inline string CitySimulator::getHoverInfo() {
 inline void CitySimulator::run() {
     while (currentState != SimulatorState::EXIT) {
         switch (currentState) {
+        case SimulatorState::INTRO_PHASE_1:
+            runIntroPhase1();
+            break;
+        case SimulatorState::INTRO_PHASE_2:
+            runIntroPhase2();
+            break;
+        case SimulatorState::INTRO_PHASE_3:
+            runIntroPhase3();
+            break;
         case SimulatorState::WELCOME_ANIMATION:
             runWelcomeAnimation();
             break;
@@ -501,645 +1364,8 @@ inline void CitySimulator::run() {
         }
     }
 
-    std::cout << "\n✓ Thank you for using New Islamabad Smart City System!\n" << std::endl;
-}
-
-// ============================================================================
-// WELCOME ANIMATION
-// ============================================================================
-
-inline void CitySimulator::runWelcomeAnimation() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    std::atomic<int> frame{ 0 };
-    std::atomic<bool> done{ false };
-
-    auto renderer = Renderer([&] {
-        int f = frame.load();
-
-        Elements title_lines;
-        for (int i = 0; i < ASCIIArt::TITLE_HEIGHT; i++) {
-            if (f > i * 3) {
-                title_lines.push_back(text(ASCIIArt::TITLE[i]) | color(Color::Cyan) | bold);
-            }
-            else {
-                title_lines.push_back(text(""));
-            }
-        }
-
-        string subtitle = f > 15 ? "Smart City Management System" : "";
-        string prompt = f > 20 ? "Press Enter to continue..." : "";
-
-        return vbox({
-            text("") | size(HEIGHT, EQUAL, 8),
-            vbox(title_lines) | center,
-            text("") | size(HEIGHT, EQUAL, 2),
-            text(subtitle) | center | color(Color::Yellow),
-            text("") | size(HEIGHT, EQUAL, 2),
-            text(prompt) | center | dim | blink,
-            }) | center;
-        });
-
-    std::thread anim([&]() {
-        for (int i = 0; i < 25 && !done.load(); i++) {
-            frame.store(i);
-            screen.PostEvent(Event::Custom);
-            sleepMs(100);
-        }
-        done.store(true);
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if ((event == Event::Return || event == Event::Character(' ')) && done.load()) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-        if (event == Event::Escape) {
-            currentState = SimulatorState::EXIT;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
-
-    if (anim.joinable()) anim.join();
-}
-
-// ============================================================================
-// MAIN MENU
-// ============================================================================
-
-inline void CitySimulator::runMainMenu() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    std::vector<std::string> menu_entries;
-    if (!cityInitialized) {
-        menu_entries = {
-            "▶ Initialize City",
-            "✕ Exit"
-        };
-    }
-    else {
-        menu_entries = {
-            "🗺  Interactive Graph View",
-            "📊 Database Browser",
-            "✕ Exit"
-        };
-    }
-
-    int selected = 0;
-    auto menu = Menu(&menu_entries, &selected);
-
-    auto renderer = Renderer(menu, [&] {
-        string statusText = cityInitialized ? "● CITY INITIALIZED" : "○ Not Initialized";
-        Color statusColor = cityInitialized ? Color::Green : Color::Red;
-
-        CityStats stats;
-        if (islamabad) stats = islamabad->getCityStats();
-
-        auto stats_panel = cityInitialized ? vbox({
-            text("═══ CITY STATISTICS ═══") | center | bold,
-            text(""),
-            hbox({
-                vbox({
-                    text("Nodes: " + std::to_string(stats.totalNodes)),
-                    text("Schools: " + std::to_string(stats.totalSchools)),
-                    text("Hospitals: " + std::to_string(stats.totalHospitals)),
-                }) | border,
-                text("  "),
-                vbox({
-                    text("Buses: " + std::to_string(stats.totalBuses)),
-                    text("Citizens: " + std::to_string(stats.totalCitizens)),
-                    text("Sectors: " + std::to_string(SECTOR_COUNT)),
-                }) | border,
-            }) | center,
-            }) : vbox({ text("") });
-
-        return vbox({
-            text("") | size(HEIGHT, EQUAL, 3),
-            text("╔════════════════════════════════════════╗") | center | color(Color::Cyan),
-            text("║    NEW ISLAMABAD SMART CITY SYSTEM    ║") | center | color(Color::Cyan) | bold,
-            text("╚════════════════════════════════════════╝") | center | color(Color::Cyan),
-            text("") | size(HEIGHT, EQUAL, 2),
-            text(statusText) | center | color(statusColor) | bold,
-            text("") | size(HEIGHT, EQUAL, 1),
-            separator(),
-            text("") | size(HEIGHT, EQUAL, 1),
-            menu->Render() | center | size(WIDTH, EQUAL, 40),
-            text("") | size(HEIGHT, EQUAL, 2),
-            stats_panel | center,
-            text("") | size(HEIGHT, EQUAL, 2),
-            separator(),
-            text("↑↓ Navigate | Enter: Select | Esc: Exit") | center | dim,
-            }) | center;
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if (event == Event::Return) {
-            if (!cityInitialized) {
-                if (selected == 0) {
-                    currentState = SimulatorState::CSV_SELECTION;
-                }
-                else {
-                    currentState = SimulatorState::EXIT;
-                }
-            }
-            else {
-                if (selected == 0) {
-                    currentState = SimulatorState::GRAPH_VIEW;
-                }
-                else if (selected == 1) {
-                    currentState = SimulatorState::DATABASE_VIEW;
-                }
-                else {
-                    currentState = SimulatorState::EXIT;
-                }
-            }
-            screen.Exit();
-            return true;
-        }
-        if (event == Event::Escape) {
-            currentState = SimulatorState::EXIT;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
-}
-
-// ============================================================================
-// CSV SELECTION
-// ============================================================================
-
-inline void CitySimulator::runCSVSelection() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    std::vector<std::string> options = {
-        "Demo Mode (Use provided datasets)",
-        "Full Mode (Load all CSVs)",
-        "← Back to Menu"
-    };
-
-    int selected = 0;
-    auto menu = Menu(&options, &selected);
-
-    auto renderer = Renderer(menu, [&] {
-        auto file_check = [&](const string& name, const string& path) {
-            bool exists = fileExists(path);
-            return hbox({
-                text(exists ? "✓ " : "✗ "),
-                text(name),
-                }) | (exists ? color(Color::Green) : color(Color::Red));
-            };
-
-        return vbox({
-            text("") | size(HEIGHT, EQUAL, 3),
-            text("═══ INITIALIZE CITY ═══") | center | bold | color(Color::Cyan),
-            text("") | size(HEIGHT, EQUAL, 2),
-            vbox({
-                text("Dataset Files:") | bold,
-                separator(),
-                file_check("stops.csv", stopsCSV),
-                file_check("schools.csv", schoolsCSV),
-                file_check("hospitals.csv", hospitalsCSV),
-                file_check("buses.csv", busesCSV),
-                file_check("population.csv", populationCSV),
-            }) | border | center,
-            text("") | size(HEIGHT, EQUAL, 2),
-            menu->Render() | center | size(WIDTH, EQUAL, 40),
-            text("") | size(HEIGHT, EQUAL, 3),
-            text("Enter: Select | Esc: Back") | center | dim,
-            }) | center;
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if (event == Event::Return) {
-            if (selected == 2) {
-                currentState = SimulatorState::MAIN_MENU;
-            }
-            else {
-                loadMode = (selected == 0) ? CSVLoadMode::DEMO_MODE : CSVLoadMode::FULL_MODE;
-                currentState = SimulatorState::LOADING;
-            }
-            screen.Exit();
-            return true;
-        }
-        if (event == Event::Escape) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
-}
-
-// ============================================================================
-// LOADING SCREEN
-// ============================================================================
-
-inline void CitySimulator::runLoadingScreen() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    std::vector<std::string> steps = {
-        "Initializing city infrastructure...",
-        "Loading geographic data...",
-        "Building sector grid...",
-        "Loading bus stops...",
-        "Loading schools...",
-        "Loading hospitals & pharmacies...",
-        "Setting up transport system...",
-        "Loading buses & routes...",
-        "Loading population data...",
-        "Connecting graph nodes...",
-        "Finalizing initialization...",
-        "Complete!"
-    };
-
-    std::atomic<int> currentStep{ 0 };
-    std::atomic<bool> done{ false };
-
-    auto renderer = Renderer([&] {
-        int step = currentStep.load();
-        float progress = (float)step / (steps.size() - 1);
-        int barWidth = 50;
-        int filled = (int)(progress * barWidth);
-
-        string bar = "[";
-        for (int i = 0; i < barWidth; i++) {
-            if (i < filled) bar += "█";
-            else if (i == filled) bar += "▓";
-            else bar += "░";
-        }
-        bar += "]";
-
-        string statusMsg = step < (int)steps.size() ? steps[step] : "Complete!";
-
-        return vbox({
-            text("") | size(HEIGHT, EQUAL, 8),
-            text("╔═══════════════════════════════════════════╗") | center | color(Color::Cyan),
-            text("║      INITIALIZING NEW ISLAMABAD          ║") | center | color(Color::Cyan) | bold,
-            text("╚═══════════════════════════════════════════╝") | center | color(Color::Cyan),
-            text("") | size(HEIGHT, EQUAL, 3),
-            text(bar) | center | color(Color::Green),
-            text(std::to_string((int)(progress * 100)) + "%") | center | bold | color(Color::Yellow),
-            text("") | size(HEIGHT, EQUAL, 2),
-            text(statusMsg) | center | dim,
-            text("") | size(HEIGHT, EQUAL, 3),
-            text(done.load() ? "Press Enter to continue" : "Please wait...") | center |
-                (done.load() ? color(Color::Green) : dim),
-            }) | center;
-        });
-
-    std::thread loader([&]() {
-        islamabad = new SmartCity();
-
-        for (int i = 0; i < (int)steps.size(); i++) {
-            currentStep.store(i);
-            screen.PostEvent(Event::Custom);
-
-            if (i == 2) {
-                islamabad->setDatasetPaths(
-                    stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV,
-                    busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV
-                );
-            }
-
-            if (i == 6) {
-                islamabad->initialize();
-                cityInitialized = true;
-            }
-
-            sleepMs(300);
-        }
-
-        done.store(true);
-        screen.PostEvent(Event::Custom);
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if (event == Event::Return && done.load()) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
-
-    if (loader.joinable()) loader.join();
-}
-
-// ============================================================================
-// INTERACTIVE GRAPH VIEW
-// ============================================================================
-
-inline void CitySimulator::runGraphView() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    buildGraphVisualization();
-
-    auto renderer = Renderer([&] {
-        int termWidth = Terminal::Size().dimx;
-        int termHeight = Terminal::Size().dimy;
-
-        int canvasWidth = termWidth - 36;
-        int canvasHeight = termHeight - 10;
-
-        Canvas graphCanvas = renderGraphToCanvas(canvasWidth, canvasHeight);
-
-        // Legend
-        auto legend = hbox({
-            text("● ") | color(Color::Yellow), text("Corner "),
-            text("● ") | color(Color::GreenLight), text("Stop "),
-            text("● ") | color(Color::Blue), text("School "),
-            text("● ") | color(Color::Red), text("Hospital "),
-            text("● ") | color(Color::Magenta), text("Pharmacy "),
-            text("● ") | color(Color::Cyan), text("Mosque "),
-            text("● ") | color(Color::Green), text("Park"),
-            });
-
-        // Stats
-        CityStats stats;
-        if (islamabad) stats = islamabad->getCityStats();
-
-        auto statsBar = hbox({
-            text("Nodes: " + std::to_string(stats.totalNodes)),
-            text(" │ "),
-            text("Edges: " + std::to_string(graphEdges.size())),
-            text(" │ "),
-            text("Zoom: " + std::to_string((int)(viewport.getZoom() * 100)) + "%"),
-            }) | dim;
-
-        // Hover info
-        string hoverText = getHoverInfo();
-
-        // Controls
-        auto controls = vbox({
-            text("═══ CONTROLS ═══") | bold | center | color(Color::Cyan),
-            separator(),
-            text(""),
-            text("🖱  Mouse: Hover nodes/sectors"),
-            text(""),
-            text("🔍 Zoom:"),
-            text("  + / = : Zoom in"),
-            text("  - / _ : Zoom out"),
-            text(""),
-            text("🧭 Pan:"),
-            text("  ← → ↑ ↓ : Move view"),
-            text(""),
-            text("⚙  Toggle:"),
-            text("  C: Show/hide corners"),
-            text("  R: Show/hide roads"),
-            text(""),
-            text("↺  0: Reset view"),
-            text(""),
-            text("Esc: Back to menu"),
-            }) | border | size(WIDTH, EQUAL, 30);
-
-        // Info panel
-        auto infoPanel = vbox({
-            text("═══ INFORMATION ═══") | bold | center | color(Color::Cyan),
-            separator(),
-            text(""),
-            paragraph(hoverText),
-            text(""),
-            separator(),
-            text(""),
-            text("Status:") | bold,
-            text(showCorners ? "✓ Corners visible" : "✗ Corners hidden") |
-                (showCorners ? color(Color::Green) : color(Color::GrayDark)),
-            text(showRoads ? "✓ Roads visible" : "✗ Roads hidden") |
-                (showRoads ? color(Color::Green) : color(Color::GrayDark)),
-            }) | border | size(WIDTH, EQUAL, 30);
-
-        // Main layout
-        return vbox({
-            text("╔══════════════════════════════════════════════════════════════╗") |
-                center | color(Color::Cyan),
-            text("║        INTERACTIVE CITY GRAPH - 2D VISUALIZATION            ║") |
-                center | color(Color::Cyan) | bold,
-            text("╚══════════════════════════════════════════════════════════════╝") |
-                center | color(Color::Cyan),
-            text("") | size(HEIGHT, EQUAL, 1),
-            hbox({
-                vbox({
-                    canvas(graphCanvas) | border | flex,
-                    separator(),
-                    legend | center,
-                    statsBar | center,
-                }) | flex,
-                separator(),
-                vbox({
-                    infoPanel | flex,
-                    text(""),
-                    controls,
-                }),
-            }) | flex,
-            separator(),
-            text("Move mouse over map to explore | Esc: Return to menu") | center | dim,
-            });
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        // Mouse handling
-        if (event.is_mouse()) {
-            if (event.mouse().motion == Mouse::Moved ||
-                event.mouse().button == Mouse::Left) {
-                updateHoverState(event.mouse().x, event.mouse().y);
-                screen.PostEvent(Event::Custom);
-                return true;
-            }
-        }
-
-        // Zoom controls
-        if (event == Event::Character('+') || event == Event::Character('=')) {
-            viewport.zoomIn();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-        if (event == Event::Character('-') || event == Event::Character('_')) {
-            viewport.zoomOut();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-
-        // Pan controls
-        if (event == Event::ArrowLeft) {
-            viewport.panLeft();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-        if (event == Event::ArrowRight) {
-            viewport.panRight();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-        if (event == Event::ArrowUp) {
-            viewport.panUp();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-        if (event == Event::ArrowDown) {
-            viewport.panDown();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-
-        // Toggle controls
-        if (event == Event::Character('c') || event == Event::Character('C')) {
-            showCorners = !showCorners;
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-        if (event == Event::Character('r') || event == Event::Character('R')) {
-            showRoads = !showRoads;
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-
-        // Reset view
-        if (event == Event::Character('0')) {
-            viewport.resetView();
-            screen.PostEvent(Event::Custom);
-            return true;
-        }
-
-        // Exit
-        if (event == Event::Escape) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-
-        return false;
-        });
-
-    screen.Loop(component);
-}
-
-// ============================================================================
-// DATABASE VIEW
-// ============================================================================
-
-inline void CitySimulator::runDatabaseView() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    std::vector<std::string> categories = {
-        "📍 Sectors",
-        "🗺  Graph Nodes",
-        "🏫 Schools",
-        "🏥 Hospitals",
-        "💊 Pharmacies",
-        "🚌 Buses",
-        "🚐 School Buses",
-        "🚑 Ambulances",
-        "👥 Citizens",
-        "🏢 Malls",
-        "🏪 Shops",
-        "← Back to Menu"
-    };
-
-    int selected = 0;
-    auto menu = Menu(&categories, &selected);
-
-    auto renderer = Renderer(menu, [&] {
-        CityStats stats;
-        if (islamabad) stats = islamabad->getCityStats();
-
-        // Category info
-        std::vector<string> categoryInfo;
-        categoryInfo.push_back("Total Sectors: " + std::to_string(SECTOR_COUNT));
-        categoryInfo.push_back("Total Nodes: " + std::to_string(stats.totalNodes));
-        categoryInfo.push_back("Total Schools: " + std::to_string(stats.totalSchools));
-        categoryInfo.push_back("Total Hospitals: " + std::to_string(stats.totalHospitals));
-        categoryInfo.push_back("Total Pharmacies: " + std::to_string(stats.totalPharmacies));
-        categoryInfo.push_back("Total Buses: " + std::to_string(stats.totalBuses));
-        categoryInfo.push_back("Total School Buses: " + std::to_string(stats.totalSchoolBuses));
-        categoryInfo.push_back("Total Ambulances: " + std::to_string(stats.totalAmbulances));
-        categoryInfo.push_back("Total Citizens: " + std::to_string(stats.totalCitizens));
-        categoryInfo.push_back("Total Malls: " + std::to_string(stats.totalMalls));
-        categoryInfo.push_back("Total Shops: (varies by mall)");
-        categoryInfo.push_back("");
-
-        string selectedInfo = selected < (int)categoryInfo.size() ?
-            categoryInfo[selected] : "";
-
-        return vbox({
-            text("") | size(HEIGHT, EQUAL, 2),
-            text("╔═══════════════════════════════════════╗") | center | color(Color::Cyan),
-            text("║      DATABASE BROWSER & MANAGER       ║") | center | color(Color::Cyan) | bold,
-            text("╚═══════════════════════════════════════╝") | center | color(Color::Cyan),
-            text("") | size(HEIGHT, EQUAL, 2),
-            hbox({
-                vbox({
-                    text("═══ CATEGORIES ═══") | bold | center,
-                    separator(),
-                    menu->Render() | flex,
-                }) | border | size(WIDTH, EQUAL, 30),
-                text("  "),
-                vbox({
-                    text("═══ INFORMATION ═══") | bold | center,
-                    separator(),
-                    text(""),
-                    text(selectedInfo) | center | color(Color::Yellow),
-                    text(""),
-                    separator(),
-                    text(""),
-                    vbox({
-                        text("💡 Quick Stats:") | bold,
-                        text(""),
-                        text("Infrastructure:"),
-                        text("  Nodes: " + std::to_string(stats.totalNodes)),
-                        text("  Sectors: " + std::to_string(SECTOR_COUNT)),
-                        text(""),
-                        text("Education:"),
-                        text("  Schools: " + std::to_string(stats.totalSchools)),
-                        text("  Students: " + std::to_string(stats.totalStudentsTransported)),
-                        text(""),
-                        text("Healthcare:"),
-                        text("  Hospitals: " + std::to_string(stats.totalHospitals)),
-                        text("  Pharmacies: " + std::to_string(stats.totalPharmacies)),
-                        text(""),
-                        text("Transport:"),
-                        text("  Buses: " + std::to_string(stats.totalBuses)),
-                        text("  Active: " + std::to_string(stats.activeBuses)),
-                    }) | border,
-                }) | border | flex,
-            }) | center | flex,
-            text("") | size(HEIGHT, EQUAL, 2),
-            separator(),
-            text("↑↓: Navigate | Enter: Select | Esc: Back") | center | dim,
-            }) | center;
-        });
-
-    auto component = CatchEvent(renderer, [&](Event event) {
-        if (event == Event::Return) {
-            if (selected == 11) {
-                currentState = SimulatorState::MAIN_MENU;
-                screen.Exit();
-                return true;
-            }
-            // For other selections, you could implement detail views
-            // For now, just acknowledge the selection
-            return true;
-        }
-        if (event == Event::Escape) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
+    std::cout << "\nThank you for using Islamabad Redefined!\n" << std::endl;
 }
 
 #endif // CITY_SIMULATOR_ENHANCED_H
+
