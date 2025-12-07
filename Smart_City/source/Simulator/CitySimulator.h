@@ -140,7 +140,7 @@ enum class SimulatorState {
     WELCOME_ANIMATION, MAIN_MENU, CSV_SELECTION, LOADING,
     GRAPH_VIEW, DATABASE_VIEW, MANAGEMENT_MENU,
     DIJKSTRA_VIEW,
-    SEARCH_VIEW, // Added for Universal Search
+    SEARCH_VIEW,
     EXIT
 };
 
@@ -252,12 +252,21 @@ public:
     void runLoadingScreen();
     void runGraphView();
     void runDatabaseView();
-    void runSearchView(); // New Search Engine View
+    void runSearchView();
     void runManagementMenu();
     void runDijkstraView();
+    void runEditObjectView(const string& objectID, const string& objectType); // New Edit View
 
     void runAddFacilityForm(const string& sector);
     void runAddOfferingForm(CityNode* node);
+
+    // ------- EDITING FUNCTIONS MANAGEMENT -------
+    void runInputForm(const string& title, const std::vector<string>& labels, std::function<void(std::vector<string>)> onConfirm);
+    Citizen* runPopulationSelector(const string& title);
+    void runEditSchoolView(School* school);
+	void runEditHospitalView(Hospital* hospital);
+	void runEditShopView(Shop* shop, Mall* mall);
+
 
     Canvas renderGraphToCanvas(int width, int height);
     void updateHoverState(int mx, int my);
@@ -1965,56 +1974,738 @@ inline void CitySimulator::runSearchView() {
 }
 
 // ============================================================================
-// MANAGEMENT MENU - Placeholder for city management functions
+// HELPER: GENERIC INPUT FORM
+// ============================================================================
+inline void CitySimulator::runInputForm(const string& title, const std::vector<string>& labels, std::function<void(std::vector<string>)> onConfirm) {
+    auto screen = ScreenInteractive::Fullscreen();
+    std::vector<string> inputs(labels.size());
+
+    Component container = Container::Vertical({});
+    for (size_t i = 0; i < labels.size(); ++i) {
+        container->Add(Input(&inputs[i], "Type " + labels[i] + "..."));
+    }
+
+    Component btn_confirm = Button("Confirm", [&] {
+        onConfirm(inputs);
+        screen.Exit();
+        });
+
+    Component btn_cancel = Button("Cancel", screen.ExitLoopClosure());
+
+    container->Add(Container::Horizontal({ btn_confirm, btn_cancel }));
+
+    auto renderer = Renderer(container, [&] {
+        Elements fields;
+        for (size_t i = 0; i < labels.size(); ++i) {
+            fields.push_back(hbox({
+                text(labels[i] + ": ") | bold | size(WIDTH, EQUAL, 20),
+                container->ChildAt(i)->Render() | flex
+                }) | border);
+        }
+
+        return vbox({
+            text(title) | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            separator(),
+            vbox(fields) | flex,
+            separator(),
+            hbox({ btn_confirm->Render(), text("  "), btn_cancel->Render() }) | center
+            }) | border | size(WIDTH, EQUAL, 60) | center;
+        });
+
+    screen.Loop(renderer);
+}
+
+// ============================================================================
+// HELPER: POPULATION SELECTOR PORTAL
+// ============================================================================
+inline Citizen* CitySimulator::runPopulationSelector(const string& title) {
+    if (!islamabad || !islamabad->getPopulationManager()) return nullptr;
+
+    auto screen = ScreenInteractive::Fullscreen();
+    Citizen* selectedCitizen = nullptr;
+    string query = "";
+    int selected = 0;
+    std::vector<string> entries;
+    std::vector<Citizen*> displayedCitizens;
+
+    auto refreshList = [&]() {
+        entries.clear();
+        displayedCitizens.clear();
+        PopulationManager* pm = islamabad->getPopulationManager();
+
+        // Linear scan of master list (Population can be large, limiting display to 50 matches)
+        int count = 0;
+        for (int i = 0; i < pm->masterList.getSize(); ++i) {
+            Citizen* c = pm->masterList[i];
+            if (!c) continue;
+
+            // Basic search filter
+            bool match = query.empty();
+            if (!match) {
+                string q = query;
+                string n = c->name;
+                string id = c->cnic;
+                // Simple case-insensitive check could be added here, strict for now
+                if (n.find(q) != string::npos || id.find(q) != string::npos) match = true;
+            }
+
+            if (match) {
+                displayedCitizens.push_back(c);
+                entries.push_back(c->name + " (" + c->cnic + ") - Age: " + std::to_string(c->age) + " - " + c->currentStatus);
+                count++;
+                if (count >= 50) break;
+            }
+        }
+        if (entries.empty()) entries.push_back("No citizens found matching query.");
+        };
+
+    refreshList(); // Initial population
+
+    InputOption input_opt;
+    input_opt.on_change = refreshList;
+    Component input = Input(&query, "Search Name or CNIC...", input_opt);
+
+    MenuOption menu_opt;
+    menu_opt.on_enter = [&] {
+        if (selected >= 0 && selected < (int)displayedCitizens.size()) {
+            selectedCitizen = displayedCitizens[selected];
+            screen.Exit();
+        }
+        };
+    Component menu = Menu(&entries, &selected, menu_opt);
+
+    auto layout = Container::Vertical({
+        input,
+        menu | vscroll_indicator | frame | flex
+        });
+
+    auto renderer = Renderer(layout, [&] {
+        return vbox({
+            text(" POPULATION REGISTRY - " + title) | bold | center | bgcolor(Color::Green) | color(Color::Black),
+            separator(),
+            hbox({ text(" Filter: "), input->Render() }),
+            separator(),
+            menu->Render() | flex,
+            separator(),
+            text("Enter: Select | Esc: Cancel") | dim | center
+            }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
+        });
+
+    auto component = CatchEvent(renderer, [&](Event e) {
+        if (e == Event::Escape) { screen.Exit(); return true; }
+        return false;
+        });
+
+    screen.Loop(component);
+    return selectedCitizen;
+}
+
+// ============================================================================
+// MODULAR EDIT VIEWS (Detailed Control for Each Type)
+// ============================================================================
+
+// --- 1. Edit SCHOOL ---
+inline void CitySimulator::runEditSchoolView(School* school) {
+    if (!school) return;
+    auto screen = ScreenInteractive::Fullscreen();
+    string message = "";
+
+    // Toggle states for panels
+    int tab_index = 0;
+    std::vector<string> tabs = { "Info", "Departments", "Faculty", "Students" };
+
+    // --- Component Logic ---
+
+    // Tab 1: Info Actions
+    Component btn_rename = Button("Rename School", [&] {
+        runInputForm("Rename School", { "New Name" }, [&](std::vector<string> res) {
+            if (!res[0].empty()) { school->name = res[0]; message = "Renamed to " + res[0]; }
+            });
+        });
+
+    // Tab 2: Dept Actions
+    Component btn_add_dept = Button("Add Department", [&] {
+        runInputForm("New Department", { "Department Name" }, [&](std::vector<string> res) {
+            if (!res[0].empty()) {
+                if (cityMgmt->addDepartmentToSchool(school->id, res[0])) message = "Added Dept: " + res[0];
+                else message = "Error: Dept likely exists.";
+            }
+            });
+        });
+
+    Component btn_rem_dept = Button("Remove Department", [&] {
+        runInputForm("Remove Department", { "Department Name" }, [&](std::vector<string> res) {
+            if (cityMgmt->removeDepartmentFromSchool(school->id, res[0])) message = "Removed Dept: " + res[0];
+            else message = "Error: Dept not found.";
+            });
+        });
+
+    // Tab 3: Faculty Actions
+    Component btn_hire_fac = Button("Hire Faculty", [&] {
+        Citizen* c = runPopulationSelector("Select Citizen to Hire");
+        if (c) {
+            // Check if already employed logic in manager, but we do basic flow here
+            runInputForm("Employment Contract", { "Department", "Qualification", "Salary" }, [&](std::vector<string> res) {
+                string dept = res[0];
+                string qual = res[1];
+                double sal = 0;
+                try { sal = std::stod(res[2]); }
+                catch (...) {}
+
+                string resID = cityMgmt->hireCitizenAsFaculty(c->cnic, school->id, dept, qual, sal);
+                if (!resID.empty()) message = "Hired " + c->name + " as " + resID;
+                else message = "Hiring Failed (Dept invalid or already employed?)";
+                });
+        }
+        });
+
+    // Tab 4: Student Actions
+    Component btn_enroll = Button("Enroll Student", [&] {
+        Citizen* c = runPopulationSelector("Select Student to Enroll");
+        if (c) {
+            runInputForm("Enrollment Form", { "Department", "Class (1-10)" }, [&](std::vector<string> res) {
+                string dept = res[0];
+                int cls = 1;
+                try { cls = std::stoi(res[1]); }
+                catch (...) {}
+
+                if (cityMgmt->enrollStudent(c->cnic, school->id, dept, cls)) message = "Enrolled " + c->name;
+                else message = "Enrollment Failed (Dept/Class invalid or duplicate)";
+                });
+        }
+        });
+
+    Component btn_back = Button("Back to Manager", screen.ExitLoopClosure());
+
+    // Layout Containers
+    auto c_info = Container::Vertical({ btn_rename });
+    auto c_dept = Container::Vertical({ btn_add_dept, btn_rem_dept });
+    auto c_fac = Container::Vertical({ btn_hire_fac });
+    auto c_stu = Container::Vertical({ btn_enroll });
+    auto c_tabs = Toggle(&tabs, &tab_index);
+
+    auto main_container = Container::Vertical({
+        c_tabs,
+        Container::Tab({c_info, c_dept, c_fac, c_stu}, &tab_index),
+        btn_back
+        });
+
+    auto renderer = Renderer(main_container, [&] {
+        // --- VIEW GENERATION ---
+
+        // 1. Stats Panel
+        auto stats = vbox({
+            hbox({text("ID: ") | bold, text(school->id)}),
+            hbox({text("Name: ") | bold, text(school->name)}),
+            hbox({text("Sector: ") | bold, text(school->location.sector)}),
+            hbox({text("Students: ") | bold, text(std::to_string(school->getTotalEnrolledStudents()))}),
+            hbox({text("Faculty: ") | bold, text(std::to_string(school->getTotalFaculty()))}),
+            }) | border | size(WIDTH, EQUAL, 40);
+
+        // 2. Dynamic Content Panel
+        Element content;
+        if (tab_index == 0) { // Info
+            content = vbox({ text("School Management Dashboard") | center, separator(), btn_rename->Render() | center });
+        }
+        else if (tab_index == 1) { // Depts
+            Elements list;
+            for (int i = 0; i < school->departments.getSize(); ++i) {
+                Department* d = school->departments[i];
+                list.push_back(text("- " + d->name + " (Classes: " + std::to_string(d->getClassCount()) + ")"));
+            }
+            content = vbox({
+                vbox(list) | flex | border,
+                hbox({ btn_add_dept->Render(), text(" "), btn_rem_dept->Render() }) | center
+                });
+        }
+        else if (tab_index == 2) { // Faculty
+            Elements list;
+            int limit = 0;
+            for (int i = 0; i < school->departments.getSize(); ++i) {
+                Department* d = school->departments[i];
+                for (int j = 0; j < d->faculty.getSize(); ++j) {
+                    if (limit++ > 15) { list.push_back(text("...")); break; }
+                    Faculty* f = d->faculty[j];
+                    list.push_back(text(f->getName() + " [" + d->name + "] - " + f->qualification));
+                }
+            }
+            content = vbox({
+                vbox(list) | flex | border,
+                btn_hire_fac->Render() | center
+                });
+        }
+        else { // Students
+            Elements list;
+            int limit = 0;
+            // Just listing first few for brevity
+            if (school->departments.getSize() > 0) {
+                Department* d = school->departments[0]; // Just show first dept sample
+                if (d->getClassCount() > 0) {
+                    Class* c = d->classes[0];
+                    for (int k = 0; k < c->students.getSize(); ++k) {
+                        if (limit++ > 15) break;
+                        list.push_back(text(c->students[k]->getName() + " (Class " + std::to_string(c->classNumber) + ")"));
+                    }
+                }
+            }
+            content = vbox({
+                text("Sample Student List (First Dept/Class)") | dim,
+                vbox(list) | flex | border,
+                btn_enroll->Render() | center
+                });
+        }
+
+        return vbox({
+            text(" SCHOOL ADMINISTRATION PORTAL ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            hbox({ stats, separator(), content | flex }),
+            separator(),
+            c_tabs->Render() | center,
+            separator(),
+            btn_back->Render() | center,
+            text(message) | bold | color(Color::Red) | center
+            }) | border | center;
+        });
+
+    screen.Loop(renderer);
+}
+
+// --- 2. Edit HOSPITAL ---
+inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
+    if (!hospital) return;
+    auto screen = ScreenInteractive::Fullscreen();
+    string message = "";
+    int tab_index = 0;
+    std::vector<string> tabs = { "Info", "Doctors", "Patients" };
+
+    // Components
+    Component btn_add_beds = Button("Add 10 Beds", [&] { hospital->totalBeds += 10; message = "Beds increased."; });
+    Component btn_add_spec = Button("Add Specialization", [&] {
+        runInputForm("New Specialization", { "Name (e.g., Cardiology)" }, [&](std::vector<string> res) {
+            if (!res[0].empty()) {
+                cityMgmt->addSpecializationToHospital(hospital->id, res[0]);
+                message = "Added " + res[0];
+            }
+            });
+        });
+
+    Component btn_hire_doc = Button("Hire Doctor", [&] {
+        Citizen* c = runPopulationSelector("Select Doctor to Hire");
+        if (c) {
+            runInputForm("Doctor Contract", { "Specialization" }, [&](std::vector<string> res) {
+                if (!res[0].empty()) {
+                    Doctor d(c, res[0]); // Creates ID internally
+                    hospital->addDoctor(d);
+                    message = "Hired Dr. " + c->name;
+                }
+                });
+        }
+        });
+
+    Component btn_admit = Button("Admit Patient", [&] {
+        Citizen* c = runPopulationSelector("Select Patient");
+        if (c) {
+            runInputForm("Admission", { "Condition", "Severity (1-10)" }, [&](std::vector<string> res) {
+                int sev = 5; try { sev = std::stoi(res[1]); }
+                catch (...) {}
+               /* if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;*/
+                if (false) {}
+                else message = "Admission Failed (No beds?)";
+                });
+        }
+        });
+
+    Component btn_back = Button("Back", screen.ExitLoopClosure());
+
+    auto c_info = Container::Vertical({ btn_add_beds, btn_add_spec });
+    auto c_docs = Container::Vertical({ btn_hire_doc });
+    auto c_pats = Container::Vertical({ btn_admit });
+    auto c_tabs = Toggle(&tabs, &tab_index);
+
+    auto layout = Container::Vertical({ c_tabs, Container::Tab({c_info, c_docs, c_pats}, &tab_index), btn_back });
+
+    auto renderer = Renderer(layout, [&] {
+        Element content;
+        if (tab_index == 0) {
+            Elements specs;
+            for (int i = 0; i < hospital->specializations.getSize(); ++i) specs.push_back(text("- " + hospital->specializations[i]));
+            content = vbox({ text("Specializations:") | bold, vbox(specs) | border, btn_add_spec->Render(), btn_add_beds->Render() });
+        }
+        else if (tab_index == 1) {
+            Elements docs;
+            for (int i = 0; i < hospital->doctors.getSize(); ++i)
+                docs.push_back(text("Dr. " + hospital->doctors[i].getCitizen()->name + " (" + hospital->doctors[i].specialization + ")"));
+            content = vbox({ vbox(docs) | flex | border, btn_hire_doc->Render() | center });
+        }
+        else {
+            Elements pats;
+            for (int i = 0; i < hospital->admittedPatients.getSize(); ++i)
+                pats.push_back(text(hospital->admittedPatients[i].getName() + " - " + hospital->admittedPatients[i].getDisease()));
+            content = vbox({ vbox(pats) | flex | border, btn_admit->Render() | center });
+        }
+
+        return vbox({
+            text(" HOSPITAL ADMIN: " + hospital->name) | bold | center | bgcolor(Color::Red) | color(Color::White),
+            hbox({
+                vbox({
+                    hbox({text("Beds: "), text(std::to_string(hospital->getOccupiedBeds()) + "/" + std::to_string(hospital->totalBeds))})
+                }) | border | size(WIDTH, EQUAL, 30),
+                content | flex
+            }) | flex,
+            separator(),
+            c_tabs->Render() | center,
+            btn_back->Render() | center,
+            text(message) | color(Color::Yellow) | center
+            }) | border;
+        });
+
+    screen.Loop(renderer);
+}
+
+// --- 3. Edit SHOP/COMMERCIAL ---
+inline void CitySimulator::runEditShopView(Shop* shop, Mall* mall) {
+    if (!shop) return;
+    auto screen = ScreenInteractive::Fullscreen();
+    string message = "";
+
+    Component btn_add_prod = Button("Add Product", [&] {
+        runInputForm("New Product", { "Product Name", "Price" }, [&](std::vector<string> res) {
+            if (!res[0].empty() && !res[1].empty()) {
+                int p = 0; try { p = std::stoi(res[1]); }
+                catch (...) {}
+                Product prod(res[0], shop->category, p);
+                shop->addProduct(prod);
+                message = "Added " + res[0];
+            }
+            });
+        });
+
+    Component btn_rem_prod = Button("Remove Product", [&] {
+        runInputForm("Remove Product", { "Product Name" }, [&](std::vector<string> res) {
+            if (shop->removeProduct(res[0])) message = "Removed " + res[0];
+            else message = "Product not found.";
+            });
+        });
+
+    Component btn_back = Button("Back", screen.ExitLoopClosure());
+
+    auto container = Container::Vertical({ btn_add_prod, btn_rem_prod, btn_back });
+
+    auto renderer = Renderer(container, [&] {
+        Elements inv;
+        for (int i = 0; i < shop->inventory.getSize(); ++i) {
+            const Product* p = shop->getProduct(i);
+            inv.push_back(hbox({ text(p->name), filler(), text("Rs " + std::to_string(p->price)) | color(Color::Green) }));
+        }
+
+        return vbox({
+            text(" SHOP INVENTORY: " + shop->name) | bold | center | bgcolor(Color::Yellow) | color(Color::Black),
+            separator(),
+            hbox({
+                vbox(inv) | flex | border,
+                vbox({
+                    text("Actions") | bold | center,
+                    separator(),
+                    btn_add_prod->Render(),
+                    text(" "),
+                    btn_rem_prod->Render(),
+                    filler(),
+                    btn_back->Render()
+                }) | size(WIDTH, EQUAL, 25)
+            }) | flex,
+            text(message) | color(Color::Red) | center
+            }) | border;
+        });
+
+    screen.Loop(renderer);
+}
+// --- 4. Main Edit Dispatcher ---
+inline void CitySimulator::runEditObjectView(const string& objectID, const string& objectType) {
+    // 1. Dispatch SCHOOL
+    if (objectType == "SCHOOL") {
+        if (islamabad && islamabad->getSchoolManager()) {
+            School* s = islamabad->getSchoolManager()->findSchoolByID(objectID);
+            if (s) { runEditSchoolView(s); return; }
+        }
+    }
+    // 2. Dispatch HOSPITAL
+    else if (objectType == "HOSPITAL") {
+        if (islamabad && islamabad->getMedicalManager()) {
+            Hospital* h = islamabad->getMedicalManager()->findHospitalByID(objectID);
+            if (h) { runEditHospitalView(h); return; }
+        }
+    }
+    // 3. Dispatch SHOP
+    else if (objectType == "SHOP") {
+        if (islamabad && islamabad->getCommercialManager()) {
+            CommercialManager* cm = islamabad->getCommercialManager();
+            // Need to find which mall this shop is in
+            for (int i = 0; i < cm->malls.getSize(); i++) {
+                Shop* s = cm->malls[i]->findShopByID(objectID);
+                if (s) { runEditShopView(s, cm->malls[i]); return; }
+            }
+        }
+    }
+
+    // Fallback for generic types or un-implemented ones
+    auto screen = ScreenInteractive::Fullscreen();
+    auto renderer = Renderer([&] {
+        return vbox({
+            text("GENERIC EDITOR: " + objectID) | bold | center,
+            separator(),
+            text("Type: " + objectType) | center,
+            text("Specific editor not implemented yet.") | dim | center,
+            text("Press Esc to return") | dim | center
+            }) | border | center;
+        });
+    auto component = CatchEvent(renderer, [&](Event e) {
+        if (e == Event::Escape) { screen.Exit(); return true; }
+        return false;
+        });
+    screen.Loop(component);
+}
+
+// ============================================================================
+// MANAGEMENT VIEW (The Big Boss Panel)
 // ============================================================================
 
 inline void CitySimulator::runManagementMenu() {
     auto screen = ScreenInteractive::Fullscreen();
-    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back to Main Menu" };
-    int sel = 0;
 
-    auto renderer = Renderer([&] {
-        Elements items;
-        for (int i = 0; i < (int)options.size(); i++) {
-            auto item = text((i == sel ? " > " : "   ") + options[i]);
-            if (i == sel) item = item | bold | color(Color::Green);
-            items.push_back(item);
+    // State
+    int selectedCategoryIdx = 0;
+    int selectedItemIdx = 0;
+    int focusPanel = 0; // 0=Tabs, 1=List, 2=Actions
+
+    std::vector<string> categories = { "All", "Nodes", "Malls", "Shops", "Schools", "Hospitals", "Pharmacies" };
+
+    // Struct to hold flattened list of manageable objects
+    struct ManageableItem {
+        string id;
+        string name;
+        string type;
+        string extraInfo;
+    };
+    std::vector<ManageableItem> currentItems;
+
+    // Helper to refresh the list based on category
+    auto refreshList = [&]() {
+        currentItems.clear();
+        string cat = categories[selectedCategoryIdx];
+
+        // 1. Nodes (Stops/Corners)
+        if (cat == "All" || cat == "Nodes") {
+            CityGraph* g = islamabad->getCityGraph();
+            for (int i = 0; i < g->getNodeCount(); i++) {
+                CityNode* n = g->getNode(i);
+                if (n) currentItems.push_back({ n->databaseID, n->name, n->type, n->sector });
+            }
         }
 
-        auto menuBox = vbox({
-            text("MANAGEMENT MENU") | bold | center | color(Color::Cyan),
+        // 2. Commercial
+        if (islamabad->getCommercialManager()) {
+            CommercialManager* cm = islamabad->getCommercialManager();
+            if (cat == "All" || cat == "Malls") {
+                for (int i = 0; i < cm->malls.getSize(); i++)
+                    currentItems.push_back({ cm->malls[i]->id, cm->malls[i]->name, "MALL", cm->malls[i]->getSector() });
+            }
+            if (cat == "All" || cat == "Shops") {
+                for (int i = 0; i < cm->malls.getSize(); i++) {
+                    Mall* m = cm->malls[i];
+                    for (int j = 0; j < m->shops.getSize(); j++)
+                        currentItems.push_back({ m->shops[j]->id, m->shops[j]->name, "SHOP", m->name });
+                }
+            }
+        }
+
+        // 3. Schools
+        if ((cat == "All" || cat == "Schools") && islamabad->getSchoolManager()) {
+            SchoolManager* sm = islamabad->getSchoolManager();
+            for (int i = 0; i < sm->schools.getSize(); i++)
+                currentItems.push_back({ sm->schools[i]->id, sm->schools[i]->name, "SCHOOL", sm->schools[i]->getSector() });
+        }
+
+        // 4. Medical
+        if (islamabad->getMedicalManager()) {
+            MedicalManager* mm = islamabad->getMedicalManager();
+            if (cat == "All" || cat == "Hospitals") {
+                for (int i = 0; i < mm->hospitals.getSize(); i++)
+                    currentItems.push_back({ mm->hospitals[i]->id, mm->hospitals[i]->name, "HOSPITAL", mm->hospitals[i]->sector });
+            }
+            if (cat == "All" || cat == "Pharmacies") {
+                for (int i = 0; i < mm->pharmacies.getSize(); i++)
+                    currentItems.push_back({ mm->pharmacies[i]->id, mm->pharmacies[i]->name, "PHARMACY", mm->pharmacies[i]->sector });
+            }
+        }
+        };
+
+    // Initial load
+    refreshList();
+
+    // Helper for placeholders
+    auto showPlaceholder = [&](string title, string msg) {
+        auto pScreen = ScreenInteractive::Fullscreen();
+        auto pRenderer = Renderer([&] {
+            return vbox({
+                text(title) | bold | center | bgcolor(Color::Red) | color(Color::White),
+                separator(),
+                text(msg) | center,
+                text(""),
+                text("Press Enter to return") | dim | center
+                }) | border | center;
+            });
+        auto pComp = CatchEvent(pRenderer, [&](Event e) {
+            if (e == Event::Return || e == Event::Escape) {
+                pScreen.Exit();
+                return true;
+            }
+            return false;
+            });
+        pScreen.Loop(pComp);
+        };
+
+    auto renderer = Renderer([&] {
+        // Ensure index bounds
+        if (selectedItemIdx >= (int)currentItems.size()) selectedItemIdx = std::max(0, (int)currentItems.size() - 1);
+
+        // ===== TOP TABS =====
+        Elements tabs;
+        for (int i = 0; i < (int)categories.size(); i++) {
+            auto tab = text(" " + categories[i] + " ");
+            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Cyan) | color(Color::Black);
+            else tab = tab | color(Color::GrayLight);
+            tabs.push_back(tab);
+        }
+
+        // ===== LEFT PANEL (Object List) =====
+        Elements listElements;
+        int startIdx = std::max(0, selectedItemIdx - 10);
+        int endIdx = std::min((int)currentItems.size(), startIdx + 22);
+
+        for (int i = startIdx; i < endIdx; i++) {
+            const auto& item = currentItems[i];
+            string label = "[" + item.id + "] - " + item.name.substr(0, 20) + " - [" + item.type + "]";
+            auto row = text(label);
+            if (i == selectedItemIdx) {
+                row = row | bold;
+                if (focusPanel == 1) row = row | bgcolor(Color::Blue) | color(Color::White);
+                else row = row | color(Color::Green);
+            }
+            listElements.push_back(row);
+        }
+        auto leftPanel = vbox(listElements) | border | flex;
+        if (focusPanel == 1) leftPanel = leftPanel | color(Color::Cyan);
+
+        // ===== MIDDLE PANEL (Actions) =====
+        auto btnStyle = [&](string label, bool selected) {
+            return text(label) | center | (selected ? (bgcolor(Color::Red) | bold) : dim) | border;
+            };
+        // Visuals only - logic is in event loop
+        // We highlight buttons based on key presses theoretically, but since this is keyboard-driven, 
+        // we mainly show them as available options.
+        auto midPanel = vbox({
+            text("ACTIONS") | bold | center,
             separator(),
-            vbox(items),
-            separator(),
-            text("Feature coming soon...") | dim | center,
-            }) | border | size(WIDTH, EQUAL, 35);
+            btnStyle("[ EDIT ] (E)", false), // E key
+            text(" "),
+            btnStyle("[ ADD ] (+)", false),  // + key
+            text(" "),
+            btnStyle("[ DELETE ] (Del)", false) // Del key
+            }) | border | size(WIDTH, EQUAL, 20);
+
+        // ===== RIGHT PANEL (Details) =====
+        Elements details;
+        if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
+            const auto& sel = currentItems[selectedItemIdx];
+            details.push_back(text("OBJECT DETAILS") | bold | center | color(Color::Yellow));
+            details.push_back(separator());
+            details.push_back(hbox({ text("ID: ") | bold, text(sel.id) | color(Color::Cyan) }));
+            details.push_back(hbox({ text("Name: ") | bold, text(sel.name) | color(Color::White) }));
+            details.push_back(hbox({ text("Type: ") | bold, text(sel.type) | color(Color::Magenta) }));
+            details.push_back(hbox({ text("Loc/Info: ") | bold, text(sel.extraInfo) | color(Color::Green) }));
+            details.push_back(separator());
+            details.push_back(text("Press 'E' to Edit full details") | dim | center);
+        }
+        else {
+            details.push_back(text("No item selected") | dim | center);
+        }
+        auto rightPanel = vbox(details) | border | flex;
 
         return vbox({
-            filler(),
-            hbox({ filler(), menuBox, filler() }),
-            filler()
+            text(" MANAGEMENT CONSOLE (ADMIN) ") | bold | center | bgcolor(Color::Red) | color(Color::White),
+            hbox(tabs) | center,
+            separator(),
+            hbox({ leftPanel, midPanel, rightPanel }) | flex,
+            separator(),
+            text("Tab: Switch Panel | Arrows: Navigate | E: Edit | +: Add | Del: Delete | Esc: Back") | dim | center
             });
         });
 
-    auto comp = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
-        if (e == Event::ArrowDown) { sel = (sel + 1) % options.size(); return true; }
-        if (e == Event::Return) {
-            if (sel == 3) { // Back to Main Menu
-                currentState = SimulatorState::MAIN_MENU;
-                screen.Exit();
+    auto component = CatchEvent(renderer, [&](Event e) {
+        if (e == Event::Tab) { focusPanel = (focusPanel + 1) % 2; return true; } // Toggle Tabs/List
+        if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
+
+        // Global Hotkeys (Work regardless of focus panel for ease of use)
+
+        // ADD
+        if (e == Event::Character('+') || e == Event::Character('=')) { // '=' is unshifted '+'
+            showPlaceholder("ADD OBJECT", "Functionality to ADD a new object is under construction.");
+            refreshList(); // Refresh in case add logic is implemented later
+            return true;
+        }
+
+        // DELETE
+        if (e == Event::Delete || e == Event::Special({ 127 }) || e == Event::Character('x')) { // 127 is usually del/backspace on some terms, 'x' as backup
+            if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
+                string msg = "Functionality to DELETE [" + currentItems[selectedItemIdx].name + "] is under construction.";
+                showPlaceholder("DELETE OBJECT", msg);
+                refreshList(); // Refresh in case delete logic is implemented later
             }
-            // Other options can be implemented later
             return true;
         }
-        if (e == Event::Escape) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
+
+        // EDIT
+        if (e == Event::Character('e') || e == Event::Character('E')) {
+            if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
+                runEditObjectView(currentItems[selectedItemIdx].id, currentItems[selectedItemIdx].type);
+                refreshList();
+            }
             return true;
         }
+
+        if (focusPanel == 0) { // Tabs
+            if (e == Event::ArrowLeft) {
+                selectedCategoryIdx = (selectedCategoryIdx - 1 + categories.size()) % categories.size();
+                selectedItemIdx = 0; refreshList(); return true;
+            }
+            if (e == Event::ArrowRight) {
+                selectedCategoryIdx = (selectedCategoryIdx + 1) % categories.size();
+                selectedItemIdx = 0; refreshList(); return true;
+            }
+            if (e == Event::ArrowDown) { focusPanel = 1; return true; }
+        }
+        else if (focusPanel == 1) { // List
+            if (e == Event::ArrowUp) {
+                if (selectedItemIdx > 0) selectedItemIdx--;
+                else focusPanel = 0;
+                return true;
+            }
+            if (e == Event::ArrowDown) {
+                if (selectedItemIdx < (int)currentItems.size() - 1) selectedItemIdx++;
+                return true;
+            }
+            // Enter basically acts like Edit here
+            if (e == Event::Return) {
+                if (!currentItems.empty()) {
+                    runEditObjectView(currentItems[selectedItemIdx].id, currentItems[selectedItemIdx].type);
+                }
+                return true;
+            }
+        }
+
         return false;
         });
-    screen.Loop(comp);
+
+    screen.Loop(component);
 }
 
 #endif // CITY_SIMULATOR_ENHANCED_H

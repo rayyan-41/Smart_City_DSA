@@ -162,6 +162,8 @@ public:
      */
     string addHospital(const string& name, const string& sector, int beds,
                        const Vector<string>& specializations);
+
+	// void admitPatient(const string& cnic, const string& hospitalID, int severity, const string&, )
     
     /**
      * Remove hospital from city
