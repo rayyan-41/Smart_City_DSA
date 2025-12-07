@@ -409,4 +409,4 @@ public:
 };
 
 // Static member initialization
-int Ambulance::nextRequestID = 1000;
+inline int Ambulance::nextRequestID = 1000;

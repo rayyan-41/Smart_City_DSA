@@ -8,3 +8,4 @@
 #include "Queue.h"
 #include "NaryTree.h"
 #include "HashTable.h"
+#include "CircularQueue.h"

@@ -166,7 +166,6 @@
     <ClInclude Include="source\SchoolSystem\Student.h" />
     <ClInclude Include="source\TransportSystem\Ambulance.h" />
     <ClInclude Include="source\TransportSystem\Bus.h" />
-    <ClInclude Include="source\TransportSystem\BusManager.h" />
     <ClInclude Include="source\TransportSystem\SchoolBus.h" />
     <ClInclude Include="source\TransportSystem\TransportManager.h" />
     <ClInclude Include="source\TransportSystem\Vehicle.h" />

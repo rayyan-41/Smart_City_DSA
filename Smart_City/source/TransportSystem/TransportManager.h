@@ -16,94 +16,11 @@
  *   4. PASSENGER QUEUES - Waiting passengers at each stop (Circular Queue)
  *   5. TRANSFER REQUESTS - Emergency patient transfers (Priority Queue)
  * 
- * HOW IT WORKS:
- * 
- * ???????????????????????????????????????????????????????????????????
- * ?                    TRANSPORT MANAGER                            ?
- * ?                                                                 ?
- * ?  ????????????????  ????????????????  ????????????????        ?
- * ?  ?   BUS FLEET  ?  ? SCHOOL BUSES ?  ?  AMBULANCES  ?        ?
- * ?  ?  (Vectors)   ?  ?  (Vectors)   ?  ?  (Vectors)   ?        ?
- * ?  ????????????????  ????????????????  ????????????????        ?
- * ?         ?                  ?                  ?                 ?
- * ?  ????????????????????????????????????????????????????         ?
- * ?  ?         HASH TABLE LOOKUPS (O(1) Access)          ?         ?
- * ?  ?  • Bus by Number     • School Bus by ID           ?         ?
- * ?  ?  • Bus by Company    • School Bus by Sector       ?         ?
- * ?  ?  • Bus at Stop       • Ambulance by Hospital      ?         ?
- * ?  ?  • Ambulance by ID   • Ambulance by Sector        ?         ?
- * ?  ?????????????????????????????????????????????????????         ?
- * ?                                                                 ?
- * ?  ???????????????????????????????????????????????????          ?
- * ?  ?      PASSENGER SIMULATION (Circular Queues)      ?          ?
- * ?  ?   Each Stop: ???????????????????                ?          ?
- * ?  ?             ? Waiting Queue   ? ? Enqueue       ?          ?
- * ?  ?             ?  (FIFO: 200)    ? ? Dequeue       ?          ?
- * ?  ?             ???????????????????                  ?          ?
- * ?  ???????????????????????????????????????????????????          ?
- * ?                                                                 ?
- * ?  ???????????????????????????????????????????????????          ?
- * ?  ?   EMERGENCY DISPATCH (Priority Queue Min-Heap)   ?          ?
- * ?  ?   CRITICAL (1) ? Highest Priority                ?          ?
- * ?  ?   HIGH     (2)                                   ?          ?
- * ?  ?   MEDIUM   (3) ? Default                         ?          ?
- * ?  ?   LOW      (4)                                   ?          ?
- * ?  ?   ROUTINE  (5) ? Lowest Priority                 ?          ?
- * ?  ???????????????????????????????????????????????????          ?
- * ???????????????????????????????????????????????????????????????????
- * 
- * KEY ALGORITHMS:
- * 
- * 1. BUS DISPATCH:
- *    - Find buses at stop: O(1) hash lookup
- *    - Find buses by company: O(1) hash lookup
- *    - Process boarding: O(k) where k = passengers boarding
- *    - Route matching: O(n*m) where n = stops, m = destination position
- * 
- * 2. SCHOOL BUS SECTOR PRIORITY:
- *    Algorithm: Find school bus for inter-school transfer
- *    Priority levels:
- *      1. Bus from SOURCE sector (own sector first)
- *      2. Bus from DESTINATION sector 
- *      3. Bus covering BOTH sectors (adjacent sectors)
- *      4. ANY available bus (fallback)
- *    
- *    Example: Transfer from G-10 ? F-9
- *      Priority 1: G-10 bus that serves F-9 ? (best)
- *      Priority 2: F-9 bus that serves G-10
- *      Priority 3: Any bus serving both
- * 
- * 3. AMBULANCE DISPATCH (Priority Queue):
- *    Algorithm: Dispatch ambulance for patient transfer
- *    Step 1: Pop highest priority transfer from queue (Min-Heap)
- *    Step 2: Find ambulance using sector priority:
- *      Priority 1: Ambulance from SOURCE hospital sector
- *      Priority 2: Ambulance from DESTINATION hospital sector
- *      Priority 3: Ambulance from ADJACENT sectors
- *      Priority 4: ANY available ambulance
- *    Step 3: Assign transfer and update ambulance status
- * 
- * 4. PASSENGER BOARDING (Circular Queue):
- *    At each stop:
- *      1. Alight passengers at destination
- *      2. Dequeue waiting passengers (FIFO)
- *      3. Check if destination is AHEAD on route
- *      4. Board if space available
- *      5. Re-queue if destination behind or bus full
- * 
- * SECTOR ADJACENCY:
- * 
- *        E-7   E-8   E-9   E-10  E-11
- *         |     |     |      |     |
- *        F-6   F-7   F-8   F-9   F-10  F-11
- *         |     |     |      |     |     |
- *        G-6   G-7   G-8   G-9   G-10  G-11
- *         |     |     |      |     |     |
- *              H-8   H-9   H-10  H-11  H-12
- *               |     |      |     |     |
- *              I-8   I-9   I-10  I-11  I-12
- * 
- * G-10 is adjacent to: G-9, G-11 (same series), F-10, H-10 (adjacent series)
+ * SIMULATION:
+ *   - Step-based simulation (no real-time threading)
+ *   - Each call to runSimulationStep() moves vehicles one stop forward
+ *   - Buses loop back to start when reaching end of route
+ *   - Ready for future visualization integration
  * 
  * DATA STRUCTURES USED:
  *   - Hash Tables: O(1) vehicle lookups (7 different tables)
@@ -111,46 +28,6 @@
  *   - Priority Queue: Emergency transfers (Min-Heap by priority)
  *   - Vectors: Store all vehicles and manage collections
  *   - Singly Linked Lists: Route management in each vehicle
- * 
- * INTEGRATION WITH CITYGRAPH:
- *   - Uses Dijkstra's algorithm for shortest path calculation
- *   - Routes stored as graph node IDs
- *   - Sector boundaries from SECTOR_GRID
- * 
- * RUBRIC COMPLIANCE:
- *   - Transport Module: buses, routes, pathfinding (5 marks) ?
- *   - Hash Lookup features: vehicle search (4 marks) ?
- *   - Priority Queue: emergency dispatch (4 marks) ?
- *   - Circular Queue: passenger simulation (4 marks) ?
- *   - Singly Linked List: route management (4 marks) ?
- *   TOTAL: 21 marks
- * 
- * USAGE EXAMPLE:
- * 
- *   TransportManager tm;
- *   tm.setCityGraph(graph);
- *   
- *   // Create bus with route
- *   Bus* bus = tm.createBus("B101", "Metro", "Stop-01");
- *   tm.setBusRoute("B101", routeNodes, distance, "STP-001", "STP-050");
- *   
- *   // Add passengers to stop
- *   Passenger p("12345-1234567-1", stopID, destID, 50.0);
- *   tm.addPassengerToStop(stopID, p);
- *   
- *   // Simulate bus arrival (automatic boarding)
- *   tm.processBusArrival(bus, stopID);
- *   
- *   // Request emergency transfer
- *   string reqID = tm.requestTransfer(cnic, name, srcHosp, srcNode, srcSector,
- *                                      destHosp, destNode, destSector,
- *                                      EmergencyPriority::CRITICAL, "Cardiac");
- *   
- *   // Dispatch ambulance (automatic sector priority matching)
- *   Ambulance* amb = tm.dispatchNextTransfer();
- *   
- *   // Find school bus for inter-school transfer
- *   SchoolBus* sb = tm.findSchoolBusForRoute("G-10", "F-9");
  * 
  * ============================================================================
  */
@@ -174,16 +51,11 @@ class CityGraph;
 // ============================================================================
 // BUS STOP QUEUE - Passengers waiting at a stop
 // ============================================================================
-/**
- * Represents a queue of passengers waiting at a bus stop.
- * Each stop has a unique ID, name, and associated sector.
- * Passengers wait in a circular queue (FIFO) until they board the bus.
- */
 struct BusStopQueue {
-    int stopNodeID;                ///< Unique identifier for the stop (Node ID in graph)
-    string stopName;               ///< Name/label of the stop
-    string sector;                 ///< Sector associated with the stop
-    CircularQueue<Passenger> waitingPassengers;  ///< Circular queue of waiting passengers
+    int stopNodeID;
+    string stopName;
+    string sector;
+    CircularQueue<Passenger> waitingPassengers;
     
     BusStopQueue() : stopNodeID(-1), stopName(""), sector(""), waitingPassengers(200) {}
     BusStopQueue(int nodeID, const string& name, const string& sec) 
@@ -193,33 +65,25 @@ struct BusStopQueue {
 // ============================================================================
 // TRANSPORT STATISTICS
 // ============================================================================
-/**
- * Holds various statistics for transport vehicles and operations.
- * This includes counts of active/total vehicles, passengers, trips, fares, etc.
- */
 struct TransportStats {
-    // Bus stats
-    int totalBuses;               ///< Total number of buses
-    int activeBuses;              ///< Number of active buses (currently in service)
-    int totalBusPassengers;        ///< Total number of passengers transported by buses
-    double totalBusFares;         ///< Total fare collected from bus passengers
-    int totalBusTrips;            ///< Total number of trips completed by buses
+    int totalBuses;
+    int activeBuses;
+    int totalBusPassengers;
+    double totalBusFares;
+    int totalBusTrips;
     
-    // School bus stats
-    int totalSchoolBuses;         ///< Total number of school buses
-    int activeSchoolBuses;        ///< Number of active school buses
-    int totalStudentsTransported;  ///< Total number of students transported by school buses
-    int schoolBusTrips;           ///< Total number of trips completed by school buses
+    int totalSchoolBuses;
+    int activeSchoolBuses;
+    int totalStudentsTransported;
+    int schoolBusTrips;
     
-    // Ambulance stats
-    int totalAmbulances;          ///< Total number of ambulances
-    int availableAmbulances;      ///< Number of available ambulances (not currently on a transfer)
-    int totalTransfers;           ///< Total number of patient transfers completed
-    int pendingTransfers;         ///< Number of transfer requests currently pending
-    int criticalTransfers;        ///< Number of critical priority transfers
+    int totalAmbulances;
+    int availableAmbulances;
+    int totalTransfers;
+    int pendingTransfers;
+    int criticalTransfers;
     
-    // Queue stats
-    int totalWaitingPassengers;    ///< Total number of passengers waiting across all stops
+    int totalWaitingPassengers;
     
     TransportStats() 
         : totalBuses(0), activeBuses(0), totalBusPassengers(0),
@@ -234,45 +98,45 @@ struct TransportStats {
 // ============================================================================
 // TRANSPORT MANAGER CLASS
 // ============================================================================
-/**
- * Central manager for all transport-related functionalities.
- * Interfaces with CityGraph for routing, manages vehicle creation, dispatch,
- * and statistics collection. Uses various data structures for efficient
- * lookups and operations.
- */
 class TransportManager {
 private:
-    // Reference to city graph for route calculation
     CityGraph* cityGraph;
     
     // ========== BUS MANAGEMENT ==========
-    Vector<Bus*> buses;                              ///< All buses in the system
-    HashTable<string, Bus*> busLookup;              ///< O(1) lookups by bus number
-    HashTable<string, Vector<Bus*>> companyLookup;  ///< Buses indexed by operating company
-    HashTable<int, Vector<Bus*>> stopLookup;        ///< Buses indexed by stop ID (Node ID)
+    Vector<Bus*> buses;
+    HashTable<string, Bus*> busLookup;
+    HashTable<string, Vector<Bus*>> companyLookup;
+    HashTable<int, Vector<Bus*>> stopLookup;
     
     // ========== SCHOOL BUS MANAGEMENT ==========
-    Vector<SchoolBus*> schoolBuses;                  ///< All school buses in the system
-    HashTable<string, SchoolBus*> schoolBusLookup;  ///< O(1) lookups by school bus ID
-    HashTable<string, Vector<SchoolBus*>> schoolLookup; ///< School buses by assigned school
-    HashTable<string, Vector<SchoolBus*>> sectorSchoolBusLookup; ///< School buses by sector
+    Vector<SchoolBus*> schoolBuses;
+    HashTable<string, SchoolBus*> schoolBusLookup;
+    HashTable<string, Vector<SchoolBus*>> schoolLookup;
+    HashTable<string, Vector<SchoolBus*>> sectorSchoolBusLookup;
+    
+    // ========== SCHOOL BUS PICKUP POINTS ==========
+    HashTable<int, PickupPoint*> pickupPoints;
+    HashTable<string, Vector<int>> sectorPickupPoints;
     
     // ========== AMBULANCE MANAGEMENT ==========
-    Vector<Ambulance*> ambulances;                  ///< All ambulances in the system
-    HashTable<string, Ambulance*> ambulanceLookup;  ///< O(1) lookups by ambulance ID
-    HashTable<string, Vector<Ambulance*>> hospitalAmbulanceLookup; // Ambulances by hospital
-    HashTable<string, Vector<Ambulance*>> sectorAmbulanceLookup; // Ambulances by sector
+    Vector<Ambulance*> ambulances;
+    HashTable<string, Ambulance*> ambulanceLookup;
+    HashTable<string, Vector<Ambulance*>> hospitalAmbulanceLookup;
+    HashTable<string, Vector<Ambulance*>> sectorAmbulanceLookup;
     
     // ========== TRANSFER REQUEST QUEUE ==========
-    PriorityQueue<PatientTransfer> transferQueue;    ///< Priority queue for patient transfer requests
-    Vector<PatientTransfer> activeTransfers;         ///< List of currently active transfers
+    PriorityQueue<PatientTransfer> transferQueue;
+    Vector<PatientTransfer> activeTransfers;
     
     // ========== PASSENGER QUEUES ==========
-    HashTable<int, BusStopQueue*> stopQueues;        ///< Hash table of passenger queues at bus stops
+    HashTable<int, BusStopQueue*> stopQueues;
+    
+    // ========== SIMULATION STATE ==========
+    int simulationStep;
     
     // ========== STATISTICS ==========
-    int totalTransferRequests;                       ///< Total number of transfer requests made
-    int transferIDCounter;                          ///< Counter for generating unique transfer request IDs
+    int totalTransferRequests;
+    int transferIDCounter;
 
 public:
     // ==================== LIFECYCLE ====================
@@ -290,54 +154,12 @@ public:
     
     // ==================== BUS MANAGEMENT ====================
     
-    /**
-     * Create a new bus and add it to the system.
-     * @param busNo The bus number/ID
-     * @param company The operating company for the bus
-     * @param currentStop The ID of the current stop (Node ID)
-     * @return Pointer to the created Bus object
-     */
     Bus* createBus(const string& busNo, const string& company, const string& currentStop);
-    
-    /**
-     * Set the route for an existing bus.
-     * @param busNo The bus number/ID
-     * @param route The vector of node IDs representing the route
-     * @param distance Total distance of the route
-     * @param startStopID The starting stop ID (Node ID) for the route
-     * @param endStopID The ending stop ID (Node ID) for the route
-     * @return true if successful, false if bus not found
-     */
     bool setBusRoute(const string& busNo, const Vector<int>& route, 
                     double distance, const string& startStopID, const string& endStopID);
-    
-    /**
-     * Find a bus by its number/ID.
-     * @param busNo The bus number/ID
-     * @return Pointer to the Bus object, or null if not found
-     */
     Bus* findBusByNumber(const string& busNo) const;
-    
-    /**
-     * Find all buses operated by a specific company.
-     * @param company The name of the bus company
-     * @return Vector of pointers to Bus objects operated by the company
-     */
     Vector<Bus*> findBusesByCompany(const string& company) const;
-    
-    /**
-     * Find all buses that are currently at a specific stop.
-     * @param stopNodeID The Node ID of the stop
-     * @return Vector of pointers to Bus objects at the stop
-     */
     Vector<Bus*> findBusesAtStop(int stopNodeID) const;
-    
-    /**
-     * Find all buses that travel on a route containing the given nodes.
-     * @param fromNodeID Starting node ID of the route
-     * @param toNodeID Ending node ID of the route
-     * @return Vector of pointers to Bus objects on the route
-     */
     Vector<Bus*> findBusesOnRoute(int fromNodeID, int toNodeID) const;
     
     int getBusCount() const { return buses.getSize(); }
@@ -346,106 +168,38 @@ public:
     
     // ==================== SCHOOL BUS MANAGEMENT ====================
     
-    /**
-     * Create a new school bus and add it to the system.
-     * @param id The school bus ID
-     * @param schoolID The ID of the school the bus is assigned to
-     * @param schoolNodeID The Node ID of the school location
-     * @param sector The sector where the bus operates
-     * @return Pointer to the created SchoolBus object
-     */
     SchoolBus* createSchoolBus(const string& id, const string& schoolID, 
                                int schoolNodeID, const string& sector);
-    
-    /**
-     * Find a school bus by its ID.
-     * @param id The school bus ID
-     * @return Pointer to the SchoolBus object, or null if not found
-     */
     SchoolBus* findSchoolBusByID(const string& id) const;
-    
-    /**
-     * Get all school buses assigned to a specific school.
-     * @param schoolID The ID of the school
-     * @return Vector of pointers to SchoolBus objects assigned to the school
-     */
     Vector<SchoolBus*> getSchoolBusesBySchool(const string& schoolID) const;
-    
-    /**
-     * Get all school buses operating in a specific sector.
-     * @param sector The sector identifier
-     * @return Vector of pointers to SchoolBus objects in the sector
-     */
     Vector<SchoolBus*> getSchoolBusesBySector(const string& sector) const;
-    
-    /**
-     * Get all available (inactive) school buses.
-     * @return Vector of pointers to available SchoolBus objects
-     */
     Vector<SchoolBus*> getAvailableSchoolBuses() const;
-    
-    // Find school bus that serves given sectors (priority-based)
-    /**
-     * Find the most appropriate school bus for a route between two sectors.
-     * @param fromSector The starting sector ID
-     * @param toSector The destination sector ID
-     * @return Pointer to the SchoolBus object that should be assigned, or null
-     */
     SchoolBus* findSchoolBusForRoute(const string& fromSector, const string& toSector) const;
     
     int getSchoolBusCount() const { return schoolBuses.getSize(); }
     SchoolBus* getSchoolBus(int index) const;
     const Vector<SchoolBus*>& getAllSchoolBuses() const { return schoolBuses; }
     
+    // ========== SCHOOL BUS PICKUP POINT MANAGEMENT ==========
+    
+    void createPickupPoint(int nodeID, const string& sector, const string& locationName, bool isResidential = true);
+    bool addStudentToPickupPoint(int nodeID, const StudentPassenger& student);
+    PickupPoint* getPickupPoint(int nodeID) const;
+    Vector<int> getPickupPointsInSector(const string& sector) const;
+    bool setupSchoolBusHomeRoute(const string& busID, const Vector<int>& pickupNodes,
+                                  int schoolNodeID, const string& schoolID);
+    bool dispatchSchoolBusForHomePickup(const string& busID);
+    int getStudentsWaitingAtPickup(int nodeID) const;
+    
     // ==================== AMBULANCE MANAGEMENT ====================
     
-    /**
-     * Create a new ambulance and add it to the system.
-     * @param id The ambulance ID
-     * @param hospitalID The ID of the hospital the ambulance is assigned to
-     * @param hospitalNodeID The Node ID of the hospital location
-     * @param sector The sector where the ambulance operates
-     * @return Pointer to the created Ambulance object
-     */
     Ambulance* createAmbulance(const string& id, const string& hospitalID, 
                                int hospitalNodeID, const string& sector);
-    
-    /**
-     * Find an ambulance by its ID.
-     * @param id The ambulance ID
-     * @return Pointer to the Ambulance object, or null if not found
-     */
     Ambulance* findAmbulanceByID(const string& id) const;
-    
-    /**
-     * Get all ambulances assigned to a specific hospital.
-     * @param hospitalID The ID of the hospital
-     * @return Vector of pointers to Ambulance objects assigned to the hospital
-     */
     Vector<Ambulance*> getAmbulancesByHospital(const string& hospitalID) const;
-    
-    /**
-     * Get all ambulances operating in a specific sector.
-     * @param sector The sector identifier
-     * @return Vector of pointers to Ambulance objects in the sector
-     */
     Vector<Ambulance*> getAmbulancesBySector(const string& sector) const;
-    
-    /**
-     * Get all available (inactive) ambulances.
-     * @return Vector of pointers to available Ambulance objects
-     */
     Vector<Ambulance*> getAvailableAmbulances() const;
-    
-    // Find ambulance that should handle transfer (sector priority)
-    /**
-     * Find the most appropriate ambulance for a patient transfer between two sectors.
-     * @param sourceSector The source sector ID
-     * @param destSector The destination sector ID
-     * @return Pointer to the Ambulance object that should handle the transfer, or null
-     */
-    Ambulance* findAmbulanceForTransfer(const string& sourceSector, 
-                                        const string& destSector) const;
+    Ambulance* findAmbulanceForTransfer(const string& sourceSector, const string& destSector) const;
     
     int getAmbulanceCount() const { return ambulances.getSize(); }
     Ambulance* getAmbulance(int index) const;
@@ -453,141 +207,86 @@ public:
     
     // ==================== PATIENT TRANSFER DISPATCH ====================
     
-    /**
-     * Request a patient transfer between hospitals.
-     * @param patientCNIC The CNIC of the patient
-     * @param patientName The name of the patient
-     * @param sourceHospitalID The ID of the source hospital
-     * @param sourceNodeID The Node ID of the source location
-     * @param sourceSector The sector of the source location
-     * @param destHospitalID The ID of the destination hospital
-     * @param destNodeID The Node ID of the destination location
-     * @param destSector The sector of the destination location
-     * @param priority The priority level for the transfer
-     * @param condition The medical condition of the patient
-     * @return A unique request ID for the transfer
-     */
     string requestTransfer(const string& patientCNIC, const string& patientName,
                           const string& sourceHospitalID, int sourceNodeID, const string& sourceSector,
                           const string& destHospitalID, int destNodeID, const string& destSector,
                           const string& priority, const string& condition);
-    
-    /**
-     * Dispatch an ambulance to the next pending transfer request.
-     * @return Pointer to the dispatched Ambulance object, or null if none available
-     */
     Ambulance* dispatchNextTransfer();
-    
-    /**
-     * Dispatch a specific ambulance to a specific transfer request.
-     * @param ambulanceID The ID of the ambulance to dispatch
-     * @param requestID The ID of the transfer request
-     * @return true if successful, false if ambulance not available or request not found
-     */
     bool dispatchAmbulance(const string& ambulanceID, const string& requestID);
-    
     int getPendingTransferCount() const { return transferQueue.size(); }
     PatientTransfer* peekNextTransfer();
     
     // ==================== PASSENGER QUEUE MANAGEMENT ====================
     
-    /**
-     * Initialize the passenger queue for a bus stop.
-     * @param stopNodeID The Node ID of the stop
-     * @param stopName The name of the stop
-     * @param sector The sector of the stop
-     */
     void initializeStopQueue(int stopNodeID, const string& stopName, const string& sector);
-    
-    /**
-     * Add a passenger to the waiting queue at a stop.
-     * @param stopNodeID The Node ID of the stop
-     * @param passenger The Passenger object to add
-     * @return true if successfully added, false if queue not found
-     */
     bool addPassengerToStop(int stopNodeID, const Passenger& passenger);
-    
-    /**
-     * Get the number of passengers waiting at a stop.
-     * @param stopNodeID The Node ID of the stop
-     * @return The number of waiting passengers
-     */
     int getWaitingCount(int stopNodeID) const;
-    
-    /**
-     * Get the queue object for a specific stop.
-     * @param stopNodeID The Node ID of the stop
-     * @return Pointer to the BusStopQueue object for the stop, or null if not found
-     */
     BusStopQueue* getStopQueue(int stopNodeID) const;
-    
-    /**
-     * Process the arrival of a bus at a stop.
-     * This includes alighting passengers and boarding waiting passengers.
-     * @param bus The Bus object that has arrived
-     * @param stopNodeID The Node ID of the stop
-     */
     void processBusArrival(Bus* bus, int stopNodeID);
     
     // ==================== SIMULATION ====================
     
     /**
-     * Simulate one time step for all buses.
-     * This updates bus positions, processes arrivals, and boards passengers.
+     * Run one simulation step for ALL transport systems.
+     * Each call moves all vehicles one stop forward on their routes.
+     * When a vehicle reaches the end of its route, it loops back to start.
+     */
+    void runSimulationStep();
+    
+    /**
+     * Run multiple simulation steps
+     */
+    void runSimulationSteps(int steps);
+    
+    /**
+     * Get current simulation step count
+     */
+    int getSimulationStep() const { return simulationStep; }
+    
+    /**
+     * Reset simulation to initial state
+     */
+    void resetSimulation();
+    
+    /**
+     * Simulate one step for all public buses.
      */
     void simulateBusStep();
     
     /**
-     * Simulate one time step for all school buses.
-     * This updates their positions and activates boarding if at a stop.
+     * Simulate one step for all school buses.
      */
     void simulateSchoolBusStep();
     
     /**
-     * Update the status of an ambulance based on its current route and actions.
-     * @param amb The Ambulance object to update
+     * Simulate one step for all ambulances.
      */
-    void updateAmbulanceStatus(Ambulance* amb);
+    void simulateAmbulanceStep();
+    
+    /**
+     * Process school bus arrival at pickup point
+     */
+    void processSchoolBusPickup(SchoolBus* sb, int pickupNodeID);
+    
+    /**
+     * Process school bus arrival at school
+     */
+    void processSchoolBusSchoolArrival(SchoolBus* sb, const string& schoolID, int schoolNodeID);
     
     /**
      * Get the current transport statistics.
-     * @return A TransportStats object containing the latest statistics
      */
     TransportStats getStats() const;
     
     // ==================== CSV LOADING ====================
     
-    /**
-     * Load bus data from a CSV file and add to the system.
-     * @param filename The CSV file name
-     * @param hasHeader If true, skips the first line as header
-     * @return true if successful, false if file not found or error in data
-     */
     bool loadBusesFromCSV(const string& filename, bool hasHeader = true);
-    
-    /**
-     * Load ambulance data from a CSV file and add to the system.
-     * @param filename The CSV file name
-     * @param hasHeader If true, skips the first line as header
-     * @return true if successful, false if file not found or error in data
-     */
     bool loadAmbulancesFromCSV(const string& filename, bool hasHeader = true);
+    bool loadSchoolBusesFromCSV(const string& filename, bool hasHeader = true);
     
     // ==================== SECTOR ADJACENCY ====================
     
-    /**
-     * Get adjacent sectors for a given sector
-     * @param sector The sector ID
-     * @return A vector of adjacent sector IDs
-     */
     static Vector<string> getAdjacentSectors(const string& sector);
-    
-    /**
-     * Check if two sectors are adjacent
-     * @param sector1 The first sector ID
-     * @param sector2 The second sector ID
-     * @return true if sectors are adjacent, false otherwise
-     */
     static bool areSectorsAdjacent(const string& sector1, const string& sector2);
 
 private:
@@ -602,9 +301,11 @@ private:
 inline TransportManager::TransportManager() 
     : cityGraph(nullptr), buses(), busLookup(101), companyLookup(53),
       stopLookup(201), schoolBuses(), schoolBusLookup(53), schoolLookup(53),
-      sectorSchoolBusLookup(53), ambulances(), ambulanceLookup(53), 
+      sectorSchoolBusLookup(53), pickupPoints(201), sectorPickupPoints(53),
+      ambulances(), ambulanceLookup(53), 
       hospitalAmbulanceLookup(53), sectorAmbulanceLookup(53),
       transferQueue(), activeTransfers(), stopQueues(201),
+      simulationStep(0),
       totalTransferRequests(0), transferIDCounter(1000) {}
 
 inline TransportManager::~TransportManager() {
@@ -631,15 +332,12 @@ inline Vector<string> TransportManager::getAdjacentSectors(const string& sector)
         number = std::stoi(numStr);
     }
     
-    // Same series, adjacent numbers
     if (number > 6) {
         adjacent.push_back(string(1, series) + "-" + std::to_string(number - 1));
     }
     if (number < 12) {
         adjacent.push_back(string(1, series) + "-" + std::to_string(number + 1));
     }
-    
-    // Adjacent series, same number
     if (series > 'E') {
         adjacent.push_back(string(1, series - 1) + "-" + std::to_string(number));
     }
@@ -752,7 +450,6 @@ inline SchoolBus* TransportManager::createSchoolBus(const string& id, const stri
     schoolBuses.push_back(sb);
     schoolBusLookup.insert(id, sb);
     
-    // Add to school lookup
     Vector<SchoolBus*>* schoolList = schoolLookup.get(schoolID);
     if (schoolList) {
         schoolList->push_back(sb);
@@ -762,7 +459,6 @@ inline SchoolBus* TransportManager::createSchoolBus(const string& id, const stri
         schoolLookup.insert(schoolID, newList);
     }
     
-    // Add to sector lookup
     Vector<SchoolBus*>* sectorList = sectorSchoolBusLookup.get(sector);
     if (sectorList) {
         sectorList->push_back(sb);
@@ -835,6 +531,65 @@ inline SchoolBus* TransportManager::getSchoolBus(int index) const {
     return nullptr;
 }
 
+// ==================== SCHOOL BUS PICKUP POINT MANAGEMENT ====================
+
+inline void TransportManager::createPickupPoint(int nodeID, const string& sector, 
+                                                 const string& locationName, bool isResidential) {
+    PickupPoint* pp = new PickupPoint(nodeID, sector, locationName, isResidential);
+    pickupPoints.insert(nodeID, pp);
+    
+    Vector<int>* sectorNodes = sectorPickupPoints.get(sector);
+    if (sectorNodes) {
+        sectorNodes->push_back(nodeID);
+    } else {
+        Vector<int> newList;
+        newList.push_back(nodeID);
+        sectorPickupPoints.insert(sector, newList);
+    }
+}
+
+inline bool TransportManager::addStudentToPickupPoint(int nodeID, const StudentPassenger& student) {
+    PickupPoint** pp = pickupPoints.get(nodeID);
+    if (!pp || !(*pp)) return false;
+    return (*pp)->waitingStudents.enqueue(student);
+}
+
+inline PickupPoint* TransportManager::getPickupPoint(int nodeID) const {
+    PickupPoint** pp = pickupPoints.get(nodeID);
+    return pp ? *pp : nullptr;
+}
+
+inline Vector<int> TransportManager::getPickupPointsInSector(const string& sector) const {
+    Vector<int>* nodes = sectorPickupPoints.get(sector);
+    return nodes ? *nodes : Vector<int>();
+}
+
+inline bool TransportManager::setupSchoolBusHomeRoute(const string& busID, const Vector<int>& pickupNodes,
+                                                       int schoolNodeID, const string& schoolID) {
+    SchoolBus* sb = findSchoolBusByID(busID);
+    if (!sb || !sb->isAvailable()) return false;
+    
+    sb->setPickupRoute(pickupNodes);
+    sb->clearDestinationSchools();
+    sb->addDestinationSchool(schoolID, schoolNodeID);
+    
+    return true;
+}
+
+inline bool TransportManager::dispatchSchoolBusForHomePickup(const string& busID) {
+    SchoolBus* sb = findSchoolBusByID(busID);
+    if (!sb || !sb->isAvailable()) return false;
+    
+    sb->startHomePickupRoute();
+    return true;
+}
+
+inline int TransportManager::getStudentsWaitingAtPickup(int nodeID) const {
+    PickupPoint* pp = getPickupPoint(nodeID);
+    if (!pp) return 0;
+    return pp->waitingStudents.size();
+}
+
 // ==================== AMBULANCE MANAGEMENT ====================
 
 inline Ambulance* TransportManager::createAmbulance(const string& id, const string& hospitalID,
@@ -843,7 +598,6 @@ inline Ambulance* TransportManager::createAmbulance(const string& id, const stri
     ambulances.push_back(amb);
     ambulanceLookup.insert(id, amb);
     
-    // Add to hospital lookup
     Vector<Ambulance*>* hospList = hospitalAmbulanceLookup.get(hospitalID);
     if (hospList) {
         hospList->push_back(amb);
@@ -853,7 +607,6 @@ inline Ambulance* TransportManager::createAmbulance(const string& id, const stri
         hospitalAmbulanceLookup.insert(hospitalID, newList);
     }
     
-    // Add to sector lookup
     Vector<Ambulance*>* sectorList = sectorAmbulanceLookup.get(sector);
     if (sectorList) {
         sectorList->push_back(amb);
@@ -893,7 +646,7 @@ inline Vector<Ambulance*> TransportManager::getAvailableAmbulances() const {
 
 inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourceSector,
                                                               const string& destSector) const {
-    // Priority 1: Ambulance from source hospital's sector
+    // Priority 1: Ambulance from source sector
     Vector<Ambulance*> sourceAmbs = getAmbulancesBySector(sourceSector);
     for (int i = 0; i < sourceAmbs.getSize(); ++i) {
         if (sourceAmbs[i]->isAvailable() && sourceAmbs[i]->isSectorInPriority(destSector)) {
@@ -901,7 +654,7 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 2: Ambulance from destination hospital's sector
+    // Priority 2: Ambulance from destination sector
     Vector<Ambulance*> destAmbs = getAmbulancesBySector(destSector);
     for (int i = 0; i < destAmbs.getSize(); ++i) {
         if (destAmbs[i]->isAvailable() && destAmbs[i]->isSectorInPriority(sourceSector)) {
@@ -909,7 +662,7 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 3: Any available ambulance from adjacent sectors
+    // Priority 3: Adjacent sectors
     Vector<string> adjacentToSource = getAdjacentSectors(sourceSector);
     for (int i = 0; i < adjacentToSource.getSize(); ++i) {
         Vector<Ambulance*> adjAmbs = getAmbulancesBySector(adjacentToSource[i]);
@@ -920,8 +673,9 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 4: Any available ambulance
-    return getAvailableAmbulances().getSize() > 0 ? getAvailableAmbulances()[0] : nullptr;
+    // Priority 4: Any available
+    Vector<Ambulance*> available = getAvailableAmbulances();
+    return available.getSize() > 0 ? available[0] : nullptr;
 }
 
 inline Ambulance* TransportManager::getAmbulance(int index) const {
@@ -954,8 +708,6 @@ inline Ambulance* TransportManager::dispatchNextTransfer() {
     if (transferQueue.empty()) return nullptr;
     
     PatientTransfer transfer = transferQueue.top();
-    
-    // Find appropriate ambulance with sector priority
     Ambulance* amb = findAmbulanceForTransfer(transfer.sourceSector, transfer.destSector);
     
     if (amb) {
@@ -970,8 +722,6 @@ inline Ambulance* TransportManager::dispatchNextTransfer() {
 inline bool TransportManager::dispatchAmbulance(const string& ambulanceID, const string& requestID) {
     Ambulance* amb = findAmbulanceByID(ambulanceID);
     if (!amb || !amb->isAvailable()) return false;
-    
-    // Find transfer in queue (simplified - would need queue iteration)
     return false;
 }
 
@@ -1013,8 +763,10 @@ inline BusStopQueue* TransportManager::getStopQueue(int stopNodeID) const {
 inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
     if (!bus) return;
     
+    // Alight passengers at destination
     bus->alightPassengers();
     
+    // Board waiting passengers
     BusStopQueue* queue = getStopQueue(stopNodeID);
     if (queue) {
         while (!queue->waitingPassengers.empty() && !bus->isFull()) {
@@ -1027,6 +779,7 @@ inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
                 bus->addWaitingPassenger(p);
                 bus->boardWaitingPassengers();
             } else {
+                // Re-queue if destination is behind
                 queue->waitingPassengers.enqueue(p);
             }
         }
@@ -1035,10 +788,57 @@ inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
 
 // ==================== SIMULATION ====================
 
+inline void TransportManager::runSimulationStep() {
+    ++simulationStep;
+    
+    // 1. Simulate all public buses
+    simulateBusStep();
+    
+    // 2. Simulate all school buses
+    simulateSchoolBusStep();
+    
+    // 3. Simulate all ambulances
+    simulateAmbulanceStep();
+    
+    // 4. Dispatch pending transfers if ambulances available
+    while (getPendingTransferCount() > 0 && getAvailableAmbulances().getSize() > 0) {
+        if (!dispatchNextTransfer()) break;
+    }
+}
+
+inline void TransportManager::runSimulationSteps(int steps) {
+    for (int i = 0; i < steps; ++i) {
+        runSimulationStep();
+    }
+}
+
+inline void TransportManager::resetSimulation() {
+    simulationStep = 0;
+    
+    // Reset all buses to start of their routes
+    for (int i = 0; i < buses.getSize(); ++i) {
+        buses[i]->resetToRouteStart();
+    }
+    
+    // Reset all school buses
+    for (int i = 0; i < schoolBuses.getSize(); ++i) {
+        schoolBuses[i]->resetToBase();
+    }
+    
+    // Reset all ambulances
+    for (int i = 0; i < ambulances.getSize(); ++i) {
+        ambulances[i]->resetToBase();
+    }
+}
+
 inline void TransportManager::simulateBusStep() {
     for (int i = 0; i < buses.getSize(); ++i) {
         Bus* bus = buses[i];
+        
+        // Process current stop (alight passengers, board waiting passengers)
         processBusArrival(bus, bus->getCurrentNodeID());
+        
+        // Move to next stop (loops back to start if at end of route)
         bus->moveToNextStop();
     }
 }
@@ -1046,25 +846,131 @@ inline void TransportManager::simulateBusStep() {
 inline void TransportManager::simulateSchoolBusStep() {
     for (int i = 0; i < schoolBuses.getSize(); ++i) {
         SchoolBus* sb = schoolBuses[i];
-        if (sb->getStatus() == VehicleStatus::EN_ROUTE) {
-            sb->moveToNextStop();
+        string status = sb->getSchoolBusStatus();
+        
+        if (status == SchoolBusStatus::AVAILABLE) {
+            // Check if there are students waiting in the sector
+            Vector<int> pickups = getPickupPointsInSector(sb->getHomeSector());
+            bool hasWaiting = false;
+            for (int j = 0; j < pickups.getSize(); ++j) {
+                if (getStudentsWaitingAtPickup(pickups[j]) > 0) {
+                    hasWaiting = true;
+                    break;
+                }
+            }
+            
+            if (hasWaiting && pickups.getSize() > 0) {
+                sb->setPickupRoute(pickups);
+                sb->startHomePickupRoute();
+            }
+        }
+        else if (status == SchoolBusStatus::EN_ROUTE_HOME_PICKUP) {
+            if (!sb->moveToNextStop()) {
+                int pickupNode = sb->getNextPickupPointNode();
+                if (pickupNode != -1) {
+                    processSchoolBusPickup(sb, pickupNode);
+                }
+            }
+        }
+        else if (status == SchoolBusStatus::AT_PICKUP_POINT || 
+                 status == SchoolBusStatus::LOADING_STUDENTS) {
+            int pickupNode = sb->getCurrentNodeID();
+            PickupPoint* pp = getPickupPoint(pickupNode);
+            
+            if (pp) {
+                while (!pp->waitingStudents.empty() && !sb->isFull()) {
+                    StudentPassenger student = pp->waitingStudents.dequeue();
+                    sb->boardStudent(student);
+                }
+            }
+            
+            if (sb->isFull() || sb->allPickupsComplete()) {
+                sb->startSchoolRoute();
+            } else {
+                sb->advanceToNextPickupPoint();
+                sb->setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_HOME_PICKUP);
+            }
+        }
+        else if (status == SchoolBusStatus::EN_ROUTE_TO_SCHOOL) {
+            if (!sb->moveToNextStop()) {
+                sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
+            }
+        }
+        else if (status == SchoolBusStatus::AT_SCHOOL || 
+                 status == SchoolBusStatus::UNLOADING) {
+            sb->dropoffAllStudents();
+            sb->completeTrip();
+        }
+        else if (status == SchoolBusStatus::EN_ROUTE_SCHOOL_TO_SCHOOL) {
+            if (!sb->moveToNextStop()) {
+                sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
+            }
+        }
+        else if (status == SchoolBusStatus::RETURNING) {
+            if (!sb->moveToNextStop()) {
+                sb->arriveAtBase();
+            }
         }
     }
 }
 
-inline void TransportManager::updateAmbulanceStatus(Ambulance* amb) {
-    if (!amb) return;
-    
-    if (amb->isAtRouteEnd()) {
+inline void TransportManager::simulateAmbulanceStep() {
+    for (int i = 0; i < ambulances.getSize(); ++i) {
+        Ambulance* amb = ambulances[i];
         string status = amb->getAmbulanceStatus();
-        if (status == AmbulanceStatus::DISPATCHED) {
-            amb->arriveAtPickup();
-        } else if (status == AmbulanceStatus::TRANSPORTING) {
-            amb->arriveAtDestination();
-        } else if (status == AmbulanceStatus::RETURNING) {
-            amb->arriveAtBase();
+        
+        if (status == AmbulanceStatus::AVAILABLE) {
+            // Ready for dispatch - handled by dispatchNextTransfer()
+        }
+        else if (status == AmbulanceStatus::DISPATCHED) {
+            if (!amb->moveToNextStop()) {
+                amb->arriveAtPickup();
+                amb->loadPatient();
+            }
+        }
+        else if (status == AmbulanceStatus::AT_PICKUP || 
+                 status == AmbulanceStatus::LOADING_PATIENT) {
+            amb->loadPatient();
+            amb->startTransport();
+        }
+        else if (status == AmbulanceStatus::TRANSPORTING) {
+            if (!amb->moveToNextStop()) {
+                amb->arriveAtDestination();
+            }
+        }
+        else if (status == AmbulanceStatus::AT_DESTINATION || 
+                 status == AmbulanceStatus::UNLOADING) {
+            amb->unloadPatient();
+            amb->completeTransfer();
+        }
+        else if (status == AmbulanceStatus::RETURNING) {
+            if (!amb->moveToNextStop()) {
+                amb->arriveAtBase();
+            }
         }
     }
+}
+
+inline void TransportManager::processSchoolBusPickup(SchoolBus* sb, int pickupNodeID) {
+    if (!sb) return;
+    
+    sb->setSchoolBusStatus(SchoolBusStatus::AT_PICKUP_POINT);
+    
+    PickupPoint* pp = getPickupPoint(pickupNodeID);
+    if (pp) {
+        while (!pp->waitingStudents.empty() && !sb->isFull()) {
+            StudentPassenger student = pp->waitingStudents.dequeue();
+            sb->boardStudent(student);
+        }
+    }
+}
+
+inline void TransportManager::processSchoolBusSchoolArrival(SchoolBus* sb, const string& schoolID, int schoolNodeID) {
+    if (!sb) return;
+    
+    sb->setCurrentSchool(schoolID);
+    sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
+    sb->dropoffStudents();
 }
 
 inline TransportStats TransportManager::getStats() const {
@@ -1180,6 +1086,47 @@ inline bool TransportManager::loadAmbulancesFromCSV(const string& filename, bool
         }
         
         createAmbulance(ambID, hospitalID, hospitalNode, sector);
+    }
+    
+    file.close();
+    return true;
+}
+
+inline bool TransportManager::loadSchoolBusesFromCSV(const string& filename, bool hasHeader) {
+    ifstream file(filename);
+    if (!file.is_open()) return false;
+    
+    string line;
+    if (hasHeader) std::getline(file, line);
+    
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        
+        string fields[4];
+        int idx = 0;
+        string cur = "";
+        
+        for (int i = 0; i < (int)line.size(); ++i) {
+            char c = line[i];
+            if (c == ',' && idx < 3) {
+                fields[idx++] = trim(cur);
+                cur.clear();
+            } else {
+                cur += c;
+            }
+        }
+        fields[idx] = trim(cur);
+        
+        string busID = fields[0];
+        string schoolID = fields[1];
+        int schoolNode = 0;
+        string sector = fields[3];
+        
+        if (!fields[2].empty()) {
+            schoolNode = std::stoi(fields[2]);
+        }
+        
+        createSchoolBus(busID, schoolID, schoolNode, sector);
     }
     
     file.close();

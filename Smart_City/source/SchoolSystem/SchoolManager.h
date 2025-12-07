@@ -21,7 +21,7 @@
 #pragma once
 #include <string>
 #include <fstream>
-#include "CustomSTL.h"
+#include "../../data_structures/CustomSTL.h"
 #include "School.h"
 #include "Department.h"
 #include "Class.h"

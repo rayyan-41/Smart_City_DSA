@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
-#include "CustomSTL.h"
+#include "../../data_structures/CustomSTL.h"
 #include "Department.h"
-#include "ModuleUtils.h"
+#include "../../utils/ModuleUtils.h"
 #include "Student.h" 
 
 using std::string;

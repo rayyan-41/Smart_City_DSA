@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
-#include "CustomSTL.h"
-#include "Location.h"
+#include "../../data_structures/CustomSTL.h"
+#include "../../utils/Location.h"
 #include "Shop.h"
 
 using std::string;
