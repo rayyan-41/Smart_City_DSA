@@ -48,7 +48,7 @@ struct GraphNode2D {
     bool isEnd;         // Destination node
 
     GraphNode2D() : id(-1), pos(), name(""), type(""), sector(""),
-        color(Color::White), isCorner(false), isOnPath(false), 
+        color(Color::White), isCorner(false), isOnPath(false),
         isVisited(false), isStart(false), isEnd(false) {
     }
 };
@@ -56,7 +56,7 @@ struct GraphNode2D {
 struct GraphEdge2D {
     int fromID, toID;
     bool isOnPath;  // For Dijkstra visualization
-    
+
     GraphEdge2D(int f, int t) : fromID(f), toID(t), isOnPath(false) {}
 };
 
@@ -85,10 +85,10 @@ private:
     double zoom;
 
 public:
-    GraphViewport() : 
+    GraphViewport() :
         minLat(BASE_LAT), maxLat(MAX_LAT),
         minLon(BASE_LON), maxLon(MAX_LON),
-        canvasWidth(160), canvasHeight(80), 
+        canvasWidth(160), canvasHeight(80),
         offsetX(0), offsetY(0), zoom(1.0) {
     }
 
@@ -106,16 +106,16 @@ public:
         double normX = (lon - minLon) / (maxLon - minLon);
         // Map latitude to Y (north to south = top to bottom, so invert)
         double normY = (maxLat - lat) / (maxLat - minLat);
-        
+
         // Apply zoom centered
         normX = (normX - 0.5) * zoom + 0.5 + offsetX;
         normY = (normY - 0.5) * zoom + 0.5 + offsetY;
-        
+
         // Small padding
         double pad = 0.02;
         double canvasX = pad * canvasWidth + normX * canvasWidth * (1.0 - 2 * pad);
         double canvasY = pad * canvasHeight + normY * canvasHeight * (1.0 - 2 * pad);
-        
+
         return Point2D(canvasX, canvasY);
     }
 
@@ -243,7 +243,7 @@ public:
     void runIntroPhase1();
     void runIntroPhase2();
     void runIntroPhase3();
-    
+
     void runWelcomeAnimation();
     void runMainMenu();
     void runCSVSelection();
@@ -324,7 +324,7 @@ inline void CitySimulator::buildGraphVisualization() {
 
     if (!islamabad || !islamabad->getCityGraph()) return;
     CityGraph* graph = islamabad->getCityGraph();
-    
+
     // Use actual data bounds
     viewport.setBounds(BASE_LAT, MAX_LAT, BASE_LON, MAX_LON);
 
@@ -339,7 +339,7 @@ inline void CitySimulator::buildGraphVisualization() {
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
-        
+
         GraphNode2D gNode;
         gNode.id = node->id;
         gNode.pos = viewport.geoToCanvas(node->lat, node->lon);
@@ -351,15 +351,16 @@ inline void CitySimulator::buildGraphVisualization() {
         gNode.isVisited = false;
         gNode.isStart = false;
         gNode.isEnd = false;
-        
+
         // Rename corners to "Intersection X"
         if (gNode.isCorner) {
             intersectionCounter++;
             gNode.name = "Intersection " + std::to_string(intersectionCounter);
-        } else {
+        }
+        else {
             gNode.name = node->name;
         }
-        
+
         nodeIdToIndex[node->id] = (int)graphNodes.size();
         graphNodes.push_back(gNode);
     }
@@ -368,7 +369,7 @@ inline void CitySimulator::buildGraphVisualization() {
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
-        
+
         const LinkedList<Edge>& roads = node->getRoads();
         for (int j = 0; j < roads.size(); j++) {
             Edge edge = roads[j];
@@ -385,14 +386,14 @@ inline void CitySimulator::buildGraphVisualization() {
     for (int i = 0; i < SECTOR_COUNT; i++) {
         SectorRegion region;
         region.name = SECTOR_GRID[i].name;
-        
+
         Point2D tl = viewport.geoToCanvas(SECTOR_GRID[i].maxLat, SECTOR_GRID[i].minLon);
         Point2D br = viewport.geoToCanvas(SECTOR_GRID[i].minLat, SECTOR_GRID[i].maxLon);
-        
+
         region.topLeft = Point2D(std::min(tl.x, br.x), std::min(tl.y, br.y));
         region.bottomRight = Point2D(std::max(tl.x, br.x), std::max(tl.y, br.y));
-        region.center = Point2D((region.topLeft.x + region.bottomRight.x) / 2, 
-                                 (region.topLeft.y + region.bottomRight.y) / 2);
+        region.center = Point2D((region.topLeft.x + region.bottomRight.x) / 2,
+            (region.topLeft.y + region.bottomRight.y) / 2);
         region.isHovered = false;
         sectorRegions.push_back(region);
     }
@@ -407,7 +408,7 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
 
     auto stylize = [](Color c) -> Canvas::Stylizer {
         return [c](Pixel& p) { p.foreground_color = c; };
-    };
+        };
 
     // Draw sector boundaries if enabled
     if (showSectorBounds) {
@@ -416,7 +417,7 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
             int y1 = (int)region.topLeft.y;
             int x2 = (int)region.bottomRight.x;
             int y2 = (int)region.bottomRight.y;
-            
+
             Color boundColor = region.isHovered ? Color::Yellow : Color::GrayDark;
             canvas.DrawBlockLine(x1, y1, x2, y1, stylize(boundColor));
             canvas.DrawBlockLine(x2, y1, x2, y2, stylize(boundColor));
@@ -435,7 +436,7 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 const GraphNode2D& n2 = graphNodes[idx2];
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
                 int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
-                
+
                 // Color based on Dijkstra path
                 Color roadColor = Color::GrayDark;
                 if (edge.isOnPath) {
@@ -465,25 +466,28 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
         int x = (int)node.pos.x;
         int y = (int)node.pos.y;
         if (x < 0 || x >= cw || y < 0 || y >= ch) continue;
-        
+
         Color nodeColor = node.color;
-        
+
         // Override colors for Dijkstra visualization
         if (node.isStart) {
             nodeColor = Color::Cyan;
-        } else if (node.isEnd) {
+        }
+        else if (node.isEnd) {
             nodeColor = Color::Yellow;
-        } else if (node.isOnPath) {
+        }
+        else if (node.isOnPath) {
             nodeColor = Color::GreenLight;
-        } else if (node.isVisited) {
+        }
+        else if (node.isVisited) {
             nodeColor = Color::Orange1;
         }
-        
+
         // Hovered node highlight
         if (node.id == hoveredNodeID) {
             nodeColor = Color::White;
         }
-        
+
         // Draw single block
         canvas.DrawBlock(x, y, true, stylize(nodeColor));
     }
@@ -534,12 +538,12 @@ inline string CitySimulator::getHoverInfo() {
             return ss.str();
         }
     }
-    
+
     if (!hoveredSector.empty()) {
         ss << "SECTOR: " << hoveredSector;
         return ss.str();
     }
-    
+
     ss << "Hover over\nnodes for info";
     return ss.str();
 }
@@ -576,20 +580,20 @@ inline void CitySimulator::buildSelectableNodesList() {
 inline void CitySimulator::runDijkstraAlgorithm() {
     if (!islamabad || !islamabad->getCityGraph()) return;
     if (dijkstraStartNode < 0) return;
-    
+
     CityGraph* graph = islamabad->getCityGraph();
-    
+
     // Find target based on type
-    if (dijkstraTargetType == "SCHOOL" || dijkstraTargetType == "HOSPITAL" || 
+    if (dijkstraTargetType == "SCHOOL" || dijkstraTargetType == "HOSPITAL" ||
         dijkstraTargetType == "PHARMACY" || dijkstraTargetType == "STOP") {
         dijkstraEndNode = graph->findNearestFacility(dijkstraStartNode, dijkstraTargetType);
     }
-    
+
     if (dijkstraEndNode < 0) return;
-    
+
     // Run Dijkstra
     dijkstraPath = graph->findShortestPath(dijkstraStartNode, dijkstraEndNode, dijkstraDistance);
-    
+
     // Mark nodes on path
     for (int i = 0; i < dijkstraPath.getSize(); i++) {
         int nodeId = dijkstraPath[i];
@@ -600,7 +604,7 @@ inline void CitySimulator::runDijkstraAlgorithm() {
             }
         }
     }
-    
+
     // Mark start and end
     if (dijkstraStartNode < (int)nodeIdToIndex.size()) {
         int idx = nodeIdToIndex[dijkstraStartNode];
@@ -610,7 +614,7 @@ inline void CitySimulator::runDijkstraAlgorithm() {
         int idx = nodeIdToIndex[dijkstraEndNode];
         if (idx >= 0) graphNodes[idx].isEnd = true;
     }
-    
+
     // Mark edges on path
     for (int i = 0; i < dijkstraPath.getSize() - 1; i++) {
         int from = dijkstraPath[i];
@@ -662,19 +666,19 @@ inline void CitySimulator::runIntroPhase1() {
         string txt = fullText.substr(0, std::min(charIndex.load(), (int)fullText.length()));
         if (charIndex.load() < (int)fullText.length()) txt += "_";
         return vbox({ filler(), text(txt) | bold | center, filler() });
-    });
+        });
 
     std::thread t([&]() {
         for (int i = 0; i <= (int)fullText.length(); i++) {
             charIndex.store(i); screen.PostEvent(Event::Custom); sleepMs(50);
         }
         sleepMs(800); done.store(true); screen.PostEvent(Event::Custom);
-    });
+        });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (done.load()) { currentState = SimulatorState::INTRO_PHASE_2; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
     if (t.joinable()) t.join();
 }
@@ -689,19 +693,19 @@ inline void CitySimulator::runIntroPhase2() {
         string txt = fullText.substr(0, std::min(charIndex.load(), (int)fullText.length()));
         if (charIndex.load() < (int)fullText.length()) txt += "_";
         return vbox({ filler(), text(txt) | bold | center, filler() });
-    });
+        });
 
     std::thread t([&]() {
         for (int i = 0; i <= (int)fullText.length(); i++) {
             charIndex.store(i); screen.PostEvent(Event::Custom); sleepMs(45);
         }
         sleepMs(800); done.store(true); screen.PostEvent(Event::Custom);
-    });
+        });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (done.load()) { currentState = SimulatorState::INTRO_PHASE_3; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
     if (t.joinable()) t.join();
 }
@@ -717,16 +721,16 @@ inline void CitySimulator::runIntroPhase3() {
         lines.push_back(text(""));
         for (int i = 0; i < ASCIIArt::REDEFINED_TITLE_HEIGHT; i++)
             lines.push_back(text(ASCIIArt::REDEFINED_TITLE[i]) | color(Color::GrayLight));
-        return vbox({ filler(), vbox(lines) | center, filler(), 
+        return vbox({ filler(), vbox(lines) | center, filler(),
                      text(done.load() ? "Press Enter" : "") | center | dim, filler() });
-    });
+        });
 
     std::thread t([&]() { sleepMs(1500); done.store(true); screen.PostEvent(Event::Custom); });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::Return && done.load()) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
     if (t.joinable()) t.join();
 }
@@ -755,11 +759,12 @@ inline void CitySimulator::runDebugMode() {
 inline void CitySimulator::runMainMenu() {
     auto screen = ScreenInteractive::Fullscreen();
     std::vector<string> options;
-    
+
     if (cityInitialized) {
-        options = {"Graph View [1]", "Dijkstra Pathfinding [D]", "Database [2]", "Management [3]", "Exit"};
-    } else {
-        options = {"Initialize City", "Exit"};
+        options = { "Graph View [1]", "Dijkstra Pathfinding [D]", "Database [2]", "Management [3]", "Exit" };
+    }
+    else {
+        options = { "Initialize City", "Exit" };
     }
     int sel = 0;
 
@@ -770,32 +775,32 @@ inline void CitySimulator::runMainMenu() {
             if (i == sel) item = item | bold | color(Color::Green);
             items.push_back(item);
         }
-        
+
         string statusText = cityInitialized ? "CITY LOADED" : "NOT INITIALIZED";
         Color statusColor = cityInitialized ? Color::Green : Color::Yellow;
-        
+
         Elements titleArt;
         for (int i = 0; i < 6; i++) {
             titleArt.push_back(text(ASCIIArt::ISLAMABAD_TITLE[i]) | color(Color::Green));
         }
-        
+
         auto menuBox = vbox({
             text("MAIN MENU") | bold | center | color(Color::Cyan),
             separator(),
             text(statusText) | center | color(statusColor),
             separator(),
             vbox(items),
-        }) | border | size(WIDTH, EQUAL, 35);
-        
-        return vbox({ 
+            }) | border | size(WIDTH, EQUAL, 35);
+
+        return vbox({
             filler(),
             vbox(titleArt) | center,
             text("R E D E F I N E D") | bold | center | color(Color::GrayLight),
             text(""),
             hbox({ filler(), menuBox, filler() }),
-            filler() 
+            filler()
+            });
         });
-    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
@@ -803,27 +808,28 @@ inline void CitySimulator::runMainMenu() {
         if (e == Event::Return) {
             if (!cityInitialized) {
                 currentState = (sel == 0) ? SimulatorState::CSV_SELECTION : SimulatorState::EXIT;
-            } else {
+            }
+            else {
                 if (sel == 0) currentState = SimulatorState::GRAPH_VIEW;
                 else if (sel == 1) currentState = SimulatorState::DIJKSTRA_VIEW;
                 else if (sel == 2) currentState = SimulatorState::DATABASE_VIEW;
                 else if (sel == 3) currentState = SimulatorState::MANAGEMENT_MENU;
                 else currentState = SimulatorState::EXIT;
             }
-            screen.Exit(); 
+            screen.Exit();
             return true;
         }
         if (cityInitialized) {
             if (e == Event::Character('1')) { currentState = SimulatorState::GRAPH_VIEW; screen.Exit(); return true; }
             if (e == Event::Character('2')) { currentState = SimulatorState::DATABASE_VIEW; screen.Exit(); return true; }
             if (e == Event::Character('3')) { currentState = SimulatorState::MANAGEMENT_MENU; screen.Exit(); return true; }
-            if (e == Event::Character('d') || e == Event::Character('D')) { 
-                currentState = SimulatorState::DIJKSTRA_VIEW; screen.Exit(); return true; 
+            if (e == Event::Character('d') || e == Event::Character('D')) {
+                currentState = SimulatorState::DIJKSTRA_VIEW; screen.Exit(); return true;
             }
         }
         if (e == Event::Escape) { currentState = SimulatorState::EXIT; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
 
@@ -839,7 +845,7 @@ inline void CitySimulator::runCSVSelection() {
         Elements csvList;
         csvList.push_back(text("DATASET FILES") | bold | color(Color::Cyan));
         csvList.push_back(separator());
-        
+
         auto fileRow = [&](const string& label, const string& path) {
             bool exists = fileExists(path);
             Color statusColor = exists ? Color::Green : Color::Red;
@@ -848,9 +854,9 @@ inline void CitySimulator::runCSVSelection() {
                 text(label + ": ") | bold | size(WIDTH, EQUAL, 14),
                 text(path) | dim | size(WIDTH, EQUAL, 30),
                 text(" " + statusIcon) | color(statusColor)
-            });
-        };
-        
+                });
+            };
+
         csvList.push_back(fileRow("Stops", stopsCSV));
         csvList.push_back(fileRow("Schools", schoolsCSV));
         csvList.push_back(fileRow("Hospitals", hospitalsCSV));
@@ -861,19 +867,19 @@ inline void CitySimulator::runCSVSelection() {
         csvList.push_back(fileRow("Shops", shopsCSV));
         csvList.push_back(fileRow("Ambulances", ambulancesCSV));
         csvList.push_back(separator());
-        
-        std::vector<string> options = {"Begin Initialization", "Back to Menu"};
+
+        std::vector<string> options = { "Begin Initialization", "Back to Menu" };
         for (int i = 0; i < (int)options.size(); i++) {
             auto item = text((i == sel ? " > " : "   ") + options[i]);
             if (i == sel) item = item | bold | color(Color::Green);
             csvList.push_back(item);
         }
-        
+
         auto box = vbox(csvList) | border | size(WIDTH, EQUAL, 58);
         return vbox({ filler(), text("CITY INITIALIZATION") | bold | center | color(Color::Green),
             text(""), hbox({ filler(), box, filler() }), text(""),
             text("Press Enter to select, Esc to go back") | center | dim, filler() });
-    });
+        });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) { sel = (sel - 1 + 2) % 2; return true; }
@@ -885,7 +891,7 @@ inline void CitySimulator::runCSVSelection() {
         }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
 
@@ -895,7 +901,7 @@ inline void CitySimulator::runLoadingScreen() {
     std::atomic<int> step{ 0 };
     std::atomic<bool> done{ false };
     std::atomic<int> totalSteps{ 14 };  // Total loading steps
-    
+
     // Loading stage descriptions
     std::vector<string> loadingStages = {
         "Initializing city graph...",
@@ -922,11 +928,11 @@ inline void CitySimulator::runLoadingScreen() {
         for (int i = 0; i < barWidth; i++) {
             progressBar += (i < filledWidth) ? "█" : "░";
         }
-        
+
         // Get current stage description
         string stageDesc = (s < (int)loadingStages.size()) ? loadingStages[s] : "Completing...";
-        
-        return vbox({ 
+
+        return vbox({
             filler(),
             text("LOADING ISLAMABAD") | bold | center | color(Color::Green),
             text(""),
@@ -936,42 +942,42 @@ inline void CitySimulator::runLoadingScreen() {
             text(stageDesc) | center | color(Color::Cyan),
             text(""),
             text(done.load() ? "Press Enter to continue" : "Please wait...") | center | dim,
-            filler() 
+            filler()
+            });
         });
-    });
 
     std::thread t([&]() {
         // Step 0: Create SmartCity
         islamabad = new SmartCity();
         islamabad->setDatasetPaths(stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV,
-                                   busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV);
+            busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV);
         step.store(1); screen.PostEvent(Event::Custom); sleepMs(80);
-        
+
         // Steps 1-13: Initialize (SmartCity::initialize handles the rest internally)
         // We simulate progress here as initialize() is a single call
         for (int i = 2; i <= 6; i++) {
             step.store(i); screen.PostEvent(Event::Custom); sleepMs(60);
         }
-        
+
         islamabad->initialize();
         cityInitialized = true;
-        
+
         for (int i = 7; i <= 12; i++) {
             step.store(i); screen.PostEvent(Event::Custom); sleepMs(50);
         }
-        
+
         cityMgmt = new CityManagement(islamabad);
-        
+
         step.store(13); screen.PostEvent(Event::Custom); sleepMs(50);
         step.store(14); screen.PostEvent(Event::Custom); sleepMs(100);
-        
+
         done.store(true); screen.PostEvent(Event::Custom);
-    });
+        });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::Return && done.load()) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
     if (t.joinable()) t.join();
 }
@@ -989,7 +995,7 @@ inline void CitySimulator::runGraphView() {
         int termH = Terminal::Size().dimy;
         int canvasW = termW - 35;
         int canvasH = termH - 4;
-        
+
         Canvas c = renderGraphToCanvas(canvasW, canvasH);
 
         string hoverText = getHoverInfo();
@@ -1019,13 +1025,13 @@ inline void CitySimulator::runGraphView() {
             text("D: Dijkstra"),
             separator(),
             text("Esc: Menu"),
-        }) | border | size(WIDTH, EQUAL, 20);
+            }) | border | size(WIDTH, EQUAL, 20);
 
         return vbox({
             text("ISLAMABAD MAP") | bold | center | color(Color::Green),
             hbox({ canvas(c) | border | flex, text(" "), infoPanel }) | flex,
+            });
         });
-    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); buildGraphVisualization(); return true; }
@@ -1041,7 +1047,7 @@ inline void CitySimulator::runGraphView() {
         if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
 
@@ -1054,11 +1060,11 @@ inline void CitySimulator::runDijkstraView() {
     buildGraphVisualization();
     clearDijkstraVisualization();
     buildSelectableNodesList();
-    
+
     dijkstraMode = DijkstraMode::SELECT_START;
     dijkstraNodeSelection = 0;
-    
-    std::vector<string> targetTypes = {"Nearest School", "Nearest Hospital", "Nearest Pharmacy", "Nearest Bus Stop"};
+
+    std::vector<string> targetTypes = { "Nearest School", "Nearest Hospital", "Nearest Pharmacy", "Nearest Bus Stop" };
     int targetSel = 0;
 
     auto renderer = Renderer([&] {
@@ -1066,22 +1072,22 @@ inline void CitySimulator::runDijkstraView() {
         int termH = Terminal::Size().dimy;
         int canvasW = termW - 35;
         int canvasH = termH - 4;
-        
+
         Canvas c = renderGraphToCanvas(canvasW, canvasH);
 
         // Build control panel based on mode
         Elements controlItems;
         controlItems.push_back(text("DIJKSTRA PATHFINDING") | bold | color(Color::Cyan));
         controlItems.push_back(separator());
-        
+
         if (dijkstraMode == DijkstraMode::SELECT_START) {
             controlItems.push_back(text("SELECT START") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
-            
+
             // Show scrollable list of nodes
             int startIdx = std::max(0, dijkstraNodeSelection - 5);
             int endIdx = std::min((int)selectableNodes.size(), startIdx + 12);
-            
+
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
                 int idx = nodeIdToIndex[nodeId];
@@ -1096,11 +1102,12 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
             controlItems.push_back(text("Up/Down: Select") | dim);
             controlItems.push_back(text("Enter: Confirm") | dim);
-            
-        } else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
+
+        }
+        else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
             controlItems.push_back(text("SELECT TARGET") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
-            
+
             // Show start node
             if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
@@ -1109,7 +1116,7 @@ inline void CitySimulator::runDijkstraView() {
                 }
             }
             controlItems.push_back(separator());
-            
+
             for (int i = 0; i < (int)targetTypes.size(); i++) {
                 auto item = text((i == targetSel ? "> " : "  ") + targetTypes[i]);
                 if (i == targetSel) item = item | bold | color(Color::Green);
@@ -1118,11 +1125,12 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
             controlItems.push_back(text("Up/Down: Select") | dim);
             controlItems.push_back(text("Enter: Find Path") | dim);
-            
-        } else if (dijkstraMode == DijkstraMode::COMPLETE) {
+
+        }
+        else if (dijkstraMode == DijkstraMode::COMPLETE) {
             controlItems.push_back(text("PATH FOUND!") | bold | color(Color::Green));
             controlItems.push_back(separator());
-            
+
             // Show path info
             if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
@@ -1140,28 +1148,28 @@ inline void CitySimulator::runDijkstraView() {
             }
             controlItems.push_back(separator());
             controlItems.push_back(text("Distance:") | bold);
-            controlItems.push_back(text(" " + std::to_string(dijkstraDistance).substr(0,5) + " km") | color(Color::Yellow));
+            controlItems.push_back(text(" " + std::to_string(dijkstraDistance).substr(0, 5) + " km") | color(Color::Yellow));
             controlItems.push_back(text("Stops:") | bold);
             controlItems.push_back(text(" " + std::to_string(dijkstraPath.getSize())) | color(Color::Yellow));
             controlItems.push_back(separator());
             controlItems.push_back(text("R: Reset") | dim);
             controlItems.push_back(text("Esc: Back") | dim);
         }
-        
+
         // Legend
         controlItems.push_back(separator());
         controlItems.push_back(text("LEGEND") | bold);
-        controlItems.push_back(hbox({text("■") | color(Color::Cyan), text(" Start")}));
-        controlItems.push_back(hbox({text("■") | color(Color::Yellow), text(" End")}));
-        controlItems.push_back(hbox({text("■") | color(Color::GreenLight), text(" Path")}));
+        controlItems.push_back(hbox({ text("■") | color(Color::Cyan), text(" Start") }));
+        controlItems.push_back(hbox({ text("■") | color(Color::Yellow), text(" End") }));
+        controlItems.push_back(hbox({ text("■") | color(Color::GreenLight), text(" Path") }));
 
         auto controlPanel = vbox(controlItems) | border | size(WIDTH, EQUAL, 28);
 
         return vbox({
             text("DIJKSTRA VISUALIZATION") | bold | center | color(Color::Green),
             hbox({ canvas(c) | border | flex, text(" "), controlPanel }) | flex,
+            });
         });
-    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (dijkstraMode == DijkstraMode::SELECT_START) {
@@ -1197,7 +1205,7 @@ inline void CitySimulator::runDijkstraView() {
                 else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
                 else if (targetSel == 2) dijkstraTargetType = "PHARMACY";
                 else dijkstraTargetType = "STOP";
-                
+
                 // Run algorithm
                 runDijkstraAlgorithm();
                 dijkstraMode = DijkstraMode::COMPLETE;
@@ -1212,19 +1220,19 @@ inline void CitySimulator::runDijkstraView() {
                 return true;
             }
         }
-        
+
         // Common controls
         if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); buildGraphVisualization(); return true; }
         if (e == Event::Character('-')) { viewport.zoomOut(); buildGraphVisualization(); return true; }
         if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
-        if (e == Event::Escape) { 
+        if (e == Event::Escape) {
             clearDijkstraVisualization();
-            currentState = SimulatorState::GRAPH_VIEW; 
-            screen.Exit(); 
-            return true; 
+            currentState = SimulatorState::GRAPH_VIEW;
+            screen.Exit();
+            return true;
         }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
 // ============================================================================
@@ -2234,7 +2242,7 @@ inline void CitySimulator::runDatabaseView() {
 
 inline void CitySimulator::runManagementMenu() {
     auto screen = ScreenInteractive::Fullscreen();
-    std::vector<string> options = {"View Statistics", "Manage Transport", "Manage Facilities", "Back to Main Menu"};
+    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back to Main Menu" };
     int sel = 0;
 
     auto renderer = Renderer([&] {
@@ -2244,21 +2252,21 @@ inline void CitySimulator::runManagementMenu() {
             if (i == sel) item = item | bold | color(Color::Green);
             items.push_back(item);
         }
-        
+
         auto menuBox = vbox({
             text("MANAGEMENT MENU") | bold | center | color(Color::Cyan),
             separator(),
             vbox(items),
             separator(),
             text("Feature coming soon...") | dim | center,
-        }) | border | size(WIDTH, EQUAL, 35);
-        
-        return vbox({ 
+            }) | border | size(WIDTH, EQUAL, 35);
+
+        return vbox({
             filler(),
             hbox({ filler(), menuBox, filler() }),
-            filler() 
+            filler()
+            });
         });
-    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
@@ -2271,13 +2279,13 @@ inline void CitySimulator::runManagementMenu() {
             // Other options can be implemented later
             return true;
         }
-        if (e == Event::Escape) { 
-            currentState = SimulatorState::MAIN_MENU; 
-            screen.Exit(); 
-            return true; 
+        if (e == Event::Escape) {
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
         }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
 
