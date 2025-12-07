@@ -12,13 +12,13 @@ using namespace std;
 // ============================================================================
 const int INF = 1e9;
 
-#define MAX_NODES 500
+#define MAX_NODES 1000
 #define SECTOR_COUNT 30
-#define MAX_ROADS_PER_NODE 5
-#define MAX_SCHOOLS_PER_SECTOR 3
-#define MAX_HOSPITALS_PER_SECTOR 2
-#define MAX_MALLS_PER_SECTOR 2
-#define MAX_PUBLIC_FACILITIES_PER_SECTOR 10
+#define MAX_ROADS_PER_NODE 10
+#define MAX_SCHOOLS_PER_SECTOR 5
+#define MAX_HOSPITALS_PER_SECTOR 5
+#define MAX_MALLS_PER_SECTOR 5
+#define MAX_PUBLIC_FACILITIES_PER_SECTOR 20
 
 // Grid constants - approximate km per degree at Islamabad's latitude
 const double KM_PER_LAT_DEGREE = 111.0;
@@ -35,6 +35,7 @@ namespace FacilityType {
     const string PHARMACY = "PHARMACY";
     const string MALL = "MALL";
     const string SHOP = "SHOP";
+    const string HOUSE = "HOUSE";              // NEW: Residential houses
     const string MOSQUE = "MOSQUE";
     const string PARK = "PARK";
     const string WATER_COOLER = "WATER_COOLER";
@@ -78,6 +79,7 @@ namespace FacilityType {
         if (type == RESTAURANT) return "RST";
         if (type == PUBLIC_TOILET) return "TOI";
         if (type == STOP) return "STP";
+        if (type == HOUSE) return "HSE";          
         return "FAC";
     }
 }

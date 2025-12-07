@@ -149,8 +149,6 @@
     <ClInclude Include="source\CommercialSystem\Mall.h" />
     <ClInclude Include="source\CommercialSystem\Product.h" />
     <ClInclude Include="source\CommercialSystem\Shop.h" />
-    <ClInclude Include="source\Graphics.h" />
-    <ClInclude Include="source\GraphVisualizer.h" />
     <ClInclude Include="source\HousingSystem\Citizen.h" />
     <ClInclude Include="source\HousingSystem\HousingHierarchy.h" />
     <ClInclude Include="source\HousingSystem\PopulationManager.h" />
@@ -179,11 +177,13 @@
     <ClInclude Include="utils\ModuleUtils.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="dataset\ambulances.csv" />
     <None Include="dataset\buses.csv" />
     <None Include="dataset\hospitals.csv" />
     <None Include="dataset\malls.csv" />
     <None Include="dataset\pharmacies.csv" />
     <None Include="dataset\population.csv" />
+    <None Include="dataset\schoolbuses.csv" />
     <None Include="dataset\schools.csv" />
     <None Include="dataset\shops.csv" />
     <None Include="dataset\stops.csv" />

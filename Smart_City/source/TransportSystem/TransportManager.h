@@ -361,8 +361,14 @@ inline Vector<string> TransportManager::getAdjacentSectors(const string& sector)
     for (int i = 2; i < (int)sector.length(); ++i) {
         numStr += sector[i];
     }
-    if (!numStr.empty()) {
-        number = std::stoi(numStr);
+    
+    // Safe integer parsing
+    try {
+        if (!numStr.empty()) {
+            number = std::stoi(numStr);
+        }
+    } catch (...) {
+        return adjacent; // Return empty if parsing fails
     }
     
     if (number > 6) {
@@ -1112,11 +1118,18 @@ inline bool TransportManager::loadAmbulancesFromCSV(const string& filename, bool
         int hospitalNode = 0;
         string sector = fields[3];
         
-        if (!fields[2].empty()) {
-            hospitalNode = std::stoi(fields[2]);
+        // Safe integer parsing with try-catch
+        try {
+            if (!fields[2].empty()) {
+                hospitalNode = std::stoi(fields[2]);
+            }
+        } catch (...) {
+            hospitalNode = 0; // Default to 0 if parsing fails
         }
         
-        createAmbulance(ambID, hospitalID, hospitalNode, sector);
+        if (!ambID.empty() && !hospitalID.empty() && !sector.empty()) {
+            createAmbulance(ambID, hospitalID, hospitalNode, sector);
+        }
     }
     
     file.close();
@@ -1153,11 +1166,18 @@ inline bool TransportManager::loadSchoolBusesFromCSV(const string& filename, boo
         int schoolNode = 0;
         string sector = fields[3];
         
-        if (!fields[2].empty()) {
-            schoolNode = std::stoi(fields[2]);
+        // Safe integer parsing with try-catch
+        try {
+            if (!fields[2].empty()) {
+                schoolNode = std::stoi(fields[2]);
+            }
+        } catch (...) {
+            schoolNode = 0; // Default to 0 if parsing fails
         }
         
-        createSchoolBus(busID, schoolID, schoolNode, sector);
+        if (!busID.empty() && !schoolID.empty() && !sector.empty()) {
+            createSchoolBus(busID, schoolID, schoolNode, sector);
+        }
     }
     
     file.close();
