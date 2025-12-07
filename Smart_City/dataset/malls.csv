@@ -1,51 +1,31 @@
 MallID,Name,Sector
-M1,Safa Gold E-5
-M2,Giga F-5
-M3,Emporium G-5
-M4,Boulevard H-5
-M5,Times I-5
-M6,Giga E-6
-M7,Centaurus F-6
-M8,Amazon G-6
-M9,Florence H-6
-M10,Olympus I-6
-M11,Square E-7
-M12,Times F-7
-M13,Safa Gold G-7
-M14,Boulevard H-7
-M15,Centaurus I-7
-M16,Emporium E-8
-M17,Olympus F-8
-M18,Giga G-8
-M19,Amazon H-8
-M20,Florence I-8
-M21,Square E-9
-M22,Safa Gold F-9
-M23,Times G-9
-M24,Centaurus H-9
-M25,Emporium I-9
-M26,Boulevard E-10
-M27,Giga F-10
-M28,Olympus G-10
-M29,Florence H-10
-M30,Amazon I-10
-M31,Square E-11
-M32,Times F-11
-M33,Safa Gold G-11
-M34,Centaurus H-11
-M35,Boulevard I-11
-M36,Emporium E-12
-M37,Giga F-12
-M38,Olympus G-12
-M39,Florence H-12
-M40,Amazon I-12
-M41,Square E-5
-M42,Times F-5
-M43,Safa Gold G-5
-M44,Centaurus H-5
-M45,Boulevard I-5
-M46,Emporium E-6
-M47,Giga F-6
-M48,Olympus G-6
-M49,Florence H-6
-M50,Amazon I-6
+M1,Centaurus Mall,G-8
+M2,Giga Mall,I-8
+M3,Safa Gold Mall,F-7
+M4,Packages Mall,I-9
+M5,Metro Cash & Carry,I-10
+M6,Hyperstar Mall,G-9
+M7,Times Square Mall,E-7
+M8,City Center Mall,F-8
+M9,D Watson Mall,G-10
+M10,One Constitution Ave,G-6
+M11,Beverly Center,F-6
+M12,Blue Area Mall,F-7
+M13,Jinnah Super Market,F-7
+M14,Super Market F-6,F-6
+M15,Kohsar Market,F-6
+M16,Aabpara Market,G-6
+M17,Melody Market,G-6
+M18,Sitara Market,G-7
+M19,F-10 Markaz Mall,F-10
+M20,G-11 Markaz Mall,G-11
+M21,F-11 Markaz Mall,F-11
+M22,E-11 Markaz Mall,E-11
+M23,I-8 Markaz Mall,I-8
+M24,I-9 Markaz Mall,I-9
+M25,H-9 Markaz Mall,H-9
+M26,G-9 Markaz Mall,G-9
+M27,F-8 Kacheri Mall,F-8
+M28,E-9 Markaz Mall,E-9
+M29,G-10 Markaz Mall,G-10
+M30,H-8 Shopping Center,H-8

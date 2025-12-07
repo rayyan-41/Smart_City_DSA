@@ -12,7 +12,7 @@ const int INF = 1e9;
 const double Rad = 6371.0;
 
 #define MAX_NODES 500
-#define SECTOR_COUNT 40
+#define SECTOR_COUNT 30
 #define MAX_ROADS_PER_NODE 5
 #define MAX_SCHOOLS_PER_SECTOR 3
 #define MAX_HOSPITALS_PER_SECTOR 2
@@ -131,135 +131,140 @@ struct SectorBox {
 
 /*
  * ============================================================================
- * ISLAMABAD SECTOR GRID - ORTHOGONAL RECTANGULAR LAYOUT
+ * ISLAMABAD SECTOR GRID - REALISTIC SECTOR LAYOUT
  * ============================================================================
  * 
- * Islamabad's residential sectors follow a perfect rectangular grid:
- * - Letters (E, F, G, H, I) indicate north-south rows (E is northernmost)
- * - Numbers (5-12) indicate columns from west to east
+ * Based on ACTUAL Islamabad residential sectors that exist in real life.
+ * Islamabad's residential sectors follow a letter-number pattern where:
+ * - Letters (E, F, G, H, I) indicate rows (E is northernmost)
+ * - Numbers (6-12) indicate columns
  * 
- * Perfect Grid Layout (No Tilt - Aligned to Cardinal Directions):
+ * NOT all combinations exist. The actual sectors are:
  * 
- *     WEST  <--  Longitude (72.96 to 73.12)  -->  EAST
- *           72.96   72.98   73.00   73.02   73.04   73.06   73.08   73.10   73.12
+ * E-series: E-7, E-8, E-9, E-10, E-11 (5 sectors)
+ * F-series: F-6, F-7, F-8, F-9, F-10, F-11 (6 sectors)
+ * G-series: G-6, G-7, G-8, G-9, G-10, G-11 (6 sectors)
+ * H-series: H-8, H-9, H-10, H-11, H-12, H-13 (6 sectors)
+ * I-series: I-8, I-9, I-10, I-11, I-12, I-13, I-14 (7 sectors)
+ * 
+ * Total: 30 real sectors
+ * 
+ * Grid Layout (Geographic - North at Top):
+ * 
+ *     WEST  <--  Longitude (73.00 to 73.16)  -->  EAST
+ *           73.00   73.02   73.04   73.06   73.08   73.10   73.12   73.14   73.16
  *              |       |       |       |       |       |       |       |       |
  *  N  33.74 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *  O         | E-5   | E-6   | E-7   | E-8   | E-9   | E-10  | E-11  | E-12  |
+ *  O         |       | E-7   | E-8   | E-9   | E-10  | E-11  |       |       |
  *  R  33.72 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *  T         | F-5   | F-6   | F-7   | F-8   | F-9   | F-10  | F-11  | F-12  |
+ *  T         | F-6   | F-7   | F-8   | F-9   | F-10  | F-11  |       |       |
  *  H  33.70 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *            | G-5   | G-6   | G-7   | G-8   | G-9   | G-10  | G-11  | G-12  |
- *     33.68 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *  L         | H-5   | H-6   | H-7   | H-8   | H-9   | H-10  | H-11  | H-12  |
- *  A  33.66 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *  T         | I-5   | I-6   | I-7   | I-8   | I-9   | I-10  | I-11  | I-12  |
- *  I  33.64 --+-------+-------+-------+-------+-------+-------+-------+-------+
- *  T
+ *     ^      | G-6   | G-7   | G-8   | G-9   | G-10  | G-11  |       |       |
+ *  L  33.68 --+-------+-------+-------+-------+-------+-------+-------+-------+
+ *  A         |       |       | H-8   | H-9   | H-10  | H-11  | H-12  | H-13  |
+ *  T  33.66 --+-------+-------+-------+-------+-------+-------+-------+-------+
+ *  I         |       |       | I-8   | I-9   | I-10  | I-11  | I-12  | I-13  | I-14
+ *  T  33.64 --+-------+-------+-------+-------+-------+-------+-------+-------+
  *  U
  *  D
  *  E
  * 
- *  S
- *  O
- *  U
- *  T
- *  H
+ * Each sector is 0.02° x 0.02° (~2.2km x 1.8km)
  * 
- * Each sector is exactly 0.02° x 0.02° (~2.2km x 2.2km)
- * Perfect rectangular grid with no rotation or skew
- * All boundaries aligned to lat/lon grid lines
- * 
- * Sector Naming Convention:
- * - E-series: Row 1 (Northernmost) - Lat 33.72 to 33.74
- * - F-series: Row 2 - Lat 33.70 to 33.72
- * - G-series: Row 3 (Central) - Lat 33.68 to 33.70
- * - H-series: Row 4 - Lat 33.66 to 33.68
- * - I-series: Row 5 (Southernmost) - Lat 33.64 to 33.66
- * 
- * - Column 5: Westernmost - Lon 72.96 to 72.98
- * - Column 6: Lon 72.98 to 73.00
- * - Column 7: Lon 73.00 to 73.02
- * - Column 8: Lon 73.02 to 73.04
- * - Column 9: Lon 73.04 to 73.06
- * - Column 10: Lon 73.06 to 73.08
- * - Column 11: Lon 73.08 to 73.10
- * - Column 12: Easternmost - Lon 73.10 to 73.12
+ * Sector characteristics:
+ * - E-7 to E-11: Upper-middle class residential, near Margalla Hills
+ * - F-6 to F-11: Prime residential, Blue Area nearby (F-6, F-7)
+ * - G-6 to G-11: Central hub, commercial centers (Centaurus in G-8)
+ * - H-8 to H-13: Mixed residential, expanding eastward
+ * - I-8 to I-14: Newer sectors, developing areas
  * 
  * ============================================================================
  */
 
 // Define grid parameters
 const double SECTOR_SIZE_LAT = 0.02;  // ~2.2 km north-south
-const double SECTOR_SIZE_LON = 0.02;  // ~2.2 km east-west
+const double SECTOR_SIZE_LON = 0.02;  // ~1.8 km east-west at this latitude
 
-// Base coordinates for the grid (Southwest corner of I-5)
-const double BASE_LAT = 33.64;  // Southern boundary (bottom of I-series)
-const double BASE_LON = 72.96;  // Western boundary (left of column 5)
+// Base coordinates (Southwest corner of entire grid)
+const double BASE_LAT = 33.64;  // Southern boundary
+const double BASE_LON = 73.00;  // Western boundary
 
-// Maximum boundaries (Northeast corner of E-12)
-const double MAX_LAT = 33.74;   // Northern boundary (top of E-series)
-const double MAX_LON = 73.12;   // Eastern boundary (right of column 12)
+// Maximum boundaries (Northeast corner)
+const double MAX_LAT = 33.74;   // Northern boundary
+const double MAX_LON = 73.18;   // Eastern boundary (extended for I-14 at 73.16-73.18)
+
+// Column positions (longitude) - column number to west boundary
+// Column 6: 73.00, Column 7: 73.02, Column 8: 73.04, etc.
+#define COL_LON(col) (73.00 + ((col) - 6) * 0.02)
+
+// Row positions (latitude) - row to south boundary  
+// E: 33.72, F: 33.70, G: 33.68, H: 33.66, I: 33.64
+#define ROW_E_LAT 33.72
+#define ROW_F_LAT 33.70
+#define ROW_G_LAT 33.68
+#define ROW_H_LAT 33.66
+#define ROW_I_LAT 33.64
 
 static SectorBox SECTOR_GRID[] = { 
     // =========================================================================
-    // E-SERIES (Row 1 - Northernmost) - Lat 33.72 to 33.74
+    // E-SERIES (Row 1 - Northernmost) - Near Margalla Hills
+    // Lat: 33.72 to 33.74
+    // Only E-7 through E-11 exist in real Islamabad
     // =========================================================================
-    {"E-5",  33.72, 33.74, 72.96, 72.98},  // Northwest corner
-    {"E-6",  33.72, 33.74, 72.98, 73.00},
-    {"E-7",  33.72, 33.74, 73.00, 73.02},
-    {"E-8",  33.72, 33.74, 73.02, 73.04},
-    {"E-9",  33.72, 33.74, 73.04, 73.06},
-    {"E-10", 33.72, 33.74, 73.06, 73.08},
-    {"E-11", 33.72, 33.74, 73.08, 73.10},
-    {"E-12", 33.72, 33.74, 73.10, 73.12},  // Northeast corner
+    {"E-7",  ROW_E_LAT, ROW_E_LAT + 0.02, COL_LON(7),  COL_LON(7) + 0.02},   // 73.02-73.04
+    {"E-8",  ROW_E_LAT, ROW_E_LAT + 0.02, COL_LON(8),  COL_LON(8) + 0.02},   // 73.04-73.06
+    {"E-9",  ROW_E_LAT, ROW_E_LAT + 0.02, COL_LON(9),  COL_LON(9) + 0.02},   // 73.06-73.08
+    {"E-10", ROW_E_LAT, ROW_E_LAT + 0.02, COL_LON(10), COL_LON(10) + 0.02},  // 73.08-73.10
+    {"E-11", ROW_E_LAT, ROW_E_LAT + 0.02, COL_LON(11), COL_LON(11) + 0.02},  // 73.10-73.12
 
     // =========================================================================
-    // F-SERIES (Row 2) - Lat 33.70 to 33.72
+    // F-SERIES (Row 2) - Prime residential, Blue Area
+    // Lat: 33.70 to 33.72
+    // F-6 through F-11 exist
     // =========================================================================
-    {"F-5",  33.70, 33.72, 72.96, 72.98},
-    {"F-6",  33.70, 33.72, 72.98, 73.00},
-    {"F-7",  33.70, 33.72, 73.00, 73.02},
-    {"F-8",  33.70, 33.72, 73.02, 73.04},
-    {"F-9",  33.70, 33.72, 73.04, 73.06},
-    {"F-10", 33.70, 33.72, 73.06, 73.08},
-    {"F-11", 33.70, 33.72, 73.08, 73.10},
-    {"F-12", 33.70, 33.72, 73.10, 73.12},
+    {"F-6",  ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(6),  COL_LON(6) + 0.02},   // 73.00-73.02
+    {"F-7",  ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(7),  COL_LON(7) + 0.02},   // 73.02-73.04
+    {"F-8",  ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(8),  COL_LON(8) + 0.02},   // 73.04-73.06
+    {"F-9",  ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(9),  COL_LON(9) + 0.02},   // 73.06-73.08
+    {"F-10", ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(10), COL_LON(10) + 0.02},  // 73.08-73.10
+    {"F-11", ROW_F_LAT, ROW_F_LAT + 0.02, COL_LON(11), COL_LON(11) + 0.02},  // 73.10-73.12
 
     // =========================================================================
-    // G-SERIES (Row 3 - Central) - Lat 33.68 to 33.70
+    // G-SERIES (Row 3 - Central) - Commercial hub, Centaurus Mall
+    // Lat: 33.68 to 33.70
+    // G-6 through G-11 exist
     // =========================================================================
-    {"G-5",  33.68, 33.70, 72.96, 72.98},
-    {"G-6",  33.68, 33.70, 72.98, 73.00},
-    {"G-7",  33.68, 33.70, 73.00, 73.02},
-    {"G-8",  33.68, 33.70, 73.02, 73.04},  // Central hub
-    {"G-9",  33.68, 33.70, 73.04, 73.06},
-    {"G-10", 33.68, 33.70, 73.06, 73.08},
-    {"G-11", 33.68, 33.70, 73.08, 73.10},
-    {"G-12", 33.68, 33.70, 73.10, 73.12},
+    {"G-6",  ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(6),  COL_LON(6) + 0.02},   // 73.00-73.02
+    {"G-7",  ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(7),  COL_LON(7) + 0.02},   // 73.02-73.04
+    {"G-8",  ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(8),  COL_LON(8) + 0.02},   // 73.04-73.06 (Centaurus)
+    {"G-9",  ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(9),  COL_LON(9) + 0.02},   // 73.06-73.08
+    {"G-10", ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(10), COL_LON(10) + 0.02},  // 73.08-73.10
+    {"G-11", ROW_G_LAT, ROW_G_LAT + 0.02, COL_LON(11), COL_LON(11) + 0.02},  // 73.10-73.12
 
     // =========================================================================
-    // H-SERIES (Row 4) - Lat 33.66 to 33.68
+    // H-SERIES (Row 4) - Mixed residential
+    // Lat: 33.66 to 33.68
+    // H-8 through H-13 exist (no H-6, H-7)
     // =========================================================================
-    {"H-5",  33.66, 33.68, 72.96, 72.98},
-    {"H-6",  33.66, 33.68, 72.98, 73.00},
-    {"H-7",  33.66, 33.68, 73.00, 73.02},
-    {"H-8",  33.66, 33.68, 73.02, 73.04},
-    {"H-9",  33.66, 33.68, 73.04, 73.06},
-    {"H-10", 33.66, 33.68, 73.06, 73.08},
-    {"H-11", 33.66, 33.68, 73.08, 73.10},
-    {"H-12", 33.66, 33.68, 73.10, 73.12},
+    {"H-8",  ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(8),  COL_LON(8) + 0.02},   // 73.04-73.06
+    {"H-9",  ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(9),  COL_LON(9) + 0.02},   // 73.06-73.08
+    {"H-10", ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(10), COL_LON(10) + 0.02},  // 73.08-73.10
+    {"H-11", ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(11), COL_LON(11) + 0.02},  // 73.10-73.12
+    {"H-12", ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(12), COL_LON(12) + 0.02},  // 73.12-73.14
+    {"H-13", ROW_H_LAT, ROW_H_LAT + 0.02, COL_LON(13), COL_LON(13) + 0.02},  // 73.14-73.16
 
     // =========================================================================
-    // I-SERIES (Row 5 - Southernmost) - Lat 33.64 to 33.66
+    // I-SERIES (Row 5 - Southernmost) - Newer/developing sectors
+    // Lat: 33.64 to 33.66
+    // I-8 through I-14 exist (no I-6, I-7)
     // =========================================================================
-    {"I-5",  33.64, 33.66, 72.96, 72.98},  // Southwest corner
-    {"I-6",  33.64, 33.66, 72.98, 73.00},
-    {"I-7",  33.64, 33.66, 73.00, 73.02},
-    {"I-8",  33.64, 33.66, 73.02, 73.04},
-    {"I-9",  33.64, 33.66, 73.04, 73.06},
-    {"I-10", 33.64, 33.66, 73.06, 73.08},
-    {"I-11", 33.64, 33.66, 73.08, 73.10},
-    {"I-12", 33.64, 33.66, 73.10, 73.12}   // Southeast corner
+    {"I-8",  ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(8),  COL_LON(8) + 0.02},   // 73.04-73.06
+    {"I-9",  ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(9),  COL_LON(9) + 0.02},   // 73.06-73.08
+    {"I-10", ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(10), COL_LON(10) + 0.02},  // 73.08-73.10
+    {"I-11", ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(11), COL_LON(11) + 0.02},  // 73.10-73.12
+    {"I-12", ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(12), COL_LON(12) + 0.02},  // 73.12-73.14
+    {"I-13", ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(13), COL_LON(13) + 0.02},  // 73.14-73.16
+    {"I-14", ROW_I_LAT, ROW_I_LAT + 0.02, COL_LON(14), COL_LON(14) + 0.02}   // 73.16-73.18
 };
 
 // ============================================================================
@@ -428,8 +433,6 @@ public:
         lat = 33.65;
         lon = 73.01;
     }
-    
-    
     
     static SectorBox* getSectorBox(const string& name) {
         int idx = getSectorIndex(name);
