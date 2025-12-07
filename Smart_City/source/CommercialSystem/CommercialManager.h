@@ -315,7 +315,10 @@ public:
             delete malls[i];
         }
     }
-
+    void addMall(Mall* mall);
+    bool removeShop(const string& mallID, const string& shopID);
+    bool removeMall(const string& mallID);
+    void unindexShop(Shop* shop);
     string trim(const string& s) const;
     int parseInt(const string& s);
     void loadMalls(const string& filename);
@@ -327,6 +330,64 @@ public:
 
 // Implementation
 
+
+inline void CommercialManager::addMall(Mall* mall) {
+    if (!mall) return;
+    malls.push_back(mall);
+    mallLookup.insert(mall->id, mall);
+}
+
+
+inline void CommercialManager::unindexShop(Shop* shop) {
+    if (!shop) return;
+
+    Vector<Shop*>* catList = categoryLookup.get(shop->getCategory());
+    if (catList) {
+        catList->remove(shop);
+    }
+
+    
+    const Vector<Product>& inventory = shop->getInventory();
+    for (int i = 0; i < inventory.getSize(); i++) {
+        string pName = inventory[i].getName();
+        Vector<Shop*>* prodList = productLookup.get(pName);
+        if (prodList) {
+            prodList->remove(shop);
+        }
+    }
+}
+
+inline bool CommercialManager::removeShop(const string& mallID, const string& shopID) {
+    Mall** mPtr = mallLookup.get(mallID);
+    if (!mPtr || !(*mPtr)) return false;
+    Mall* mall = *mPtr;
+
+    Shop* shopToDelete = mall->findShopByID(shopID);
+    if (!shopToDelete) return false;
+
+    unindexShop(shopToDelete);
+
+     return mall->removeShop(shopID);
+}
+
+inline bool CommercialManager::removeMall(const string& mallID) {
+    Mall** mPtr = mallLookup.get(mallID);
+    if (!mPtr || !(*mPtr)) return false;
+    Mall* mallToDelete = *mPtr;
+
+   const Vector<Shop*>& shops = mallToDelete->getShops();
+    for (int i = 0; i < shops.getSize(); i++) {
+        unindexShop(shops[i]);
+    }
+
+    mallLookup.remove(mallID);
+
+    malls.remove(mallToDelete);
+
+    delete mallToDelete;
+
+    return true;
+}
 
 string CommercialManager::trim(const string& s) const {
     int start = 0, end = (int)s.size() - 1;
