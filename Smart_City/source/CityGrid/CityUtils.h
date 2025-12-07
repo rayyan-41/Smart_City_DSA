@@ -429,7 +429,7 @@ public:
         lon = 73.01;
     }
     
-    }
+    
     
     static SectorBox* getSectorBox(const string& name) {
         int idx = getSectorIndex(name);

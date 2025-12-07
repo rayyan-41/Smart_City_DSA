@@ -706,12 +706,12 @@ inline bool SmartCity::dischargePatient(const string& hospitalID, const string& 
 }
 
 inline Vector<Pharmacy*> SmartCity::findPharmaciesByMedicine(const string& medicineName) {
-    if (!cityInitialized) return Vector<Pharmacy[]>();
+    if (!cityInitialized) return Vector<Pharmacy*>();
     return medicalManager->findMedicine(medicineName);
 }
 
 inline Vector<Pharmacy*> SmartCity::findPharmaciesByFormula(const string& formula) {
-    if (!cityInitialized) return Vector<Pharmacy[]>();
+    if (!cityInitialized) return Vector<Pharmacy*>();
     return medicalManager->findMedicineByFormula(formula);
 }
 
