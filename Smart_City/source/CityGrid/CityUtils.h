@@ -79,7 +79,7 @@ namespace FacilityType {
         if (type == RESTAURANT) return "RST";
         if (type == PUBLIC_TOILET) return "TOI";
         if (type == STOP) return "STP";
-        if (type == HOUSE) return "HSE";          // NEW: House prefix
+        if (type == HOUSE) return "HSE";          
         return "FAC";
     }
 }
