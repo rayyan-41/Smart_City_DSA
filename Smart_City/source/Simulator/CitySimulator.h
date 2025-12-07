@@ -37,7 +37,8 @@ struct Point2D {
 
 struct GraphNode2D {
     int id;
-    Point2D pos;
+    double lat, lon;        // Store original geo coordinates (immutable)
+    Point2D pos;            // Computed canvas position (recomputed on render)
     string name;
     string type;
     string sector;
@@ -48,7 +49,7 @@ struct GraphNode2D {
     bool isStart;       // Starting node
     bool isEnd;         // Destination node
 
-    GraphNode2D() : id(-1), pos(), name(""), type(""), sector(""),
+    GraphNode2D() : id(-1), lat(0), lon(0), pos(), name(""), type(""), sector(""),
         color(Color::White), isCorner(false), isOnPath(false),
         isVisited(false), isStart(false), isEnd(false) {
     }
@@ -63,17 +64,46 @@ struct GraphEdge2D {
 
 struct SectorRegion {
     string name;
-    Point2D topLeft, bottomRight;
+    double minLat, maxLat, minLon, maxLon;  // Store original geo bounds
+    Point2D topLeft, bottomRight;            // Computed canvas positions
     Point2D center;
     bool isHovered;
 
-    SectorRegion() : name(""), topLeft(), bottomRight(), center(), isHovered(false) {}
+    SectorRegion() : name(""), minLat(0), maxLat(0), minLon(0), maxLon(0),
+        topLeft(), bottomRight(), center(), isHovered(false) {}
 
     bool contains(Point2D p) const {
         return p.x >= topLeft.x && p.x <= bottomRight.x &&
             p.y >= topLeft.y && p.y <= bottomRight.y;
     }
 };
+
+// Traffic vehicle for animation
+struct TrafficVehicle {
+    int edgeFromID, edgeToID;
+    double progress;        // 0.0 to 1.0 along the edge
+    double speed;           // Progress per frame
+    Color color;
+    
+    TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02), color(Color::Yellow) {}
+};
+
+// ============================================================================
+// GRAPH RENDERING CONSTANTS
+// ============================================================================
+namespace GraphRenderConfig {
+    // Edge (road) thickness - number of parallel lines to draw
+    constexpr int ROAD_THICKNESS = 2;          // Normal roads
+    constexpr int PATH_THICKNESS = 3;          // Dijkstra path roads (thicker)
+    
+    // Vertex (node) size - radius in canvas units
+    constexpr int FACILITY_RADIUS = 3;         // Facilities like schools, hospitals
+    constexpr int CORNER_RADIUS = 2;           // Sector corners/intersections
+    constexpr int PATH_NODE_RADIUS = 4;        // Nodes on Dijkstra path (larger)
+    constexpr int START_END_RADIUS = 5;        // Start/End nodes (largest)
+    constexpr int HOUSE_RADIUS = 1;            // Houses (small dots)
+    constexpr int TRAFFIC_RADIUS = 2;          // Traffic vehicles
+}
 
 // ============================================================================
 // GRAPH VIEWPORT - Simple coordinate transformation (no normalization)
@@ -101,14 +131,19 @@ public:
         canvasWidth = w; canvasHeight = h;
     }
 
+    // Get canvas dimensions
+    int getCanvasWidth() const { return canvasWidth; }
+    int getCanvasHeight() const { return canvasHeight; }
+
     // Simple linear mapping - keeps natural tilt of geographic data
+    // This is called at RENDER time, not build time
     Point2D geoToCanvas(double lat, double lon) const {
         // Map longitude to X (west to east = left to right)
         double normX = (lon - minLon) / (maxLon - minLon);
         // Map latitude to Y (north to south = top to bottom, so invert)
         double normY = (maxLat - lat) / (maxLat - minLat);
 
-        // Apply zoom centered
+        // Apply zoom centered on view
         normX = (normX - 0.5) * zoom + 0.5 + offsetX;
         normY = (normY - 0.5) * zoom + 0.5 + offsetY;
 
@@ -122,13 +157,15 @@ public:
 
     void zoomIn() { zoom *= 1.2; if (zoom > 5.0) zoom = 5.0; }
     void zoomOut() { zoom /= 1.2; if (zoom < 0.5) zoom = 0.5; }
-    void panLeft() { offsetX -= 0.1 / zoom; }
-    void panRight() { offsetX += 0.1 / zoom; }
-    void panUp() { offsetY -= 0.1 / zoom; }
-    void panDown() { offsetY += 0.1 / zoom; }
+    void panLeft() { offsetX -= 0.05 / zoom; }
+    void panRight() { offsetX += 0.05 / zoom; }
+    void panUp() { offsetY -= 0.05 / zoom; }
+    void panDown() { offsetY += 0.05 / zoom; }
     void resetView() { zoom = 1.0; offsetX = 0; offsetY = 0; }
 
     double getZoom() const { return zoom; }
+    double getOffsetX() const { return offsetX; }
+    double getOffsetY() const { return offsetY; }
 };
 
 // ============================================================================
@@ -191,6 +228,7 @@ private:
     std::vector<GraphEdge2D> graphEdges;
     std::vector<SectorRegion> sectorRegions;
     std::vector<int> nodeIdToIndex;
+    std::vector<TrafficVehicle> trafficVehicles;  // Traffic simulation
     GraphViewport viewport;
 
     int mouseX, mouseY;
@@ -200,15 +238,19 @@ private:
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
+    bool showHouses;          // Toggle houses display
+    bool showTraffic;         // Toggle traffic animation
+    bool trafficPaused;       // Pause traffic
 
     // Dijkstra visualization state
     DijkstraMode dijkstraMode;
     int dijkstraStartNode;
     int dijkstraEndNode;
-    string dijkstraTargetType;  // "SCHOOL", "HOSPITAL", "STOP", "SECTOR", etc.
+    string dijkstraTargetType;  // "SCHOOL", "HOSPITAL", "STOP", "SECTOR", "CUSTOM"
     Vector<int> dijkstraPath;
     double dijkstraDistance;
-    int dijkstraNodeSelection;  // For selecting start node
+    int dijkstraNodeSelection;      // For selecting start node
+    int dijkstraEndNodeSelection;   // For selecting end node (point-to-point)
     std::vector<int> selectableNodes;  // Nodes user can select from
 
     string stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV;
@@ -218,7 +260,7 @@ private:
     int intersectionCounter;
 
     Color getNodeColor(const string& type) {
-        if (type == "CORNER") return Color::GrayDark;
+        if (type == "CORNER") return Color::White;  // Corners are white
         if (type == "STOP") return Color::GreenLight;
         if (type == "SCHOOL") return Color::Blue;
         if (type == "HOSPITAL") return Color::Red;
@@ -231,6 +273,7 @@ private:
         if (type == "LIBRARY") return Color::Blue1;
         if (type == "ATM") return Color::Gold1;
         if (type == "RESTAURANT") return Color::Orange3;
+        if (type == "HOUSE") return Color::GrayLight;
         return Color::White;
     }
 
@@ -266,7 +309,12 @@ public:
     // Dijkstra helpers
     void clearDijkstraVisualization();
     void runDijkstraAlgorithm();
+    void runDijkstraPointToPoint();  // New: point-to-point pathfinding
     void buildSelectableNodesList();
+
+    // Traffic simulation
+    void initializeTraffic();
+    void updateTraffic();
 
     void sleepMs(int ms);
     bool fileExists(const string& path);
@@ -283,11 +331,13 @@ inline CitySimulator::CitySimulator()
     cityInitialized(false),
     mouseX(0), mouseY(0),
     hoveredNodeID(-1), hoveredSector(""),
-    showCorners(false), showRoads(true), showSectorBounds(false),
+    showCorners(true), showRoads(true), showSectorBounds(false),
+    showHouses(false), showTraffic(false), trafficPaused(false),
     dijkstraMode(DijkstraMode::SELECT_START),
     dijkstraStartNode(-1), dijkstraEndNode(-1),
     dijkstraTargetType(""), dijkstraDistance(0.0),
-    dijkstraNodeSelection(0), intersectionCounter(0) {
+    dijkstraNodeSelection(0), dijkstraEndNodeSelection(0),
+    intersectionCounter(0) {
 
     stopsCSV = "dataset/stops.csv";
     schoolsCSV = "dataset/schools.csv";
@@ -338,14 +388,16 @@ inline void CitySimulator::buildGraphVisualization() {
     }
     nodeIdToIndex.resize(maxId + 1, -1);
 
-    // Build graph nodes
+    // Build graph nodes - store GEO coordinates, not canvas positions
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
 
         GraphNode2D gNode;
         gNode.id = node->id;
-        gNode.pos = viewport.geoToCanvas(node->lat, node->lon);
+        gNode.lat = node->lat;      // Store original lat
+        gNode.lon = node->lon;      // Store original lon
+        gNode.pos = Point2D(0, 0);  // Will be computed at render time
         gNode.type = node->type;
         gNode.sector = node->sector;
         gNode.color = getNodeColor(node->type);
@@ -385,22 +437,25 @@ inline void CitySimulator::buildGraphVisualization() {
         }
     }
 
-    // Build sector regions from hardcoded SECTOR_GRID
+    // Build sector regions - store GEO bounds, not canvas positions
     for (int i = 0; i < SECTOR_COUNT; i++) {
         SectorRegion region;
         region.name = SECTOR_GRID[i].name;
-
-        Point2D tl = viewport.geoToCanvas(SECTOR_GRID[i].maxLat, SECTOR_GRID[i].minLon);
-        Point2D br = viewport.geoToCanvas(SECTOR_GRID[i].minLat, SECTOR_GRID[i].maxLon);
-
-        region.topLeft = Point2D(std::min(tl.x, br.x), std::min(tl.y, br.y));
-        region.bottomRight = Point2D(std::max(tl.x, br.x), std::max(tl.y, br.y));
-        region.center = Point2D((region.topLeft.x + region.bottomRight.x) / 2,
-            (region.topLeft.y + region.bottomRight.y) / 2);
+        region.minLat = SECTOR_GRID[i].minLat;
+        region.maxLat = SECTOR_GRID[i].maxLat;
+        region.minLon = SECTOR_GRID[i].minLon;
+        region.maxLon = SECTOR_GRID[i].maxLon;
         region.isHovered = false;
         sectorRegions.push_back(region);
     }
+
+    // Initialize traffic if enabled
+    initializeTraffic();
 }
+
+// ============================================================================
+// GRAPH RENDERING - Optimized and Centralized
+// ============================================================================
 
 inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
     Canvas canvas(width * 2, height * 4);
@@ -411,7 +466,56 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
 
     auto stylize = [](Color c) -> Canvas::Stylizer {
         return [c](Pixel& p) { p.foreground_color = c; };
-        };
+    };
+
+    // Helper function to draw a thick line (multiple parallel lines)
+    auto drawThickLine = [&](int x1, int y1, int x2, int y2, int thickness, Color c) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double len = std::sqrt(dx * dx + dy * dy);
+        if (len < 0.001) return;
+        
+        double perpX = -dy / len;
+        double perpY = dx / len;
+        
+        int halfThick = thickness / 2;
+        for (int t = -halfThick; t <= halfThick; t++) {
+            int offsetX = (int)(perpX * t);
+            int offsetY = (int)(perpY * t);
+            canvas.DrawBlockLine(x1 + offsetX, y1 + offsetY, 
+                                 x2 + offsetX, y2 + offsetY, stylize(c));
+        }
+    };
+
+    // Helper function to draw a filled circle (for vertices)
+    auto drawFilledCircle = [&](int cx, int cy, int radius, Color c) {
+        for (int dy = -radius; dy <= radius; dy++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                if (dx * dx + dy * dy <= radius * radius) {
+                    int px = cx + dx;
+                    int py = cy + dy;
+                    if (px >= 0 && px < cw && py >= 0 && py < ch) {
+                        canvas.DrawBlock(px, py, true, stylize(c));
+                    }
+                }
+            }
+        }
+    };
+
+    // Compute canvas positions for all nodes (at render time, not build time)
+    for (auto& node : graphNodes) {
+        node.pos = viewport.geoToCanvas(node.lat, node.lon);
+    }
+
+    // Compute canvas positions for sector regions
+    for (auto& region : sectorRegions) {
+        Point2D tl = viewport.geoToCanvas(region.maxLat, region.minLon);
+        Point2D br = viewport.geoToCanvas(region.minLat, region.maxLon);
+        region.topLeft = Point2D(std::min(tl.x, br.x), std::min(tl.y, br.y));
+        region.bottomRight = Point2D(std::max(tl.x, br.x), std::max(tl.y, br.y));
+        region.center = Point2D((region.topLeft.x + region.bottomRight.x) / 2,
+                                (region.topLeft.y + region.bottomRight.y) / 2);
+    }
 
     // Draw sector boundaries if enabled
     if (showSectorBounds) {
@@ -421,6 +525,12 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
             int x2 = (int)region.bottomRight.x;
             int y2 = (int)region.bottomRight.y;
 
+            // Clamp to canvas bounds
+            x1 = std::max(0, std::min(cw - 1, x1));
+            y1 = std::max(0, std::min(ch - 1, y1));
+            x2 = std::max(0, std::min(cw - 1, x2));
+            y2 = std::max(0, std::min(ch - 1, y2));
+
             Color boundColor = region.isHovered ? Color::Yellow : Color::GrayDark;
             canvas.DrawBlockLine(x1, y1, x2, y1, stylize(boundColor));
             canvas.DrawBlockLine(x2, y1, x2, y2, stylize(boundColor));
@@ -429,9 +539,12 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
         }
     }
 
-    // Draw roads (edges)
+    // Draw roads (edges) with proportional thickness
     if (showRoads) {
+        // First pass: draw non-path roads
         for (const auto& edge : graphEdges) {
+            if (edge.isOnPath) continue;
+            
             int idx1 = (edge.fromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.fromID] : -1;
             int idx2 = (edge.toID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.toID] : -1;
             if (idx1 >= 0 && idx2 >= 0 && idx1 < (int)graphNodes.size() && idx2 < (int)graphNodes.size()) {
@@ -440,47 +553,101 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
                 int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
 
-                // Color based on Dijkstra path
-                Color roadColor = Color::GrayDark;
-                if (edge.isOnPath) {
-                    roadColor = Color::Green;
-                }
-                canvas.DrawBlockLine(x1, y1, x2, y2, stylize(roadColor));
+                drawThickLine(x1, y1, x2, y2, GraphRenderConfig::ROAD_THICKNESS, Color::GrayDark);
+            }
+        }
+        
+        // Second pass: draw path roads on top (green, thicker)
+        for (const auto& edge : graphEdges) {
+            if (!edge.isOnPath) continue;
+            
+            int idx1 = (edge.fromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 >= 0 && idx2 >= 0 && idx1 < (int)graphNodes.size() && idx2 < (int)graphNodes.size()) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
+                int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
+
+                drawThickLine(x1, y1, x2, y2, GraphRenderConfig::PATH_THICKNESS, Color::Green);
             }
         }
     }
 
-    // Draw corners (intersections) - single block each
+    // Draw traffic vehicles if enabled
+    if (showTraffic && !trafficPaused) {
+        for (const auto& vehicle : trafficVehicles) {
+            int idx1 = (vehicle.edgeFromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[vehicle.edgeFromID] : -1;
+            int idx2 = (vehicle.edgeToID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[vehicle.edgeToID] : -1;
+            if (idx1 >= 0 && idx2 >= 0) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                
+                // Interpolate position along edge
+                int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
+                int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
+                
+                if (vx >= 0 && vx < cw && vy >= 0 && vy < ch) {
+                    drawFilledCircle(vx, vy, GraphRenderConfig::TRAFFIC_RADIUS, vehicle.color);
+                }
+            }
+        }
+    }
+
+    // Draw houses if enabled
+    if (showHouses) {
+        for (const auto& node : graphNodes) {
+            if (node.type != "HOUSE") continue;
+            int x = (int)node.pos.x;
+            int y = (int)node.pos.y;
+            if (x >= 0 && x < cw && y >= 0 && y < ch) {
+                drawFilledCircle(x, y, GraphRenderConfig::HOUSE_RADIUS, Color::GrayLight);
+            }
+        }
+    }
+
+    // Draw corners (intersections) - white colored with fixed size
     if (showCorners) {
         for (const auto& node : graphNodes) {
             if (!node.isCorner) continue;
             int x = (int)node.pos.x;
             int y = (int)node.pos.y;
             if (x >= 0 && x < cw && y >= 0 && y < ch) {
-                Color c = node.isOnPath ? Color::GreenLight : Color::GrayLight;
-                canvas.DrawBlock(x, y, true, stylize(c));
+                Color c = Color::White;
+                int radius = GraphRenderConfig::CORNER_RADIUS;
+                
+                if (node.isOnPath) {
+                    c = Color::GreenLight;
+                    radius = GraphRenderConfig::PATH_NODE_RADIUS;
+                }
+                
+                drawFilledCircle(x, y, radius, c);
             }
         }
     }
 
-    // Draw facilities - single block each with color coding
+    // Draw facilities - fixed width with color coding
     for (const auto& node : graphNodes) {
-        if (node.isCorner) continue;
+        if (node.isCorner || node.type == "HOUSE") continue;
         int x = (int)node.pos.x;
         int y = (int)node.pos.y;
         if (x < 0 || x >= cw || y < 0 || y >= ch) continue;
 
         Color nodeColor = node.color;
+        int radius = GraphRenderConfig::FACILITY_RADIUS;
 
-        // Override colors for Dijkstra visualization
+        // Override colors and sizes for Dijkstra visualization
         if (node.isStart) {
             nodeColor = Color::Cyan;
+            radius = GraphRenderConfig::START_END_RADIUS;
         }
         else if (node.isEnd) {
             nodeColor = Color::Yellow;
+            radius = GraphRenderConfig::START_END_RADIUS;
         }
         else if (node.isOnPath) {
             nodeColor = Color::GreenLight;
+            radius = GraphRenderConfig::PATH_NODE_RADIUS;
         }
         else if (node.isVisited) {
             nodeColor = Color::Orange1;
@@ -489,10 +656,10 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
         // Hovered node highlight
         if (node.id == hoveredNodeID) {
             nodeColor = Color::White;
+            radius = GraphRenderConfig::PATH_NODE_RADIUS;
         }
 
-        // Draw single block
-        canvas.DrawBlock(x, y, true, stylize(nodeColor));
+        drawFilledCircle(x, y, radius, nodeColor);
     }
 
     return canvas;
@@ -504,12 +671,15 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
     hoveredNodeID = -1;
     hoveredSector = "";
 
+    // Convert mouse position to canvas coordinates
     int canvasX = (mx - 1) * 2;
     int canvasY = (my - 2) * 4;
 
-    double minDist = 20.0;
+    double minDist = 25.0;  // Increased hover distance
     for (const auto& node : graphNodes) {
         if (node.isCorner && !showCorners) continue;
+        if (node.type == "HOUSE" && !showHouses) continue;
+        
         double dx = node.pos.x - canvasX;
         double dy = node.pos.y - canvasY;
         double dist = std::sqrt(dx * dx + dy * dy);
@@ -534,16 +704,15 @@ inline string CitySimulator::getHoverInfo() {
         int idx = nodeIdToIndex[hoveredNodeID];
         if (idx >= 0 && idx < (int)graphNodes.size()) {
             const GraphNode2D& node = graphNodes[idx];
-            ss << "NODE: " << node.name << "\n";
+            ss << node.name.substr(0, 18) << "\n";
             ss << "Type: " << node.type << "\n";
-            ss << "Sector: " << node.sector << "\n";
-            ss << "ID: " << node.id;
+            ss << "Sector: " << node.sector;
             return ss.str();
         }
     }
 
     if (!hoveredSector.empty()) {
-        ss << "SECTOR: " << hoveredSector;
+        ss << "SECTOR:\n" << hoveredSector;
         return ss.str();
     }
 
@@ -626,6 +795,119 @@ inline void CitySimulator::runDijkstraAlgorithm() {
             if ((edge.fromID == from && edge.toID == to) ||
                 (edge.fromID == to && edge.toID == from)) {
                 edge.isOnPath = true;
+            }
+        }
+    }
+}
+
+inline void CitySimulator::runDijkstraPointToPoint() {
+    if (!islamabad || !islamabad->getCityGraph()) return;
+    if (dijkstraStartNode < 0 || dijkstraEndNode < 0) return;
+
+    CityGraph* graph = islamabad->getCityGraph();
+
+    // Run Dijkstra between two specific points
+    dijkstraPath = graph->findShortestPath(dijkstraStartNode, dijkstraEndNode, dijkstraDistance);
+
+    // Mark nodes on path
+    for (int i = 0; i < dijkstraPath.getSize(); i++) {
+        int nodeId = dijkstraPath[i];
+        if (nodeId < (int)nodeIdToIndex.size()) {
+            int idx = nodeIdToIndex[nodeId];
+            if (idx >= 0 && idx < (int)graphNodes.size()) {
+                graphNodes[idx].isOnPath = true;
+            }
+        }
+    }
+
+    // Mark start and end
+    if (dijkstraStartNode < (int)nodeIdToIndex.size()) {
+        int idx = nodeIdToIndex[dijkstraStartNode];
+        if (idx >= 0) graphNodes[idx].isStart = true;
+    }
+    if (dijkstraEndNode < (int)nodeIdToIndex.size()) {
+        int idx = nodeIdToIndex[dijkstraEndNode];
+        if (idx >= 0) graphNodes[idx].isEnd = true;
+    }
+
+    // Mark edges on path
+    for (int i = 0; i < dijkstraPath.getSize() - 1; i++) {
+        int from = dijkstraPath[i];
+        int to = dijkstraPath[i + 1];
+        for (auto& edge : graphEdges) {
+            if ((edge.fromID == from && edge.toID == to) ||
+                (edge.fromID == to && edge.toID == from)) {
+                edge.isOnPath = true;
+            }
+        }
+    }
+}
+
+// ============================================================================
+// TRAFFIC SIMULATION
+// ============================================================================
+
+inline void CitySimulator::initializeTraffic() {
+    trafficVehicles.clear();
+    
+    if (graphEdges.empty()) return;
+    
+    // Create some random traffic vehicles on edges
+    int numVehicles = std::min(20, (int)graphEdges.size() / 3);
+    
+    for (int i = 0; i < numVehicles; i++) {
+        TrafficVehicle vehicle;
+        int edgeIdx = rand() % graphEdges.size();
+        vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
+        vehicle.edgeToID = graphEdges[edgeIdx].toID;
+        vehicle.progress = (rand() % 100) / 100.0;
+        vehicle.speed = 0.01 + (rand() % 30) / 1000.0;  // Variable speeds
+        
+        // Different vehicle colors
+        int colorChoice = rand() % 4;
+        if (colorChoice == 0) vehicle.color = Color::Yellow;
+        else if (colorChoice == 1) vehicle.color = Color::Orange1;
+        else if (colorChoice == 2) vehicle.color = Color::Cyan;
+        else vehicle.color = Color::RedLight;
+        
+        trafficVehicles.push_back(vehicle);
+    }
+}
+
+inline void CitySimulator::updateTraffic() {
+    if (trafficPaused || trafficVehicles.empty()) return;
+    
+    for (auto& vehicle : trafficVehicles) {
+        vehicle.progress += vehicle.speed;
+        
+        // When vehicle reaches end, pick a new random edge
+        if (vehicle.progress >= 1.0) {
+            vehicle.progress = 0.0;
+            
+            // Try to find a connected edge for smooth traffic flow
+            int currentEndID = vehicle.edgeToID;
+            std::vector<int> connectedEdges;
+            
+            for (int i = 0; i < (int)graphEdges.size(); i++) {
+                if (graphEdges[i].fromID == currentEndID || graphEdges[i].toID == currentEndID) {
+                    connectedEdges.push_back(i);
+                }
+            }
+            
+            if (!connectedEdges.empty()) {
+                int nextEdgeIdx = connectedEdges[rand() % connectedEdges.size()];
+                if (graphEdges[nextEdgeIdx].fromID == currentEndID) {
+                    vehicle.edgeFromID = graphEdges[nextEdgeIdx].fromID;
+                    vehicle.edgeToID = graphEdges[nextEdgeIdx].toID;
+                } else {
+                    vehicle.edgeFromID = graphEdges[nextEdgeIdx].toID;
+                    vehicle.edgeToID = graphEdges[nextEdgeIdx].fromID;
+                }
+            } else if (!graphEdges.empty()) {
+                // Pick random edge if no connection found
+                int edgeIdx = rand() % graphEdges.size();
+                vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
+                vehicle.edgeToID = graphEdges[edgeIdx].toID;
             }
         }
     }
@@ -996,12 +1278,24 @@ inline void CitySimulator::runLoadingScreen() {
 
 inline void CitySimulator::runGraphView() {
     auto screen = ScreenInteractive::Fullscreen();
-    buildGraphVisualization();
+    buildGraphVisualization();  // Build once at start
+
+    // Traffic update thread
+    std::atomic<bool> running{ true };
+    std::thread trafficThread([&]() {
+        while (running.load()) {
+            if (showTraffic && !trafficPaused) {
+                updateTraffic();
+                screen.PostEvent(Event::Custom);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
 
     auto renderer = Renderer([&] {
         int termW = Terminal::Size().dimx;
         int termH = Terminal::Size().dimy;
-        int canvasW = termW - 35;
+        int canvasW = termW - 25;
         int canvasH = termH - 4;
 
         Canvas c = renderGraphToCanvas(canvasW, canvasH);
@@ -1020,6 +1314,7 @@ inline void CitySimulator::runGraphView() {
             hbox({text("■") | color(Color::Red), text(" Hospital")}),
             hbox({text("■") | color(Color::Magenta), text(" Pharmacy")}),
             hbox({text("■") | color(Color::Yellow), text(" Mall")}),
+            hbox({text("■") | color(Color::White), text(" Corner")}),
             separator(),
             text("INFO") | bold | color(Color::Yellow),
             vbox(hoverLines),
@@ -1027,13 +1322,16 @@ inline void CitySimulator::runGraphView() {
             text("KEYS") | bold | color(Color::Cyan),
             text("+/-: Zoom"),
             text("Arrows: Pan"),
-            text("R: Roads"),
-            text("C: Corners"),
-            text("S: Sectors"),
+            text("0: Reset view"),
+            text("R: Roads " + string(showRoads ? "[ON]" : "[off]")),
+            text("C: Corners " + string(showCorners ? "[ON]" : "[off]")),
+            text("S: Sectors " + string(showSectorBounds ? "[ON]" : "[off]")),
+            text("H: Houses " + string(showHouses ? "[ON]" : "[off]")),
+            text("T: Traffic " + string(showTraffic ? "[ON]" : "[off]")),
             text("D: Dijkstra"),
             separator(),
             text("Esc: Menu"),
-            }) | border | size(WIDTH, EQUAL, 20);
+            }) | border | size(WIDTH, EQUAL, 22);
 
         return vbox({
             text("ISLAMABAD MAP") | bold | center | color(Color::Green),
@@ -1042,37 +1340,67 @@ inline void CitySimulator::runGraphView() {
         });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); buildGraphVisualization(); return true; }
-        if (e == Event::Character('-')) { viewport.zoomOut(); buildGraphVisualization(); return true; }
-        if (e == Event::ArrowLeft) { viewport.panLeft(); buildGraphVisualization(); return true; }
-        if (e == Event::ArrowRight) { viewport.panRight(); buildGraphVisualization(); return true; }
-        if (e == Event::ArrowUp) { viewport.panUp(); buildGraphVisualization(); return true; }
-        if (e == Event::ArrowDown) { viewport.panDown(); buildGraphVisualization(); return true; }
+        // Zoom - NO rebuild needed, positions computed at render time
+        if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('i')) { 
+            viewport.zoomIn(); 
+            return true; 
+        }
+        if (e == Event::Character('-') || e == Event::Character('o')) { 
+            viewport.zoomOut(); 
+            return true; 
+        }
+        // Pan - NO rebuild needed
+        if (e == Event::ArrowLeft) { viewport.panLeft(); return true; }
+        if (e == Event::ArrowRight) { viewport.panRight(); return true; }
+        if (e == Event::ArrowUp) { viewport.panUp(); return true; }
+        if (e == Event::ArrowDown) { viewport.panDown(); return true; }
+        // Reset view
+        if (e == Event::Character('0')) { viewport.resetView(); return true; }
+        // Toggle options
         if (e == Event::Character('r') || e == Event::Character('R')) { showRoads = !showRoads; return true; }
         if (e == Event::Character('c') || e == Event::Character('C')) { showCorners = !showCorners; return true; }
         if (e == Event::Character('s') || e == Event::Character('S')) { showSectorBounds = !showSectorBounds; return true; }
-        if (e == Event::Character('d') || e == Event::Character('D')) { currentState = SimulatorState::DIJKSTRA_VIEW; screen.Exit(); return true; }
+        if (e == Event::Character('h') || e == Event::Character('H')) { showHouses = !showHouses; return true; }
+        if (e == Event::Character('t') || e == Event::Character('T')) { showTraffic = !showTraffic; return true; }
+        if (e == Event::Character('p') || e == Event::Character('P')) { trafficPaused = !trafficPaused; return true; }
+        if (e == Event::Character('d') || e == Event::Character('D')) { 
+            running.store(false);
+            currentState = SimulatorState::DIJKSTRA_VIEW; 
+            screen.Exit(); 
+            return true; 
+        }
         if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
-        if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
+        if (e == Event::Escape) { 
+            running.store(false);
+            currentState = SimulatorState::MAIN_MENU; 
+            screen.Exit(); 
+            return true; 
+        }
         return false;
         });
     screen.Loop(comp);
+    
+    running.store(false);
+    if (trafficThread.joinable()) trafficThread.join();
 }
-
-// ============================================================================
-// DIJKSTRA VIEW - Interactive Pathfinding Visualization
-// ============================================================================
 
 inline void CitySimulator::runDijkstraView() {
     auto screen = ScreenInteractive::Fullscreen();
-    buildGraphVisualization();
+    if (graphNodes.empty()) buildGraphVisualization();
     clearDijkstraVisualization();
     buildSelectableNodesList();
 
     dijkstraMode = DijkstraMode::SELECT_START;
     dijkstraNodeSelection = 0;
+    dijkstraEndNodeSelection = 0;
 
-    std::vector<string> targetTypes = { "Nearest School", "Nearest Hospital", "Nearest Pharmacy", "Nearest Bus Stop" };
+    std::vector<string> targetTypes = { 
+        "Nearest School", 
+        "Nearest Hospital", 
+        "Nearest Pharmacy", 
+        "Nearest Bus Stop",
+        ">>> Custom Location <<<" // New option for point-to-point
+    };
     int targetSel = 0;
 
     auto renderer = Renderer([&] {
@@ -1089,19 +1417,19 @@ inline void CitySimulator::runDijkstraView() {
         controlItems.push_back(separator());
 
         if (dijkstraMode == DijkstraMode::SELECT_START) {
-            controlItems.push_back(text("SELECT START") | bold | color(Color::Yellow));
+            controlItems.push_back(text("SELECT START POINT") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
 
-            // Show scrollable list of nodes
             int startIdx = std::max(0, dijkstraNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.size(), startIdx + 12);
+            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
 
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
                 int idx = nodeIdToIndex[nodeId];
                 if (idx >= 0 && idx < (int)graphNodes.size()) {
                     string nodeName = graphNodes[idx].name;
-                    if (nodeName.length() > 18) nodeName = nodeName.substr(0, 15) + "...";
+                    string nodeType = graphNodes[idx].type;
+                    if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
                     auto item = text((i == dijkstraNodeSelection ? "> " : "  ") + nodeName);
                     if (i == dijkstraNodeSelection) item = item | bold | color(Color::Green);
                     controlItems.push_back(item);
@@ -1110,13 +1438,35 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
             controlItems.push_back(text("Up/Down: Select") | dim);
             controlItems.push_back(text("Enter: Confirm") | dim);
-
         }
         else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
-            controlItems.push_back(text("SELECT TARGET") | bold | color(Color::Yellow));
+            controlItems.push_back(text("SELECT DESTINATION") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
 
-            // Show start node
+            if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
+                int idx = nodeIdToIndex[dijkstraStartNode];
+                if (idx >= 0) {
+                    controlItems.push_back(text("From: ") | bold);
+                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)) | color(Color::Cyan));
+                }
+            }
+            controlItems.push_back(separator());
+
+            for (int i = 0; i < (int)targetTypes.size(); i++) {
+                auto item = text((i == targetSel ? "> " : "  ") + targetTypes[i]);
+                if (i == targetSel) item = item | bold | color(Color::Green);
+                if (i == 4) item = item | color(Color::Yellow); // Highlight custom option
+                controlItems.push_back(item);
+            }
+            controlItems.push_back(separator());
+            controlItems.push_back(text("Up/Down: Select") | dim);
+            controlItems.push_back(text("Enter: Continue") | dim);
+        }
+        else if (dijkstraMode == DijkstraMode::RUNNING) {
+            // This mode is for selecting custom end point
+            controlItems.push_back(text("SELECT END POINT") | bold | color(Color::Yellow));
+            controlItems.push_back(separator());
+
             if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) {
@@ -1125,51 +1475,69 @@ inline void CitySimulator::runDijkstraView() {
             }
             controlItems.push_back(separator());
 
-            for (int i = 0; i < (int)targetTypes.size(); i++) {
-                auto item = text((i == targetSel ? "> " : "  ") + targetTypes[i]);
-                if (i == targetSel) item = item | bold | color(Color::Green);
-                controlItems.push_back(item);
+            int startIdx = std::max(0, dijkstraEndNodeSelection - 5);
+            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
+
+            for (int i = startIdx; i < endIdx; i++) {
+                int nodeId = selectableNodes[i];
+                int idx = nodeIdToIndex[nodeId];
+                if (idx >= 0 && idx < (int)graphNodes.size()) {
+                    string nodeName = graphNodes[idx].name;
+                    if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
+                    auto item = text((i == dijkstraEndNodeSelection ? "> " : "  ") + nodeName);
+                    if (i == dijkstraEndNodeSelection) item = item | bold | color(Color::Green);
+                    controlItems.push_back(item);
+                }
             }
             controlItems.push_back(separator());
             controlItems.push_back(text("Up/Down: Select") | dim);
             controlItems.push_back(text("Enter: Find Path") | dim);
-
         }
         else if (dijkstraMode == DijkstraMode::COMPLETE) {
-            controlItems.push_back(text("PATH FOUND!") | bold | color(Color::Green));
+            if (dijkstraPath.getSize() > 0) {
+                controlItems.push_back(text("PATH FOUND!") | bold | color(Color::Green));
+            } else {
+                controlItems.push_back(text("NO PATH FOUND") | bold | color(Color::Red));
+            }
             controlItems.push_back(separator());
 
-            // Show path info
             if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("From:") | bold);
-                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 15)));
+                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)));
                 }
             }
             if (dijkstraEndNode >= 0 && dijkstraEndNode < (int)nodeIdToIndex.size()) {
                 int idx = nodeIdToIndex[dijkstraEndNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("To:") | bold);
-                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 15)));
+                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)));
                 }
             }
             controlItems.push_back(separator());
-            controlItems.push_back(text("Distance:") | bold);
-            controlItems.push_back(text(" " + std::to_string(dijkstraDistance).substr(0, 5) + " km") | color(Color::Yellow));
-            controlItems.push_back(text("Stops:") | bold);
-            controlItems.push_back(text(" " + std::to_string(dijkstraPath.getSize())) | color(Color::Yellow));
+
+            if (dijkstraPath.getSize() > 0) {
+                std::stringstream distStr;
+                distStr << std::fixed << std::setprecision(2) << dijkstraDistance;
+                controlItems.push_back(text("Distance:") | bold);
+                controlItems.push_back(text(" " + distStr.str() + " km") | color(Color::Yellow));
+                controlItems.push_back(text("Nodes:") | bold);
+                controlItems.push_back(text(" " + std::to_string(dijkstraPath.getSize())) | color(Color::Yellow));
+            }
             controlItems.push_back(separator());
-            controlItems.push_back(text("R: Reset") | dim);
+            controlItems.push_back(text("R: New Search") | dim);
+            controlItems.push_back(text("+/-: Zoom") | dim);
             controlItems.push_back(text("Esc: Back") | dim);
         }
 
         // Legend
         controlItems.push_back(separator());
         controlItems.push_back(text("LEGEND") | bold);
-        controlItems.push_back(hbox({ text("■") | color(Color::Cyan), text(" Start") }));
-        controlItems.push_back(hbox({ text("■") | color(Color::Yellow), text(" End") }));
-        controlItems.push_back(hbox({ text("■") | color(Color::GreenLight), text(" Path") }));
+        controlItems.push_back(hbox({ text("●") | color(Color::Cyan), text(" Start") }));
+        controlItems.push_back(hbox({ text("●") | color(Color::Yellow), text(" End") }));
+        controlItems.push_back(hbox({ text("●") | color(Color::GreenLight), text(" Path") }));
+        controlItems.push_back(hbox({ text("━") | color(Color::Green), text(" Route") }));
 
         auto controlPanel = vbox(controlItems) | border | size(WIDTH, EQUAL, 28);
 
@@ -1191,7 +1559,6 @@ inline void CitySimulator::runDijkstraView() {
             }
             if (e == Event::Return && !selectableNodes.empty()) {
                 dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
-                // Mark start node
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) graphNodes[idx].isStart = true;
                 dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
@@ -1208,14 +1575,36 @@ inline void CitySimulator::runDijkstraView() {
                 return true;
             }
             if (e == Event::Return) {
-                // Set target type
-                if (targetSel == 0) dijkstraTargetType = "SCHOOL";
-                else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
-                else if (targetSel == 2) dijkstraTargetType = "PHARMACY";
-                else dijkstraTargetType = "STOP";
+                if (targetSel == 4) {
+                    // Custom location - go to end point selection
+                    dijkstraTargetType = "CUSTOM";
+                    dijkstraMode = DijkstraMode::RUNNING;
+                } else {
+                    // Nearest facility
+                    if (targetSel == 0) dijkstraTargetType = "SCHOOL";
+                    else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
+                    else if (targetSel == 2) dijkstraTargetType = "PHARMACY";
+                    else dijkstraTargetType = "STOP";
 
-                // Run algorithm
-                runDijkstraAlgorithm();
+                    runDijkstraAlgorithm();
+                    dijkstraMode = DijkstraMode::COMPLETE;
+                }
+                return true;
+            }
+        }
+        else if (dijkstraMode == DijkstraMode::RUNNING) {
+            // Custom end point selection
+            if (e == Event::ArrowUp && dijkstraEndNodeSelection > 0) {
+                dijkstraEndNodeSelection--;
+                return true;
+            }
+            if (e == Event::ArrowDown && dijkstraEndNodeSelection < (int)selectableNodes.size() - 1) {
+                dijkstraEndNodeSelection++;
+                return true;
+            }
+            if (e == Event::Return && !selectableNodes.empty()) {
+                dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
+                runDijkstraPointToPoint();
                 dijkstraMode = DijkstraMode::COMPLETE;
                 return true;
             }
@@ -1225,13 +1614,17 @@ inline void CitySimulator::runDijkstraView() {
                 clearDijkstraVisualization();
                 dijkstraMode = DijkstraMode::SELECT_START;
                 dijkstraNodeSelection = 0;
+                dijkstraEndNodeSelection = 0;
                 return true;
             }
         }
 
-        // Common controls
-        if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); buildGraphVisualization(); return true; }
-        if (e == Event::Character('-')) { viewport.zoomOut(); buildGraphVisualization(); return true; }
+        // Common controls - zoom without rebuild
+        if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); return true; }
+        if (e == Event::Character('-')) { viewport.zoomOut(); return true; }
+        if (e == Event::Character('0')) { viewport.resetView(); return true; }
+        if (e == Event::ArrowLeft && dijkstraMode == DijkstraMode::COMPLETE) { viewport.panLeft(); return true; }
+        if (e == Event::ArrowRight && dijkstraMode == DijkstraMode::COMPLETE) { viewport.panRight(); return true; }
         if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
         if (e == Event::Escape) {
             clearDijkstraVisualization();
@@ -1243,174 +1636,100 @@ inline void CitySimulator::runDijkstraView() {
         });
     screen.Loop(comp);
 }
+
 // ============================================================================
 // ADD FACILITY FORM
 // ============================================================================
 inline void CitySimulator::runAddFacilityForm(const string& sector) {
     auto screen = ScreenInteractive::Fullscreen();
-
-    // Form State
     string name_val;
     int type_selected = 0;
-    vector<string> types = { "Pharmacy", "School", "Hospital", "Bus Stop" };
+    std::vector<string> types = { "Pharmacy", "School", "Hospital", "Bus Stop" };
     string message = "";
 
-    // Components
     Component input_name = Input(&name_val, "Enter Name");
     Component toggle_type = Toggle(&types, &type_selected);
 
     Component btn_add = Button("Create Facility", [&] {
-        if (name_val.empty()) {
-            message = "Error: Name cannot be empty!";
-            return;
-        }
-
+        if (name_val.empty()) { message = "Error: Name cannot be empty!"; return; }
         string newID = "";
         string type = types[type_selected];
-
         if (type == "Pharmacy") newID = cityMgmt->addPharmacy(name_val, sector);
-        else if (type == "School") newID = cityMgmt->addSchool(name_val, sector, 3.0, {}, {}); // Default rating 3.0
-        else if (type == "Hospital") newID = cityMgmt->addHospital(name_val, sector, 50, {}); // Default 50 beds
+        else if (type == "School") newID = cityMgmt->addSchool(name_val, sector, 3.0, {}, {});
+        else if (type == "Hospital") newID = cityMgmt->addHospital(name_val, sector, 50, {});
         else if (type == "Bus Stop") {
-            // Auto-generate coords in sector
             int id = cityMgmt->addBusStopInSector(name_val, sector);
             if (id != -1) newID = "STOP-" + std::to_string(id);
         }
-
-        if (!newID.empty() || type == "Bus Stop") {
-            screen.Exit(); // Close form on success
-        }
-        else {
-            message = "Error: Creation failed (ID generation error).";
-        }
-        });
+        if (!newID.empty() || type == "Bus Stop") { screen.Exit(); }
+        else { message = "Error: Creation failed."; }
+    });
 
     Component btn_cancel = Button("Cancel", screen.ExitLoopClosure());
-
-    // Layout
-    auto component = Container::Vertical({
-        input_name,
-        toggle_type,
-        btn_add,
-        btn_cancel
-        });
+    auto component = Container::Vertical({ input_name, toggle_type, btn_add, btn_cancel });
 
     auto renderer = Renderer(component, [&] {
         return vbox({
             text("ADD NEW FACILITY") | bold | center | color(Color::Green),
             separator(),
             text("Sector: " + sector) | center,
-            text(""),
             hbox({text("Name: "), input_name->Render() | border}),
             hbox({text("Type: "), toggle_type->Render() | border}),
-            text(""),
             hbox({btn_add->Render(), text("  "), btn_cancel->Render()}) | center,
-            text(""),
             text(message) | color(Color::Red) | center
-            }) | border | size(WIDTH, EQUAL, 60) | center;
-        });
-
+        }) | border | size(WIDTH, EQUAL, 60) | center;
+    });
     screen.Loop(renderer);
 }
 
 // ============================================================================
-// ADD OFFERING FORM (Context-Sensitive)
+// ADD OFFERING FORM
 // ============================================================================
 inline void CitySimulator::runAddOfferingForm(CityNode* node) {
     if (!node) return;
     auto screen = ScreenInteractive::Fullscreen();
     string message = "";
 
-    // --- PHARMACY FORM (Add Medicine) ---
     if (node->type == "PHARMACY") {
         string med_name, med_formula, med_price_str;
-
         Component input_name = Input(&med_name, "Medicine Name");
         Component input_formula = Input(&med_formula, "Formula");
         Component input_price = Input(&med_price_str, "Price");
-
         Component btn_add = Button("Add Medicine", [&] {
             try {
                 float price = std::stof(med_price_str);
-                if (cityMgmt->addMedicineToPharmacy(node->databaseID, med_name, med_formula, price)) {
-                    screen.Exit();
-                }
-                else {
-                    message = "Error: Could not add medicine.";
-                }
-            }
-            catch (...) {
-                message = "Error: Invalid Price.";
-            }
-            });
-
+                if (cityMgmt->addMedicineToPharmacy(node->databaseID, med_name, med_formula, price)) screen.Exit();
+                else message = "Error: Could not add medicine.";
+            } catch (...) { message = "Error: Invalid Price."; }
+        });
         auto component = Container::Vertical({ input_name, input_formula, input_price, btn_add, Button("Cancel", screen.ExitLoopClosure()) });
-
         auto renderer = Renderer(component, [&] {
             return vbox({
                 text("ADD MEDICINE TO " + node->name) | bold | center | color(Color::Magenta),
                 separator(),
-                hbox({text("Name:    "), input_name->Render() | border}),
+                hbox({text("Name: "), input_name->Render() | border}),
                 hbox({text("Formula: "), input_formula->Render() | border}),
-                hbox({text("Price:   "), input_price->Render() | border}),
-                text(""),
+                hbox({text("Price: "), input_price->Render() | border}),
                 btn_add->Render() | center,
                 text(message) | color(Color::Red) | center
-                }) | border | size(WIDTH, EQUAL, 50) | center;
-            });
+            }) | border | size(WIDTH, EQUAL, 50) | center;
+        });
         screen.Loop(renderer);
-    }
-
-    // --- HOSPITAL FORM (Add Specialization) ---
-    else if (node->type == "HOSPITAL") {
-        string spec_name;
-        Component input_spec = Input(&spec_name, "Specialization (e.g. Cardiology)");
-        Component btn_add = Button("Add Specialization", [&] {
-            if (cityMgmt->addSpecializationToHospital(node->databaseID, spec_name)) screen.Exit();
-            else message = "Error adding specialization.";
-            });
-
-        auto component = Container::Vertical({ input_spec, btn_add, Button("Cancel", screen.ExitLoopClosure()) });
-
-        auto renderer = Renderer(component, [&] {
-            return vbox({
-                text("UPDATE HOSPITAL: " + node->name) | bold | center | color(Color::Red),
-                separator(),
-                hbox({text("New Dept: "), input_spec->Render() | border}),
-                text(""),
-                btn_add->Render() | center,
-                text(message) | color(Color::Red) | center
-                }) | border | size(WIDTH, EQUAL, 50) | center;
-            });
-        screen.Loop(renderer);
-    }
-    // ... Add other types (School, Mall) as needed ...
-    else {
-        // Generic fallback for types without specific "Offerings"
+    } else {
         auto renderer = Renderer([&] {
-            return vbox({
-                text("No addable offerings for " + node->type) | center,
-                text("Press Enter to go back") | dim | center
-                }) | border | center;
-            });
+            return vbox({ text("No offerings for " + node->type) | center, text("Press Enter to go back") | dim | center }) | border | center;
+        });
         auto comp = CatchEvent(renderer, [&](Event e) { if (e == Event::Return) screen.Exit(); return true; });
         screen.Loop(comp);
     }
 }
 
 // ============================================================================
-// DATABASE VIEW - Robust Sector Browser with Details Panel
+// DATABASE VIEW
 // ============================================================================
-
 inline void CitySimulator::runDatabaseView() {
     auto screen = ScreenInteractive::Fullscreen();
-
-    // State variables
-    int selectedSectorIdx = 0;
-    int selectedCategoryIdx = 0;
-    int selectedItemIdx = 0;
-    int focusPanel = 0; // 0=Sector, 1=Category(Tab), 2=Items
-
+    int selectedSectorIdx = 0, selectedCategoryIdx = 0, selectedItemIdx = 0, focusPanel = 0;
     std::vector<string> categories = { "All", "Stops", "Schools", "Hospitals", "Pharmacies", "Malls" };
     std::vector<string> sectorList;
     for (int i = 0; i < SECTOR_COUNT; i++) sectorList.push_back(SECTOR_GRID[i].name);
@@ -1419,40 +1738,21 @@ inline void CitySimulator::runDatabaseView() {
         string currentSector = sectorList[selectedSectorIdx];
         string currentCategory = categories[selectedCategoryIdx];
 
-        // ===== LEFT PANEL (Sectors) =====
+        // Sector panel
         Elements sectorItems;
         sectorItems.push_back(text("SECTORS") | bold | color(Color::Cyan));
         sectorItems.push_back(separator());
-        int sectorStart = std::max(0, selectedSectorIdx - 8);
-        int sectorEnd = std::min((int)sectorList.size(), sectorStart + 18);
-
-        for (int i = sectorStart; i < sectorEnd; i++) {
-            string prefix = (i == selectedSectorIdx) ? "▶ " : "  ";
-            auto item = text(prefix + sectorList[i]);
-            if (i == selectedSectorIdx) {
-                item = item | bold;
-                if (focusPanel == 0) item = item | bgcolor(Color::Blue) | color(Color::White);
-                else item = item | color(Color::Green);
-            }
+        for (int i = 0; i < (int)sectorList.size() && i < 15; i++) {
+            int idx = std::max(0, selectedSectorIdx - 7) + i;
+            if (idx >= (int)sectorList.size()) break;
+            auto item = text((idx == selectedSectorIdx ? "> " : "  ") + sectorList[idx]);
+            if (idx == selectedSectorIdx) item = item | bold | (focusPanel == 0 ? bgcolor(Color::Blue) : color(Color::Green));
             sectorItems.push_back(item);
         }
         auto sectorPanel = vbox(sectorItems) | border | size(WIDTH, EQUAL, 14);
-        if (focusPanel == 0) sectorPanel = sectorPanel | color(Color::Cyan);
 
-        // ===== TOP TABS (Categories) =====
-        Elements categoryTabs;
-        for (int i = 0; i < (int)categories.size(); i++) {
-            auto tab = text(" " + categories[i] + " ");
-            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Green) | color(Color::Black);
-            else tab = tab | color(Color::GrayLight);
-            categoryTabs.push_back(tab);
-        }
-
-        // ===== MIDDLE PANEL (Items + Add Button) =====
-        Elements itemList;
+        // Get filtered nodes
         std::vector<CityNode*> filteredNodes;
-
-        // 1. Fetch Nodes
         if (islamabad && islamabad->getCityGraph()) {
             CityGraph* graph = islamabad->getCityGraph();
             for (int i = 0; i < graph->getNodeCount(); i++) {
@@ -1469,221 +1769,59 @@ inline void CitySimulator::runDatabaseView() {
             }
         }
 
-        // 2. Render List
-        // +1 for the "Add Facility" button at the end
+        // Item panel
+        Elements itemList;
+        itemList.push_back(text("ITEMS (" + std::to_string(filteredNodes.size()) + ")") | bold | color(Color::Yellow));
+        itemList.push_back(separator());
         int totalItems = filteredNodes.size() + 1;
         if (selectedItemIdx >= totalItems) selectedItemIdx = totalItems - 1;
-
-        itemList.push_back(text("FACILITIES (" + std::to_string(filteredNodes.size()) + ")") | bold | color(Color::Yellow));
-        itemList.push_back(separator());
-
-        int itemStart = std::max(0, selectedItemIdx - 6);
-        int itemEnd = std::min(totalItems, itemStart + 14);
-
-        for (int i = itemStart; i < itemEnd; i++) {
-            bool isSelected = (i == selectedItemIdx);
+        for (int i = 0; i < std::min(12, totalItems); i++) {
+            int idx = std::max(0, selectedItemIdx - 6) + i;
+            if (idx >= totalItems) break;
             Element item;
-
-            if (i < filteredNodes.size()) {
-                // Regular Node
-                CityNode* node = filteredNodes[i];
-                string icon = "●";
-                if (node->type == "STOP") icon = "◎";
-                else if (node->type == "SCHOOL") icon = "◆";
-                else if (node->type == "HOSPITAL") icon = "✚";
-                else if (node->type == "PHARMACY") icon = "⚕";
-                else if (node->type == "MALL") icon = "◈";
-
-                string name = node->name.substr(0, 22);
-                string prefix = isSelected ? "▶ " : "  ";
-                item = text(prefix + icon + " " + name);
+            if (idx < (int)filteredNodes.size()) {
+                item = text(string(idx == selectedItemIdx ? "> " : "  ") + filteredNodes[idx]->name.substr(0, 20));
+            } else {
+                item = text(string(idx == selectedItemIdx ? "> " : "  ") + string("[+] Add Facility")) | color(Color::Yellow);
             }
-            else {
-                // "Add Facility" Button (Always last)
-                string prefix = isSelected ? "▶ " : "  ";
-                item = text(prefix + "[+] Add Facility") | bold;
-                if (isSelected) item = item | color(Color::Yellow);
-            }
-
-            if (isSelected) {
-                item = item | bold;
-                if (focusPanel == 2) item = item | bgcolor(Color::Blue) | color(Color::White);
-                else item = item | color(Color::Green);
-            }
+            if (idx == selectedItemIdx) item = item | bold | (focusPanel == 2 ? bgcolor(Color::Blue) : color(Color::Green));
             itemList.push_back(item);
         }
+        auto itemPanel = vbox(itemList) | border | size(WIDTH, EQUAL, 28);
 
-        auto itemPanel = vbox(itemList) | border | size(WIDTH, EQUAL, 32);
-        if (focusPanel == 2) itemPanel = itemPanel | color(Color::Cyan);
-
-        // ===== RIGHT PANEL (Details) =====
+        // Detail panel
         Elements detailItems;
         detailItems.push_back(text("DETAILS") | bold | color(Color::Magenta));
         detailItems.push_back(separator());
-
-        if (selectedItemIdx < filteredNodes.size()) {
-            CityNode* selectedNode = filteredNodes[selectedItemIdx];
-
-            // --- BASIC INFO ---
-            detailItems.push_back(hbox({ text("Name: ") | bold, text(selectedNode->name) | color(Color::White) }));
-            detailItems.push_back(hbox({ text("Type: ") | bold, text(selectedNode->type) | color(Color::Cyan) }));
-            detailItems.push_back(hbox({ text("Sector: ") | bold, text(selectedNode->sector) | color(Color::Green) }));
-            detailItems.push_back(hbox({ text("ID:   ") | bold, text(selectedNode->databaseID) | color(Color::Yellow) }));
-            detailItems.push_back(separator());
-
-            // Position info
-            std::stringstream posStream;
-            posStream << std::fixed << std::setprecision(2) << selectedNode->lat << ", " << selectedNode->lon;
-            detailItems.push_back(hbox({ text("Position: ") | bold, text(posStream.str()) | dim }));
-            detailItems.push_back(hbox({ text("Connections: ") | bold, text(std::to_string(selectedNode->roads.size())) | color(Color::Orange1) }));
-
-            // --- TYPE SPECIFIC DETAILS (Restored) ---
-            detailItems.push_back(separator());
-
-            if (selectedNode->type == "SCHOOL") {
-                if (islamabad && islamabad->getSchoolManager()) {
-                    School* school = nullptr;
-                    for (int s = 0; s < islamabad->getSchoolManager()->schools.getSize(); s++) {
-                        if (islamabad->getSchoolManager()->schools[s]->name == selectedNode->name) {
-                            school = islamabad->getSchoolManager()->schools[s];
-                            break;
-                        }
-                    }
-                    if (school) {
-                        detailItems.push_back(text("SCHOOL INFO") | bold | color(Color::Blue));
-                        detailItems.push_back(hbox({ text("Rating: ") | bold, text(std::to_string(school->rating).substr(0,3) + "/5.0") | color(Color::Yellow) }));
-
-                        string subjectsStr = "";
-                        for (int si = 0; si < school->subjects.getSize(); si++) {
-                            if (si > 0) subjectsStr += ", ";
-                            subjectsStr += school->subjects[si];
-                            if (subjectsStr.length() > 25) { subjectsStr = subjectsStr.substr(0, 22) + "..."; break; }
-                        }
-                        if (subjectsStr.empty()) subjectsStr = "N/A";
-                        detailItems.push_back(hbox({ text("Subjects: ") | bold, text(subjectsStr) | color(Color::Cyan) }));
-
-                        int deptCount = 0, studentCount = 0;
-                        for (int d = 0; d < school->departments.getSize(); d++) {
-                            deptCount++;
-                            for (int c = 0; c < school->departments[d]->classes.getSize(); c++) {
-                                studentCount += school->departments[d]->classes[c]->students.getSize();
-                            }
-                        }
-                        detailItems.push_back(hbox({ text("Departments: ") | bold, text(std::to_string(deptCount)) | color(Color::Green) }));
-                        detailItems.push_back(hbox({ text("Students: ") | bold, text(std::to_string(studentCount)) | color(Color::Green) }));
-                    }
-                }
-            }
-            else if (selectedNode->type == "HOSPITAL") {
-                if (islamabad && islamabad->getMedicalManager()) {
-                    Hospital* hospital = islamabad->getMedicalManager()->findHospitalByID(selectedNode->databaseID);
-                    if (hospital) {
-                        detailItems.push_back(text("HOSPITAL INFO") | bold | color(Color::Red));
-                        detailItems.push_back(hbox({ text("Total Beds: ") | bold, text(std::to_string(hospital->totalBeds)) | color(Color::Yellow) }));
-                        detailItems.push_back(hbox({ text("Available: ") | bold, text(std::to_string(hospital->getAvailableBeds())) | color(Color::Green) }));
-                        detailItems.push_back(hbox({ text("Specializations: ") | bold }));
-
-                        string specStr = "";
-                        for (int sp = 0; sp < hospital->specializations.getSize(); sp++) {
-                            if (sp > 0) specStr += ", ";
-                            specStr += hospital->specializations[sp];
-                            if (specStr.length() > 25) { specStr = specStr.substr(0, 22) + "..."; break; }
-                        }
-                        if (specStr.empty()) specStr = "General";
-                        detailItems.push_back(text("  " + specStr) | color(Color::Cyan));
-                        detailItems.push_back(hbox({ text("ER Patients: ") | bold, text(std::to_string(hospital->getERQueueSize())) | color(Color::Orange1) }));
-                        detailItems.push_back(text("Press 'A' to Add Specialization") | blink | color(Color::Yellow));
-                    }
-                }
-            }
-            else if (selectedNode->type == "PHARMACY") {
-                if (islamabad && islamabad->getMedicalManager()) {
-                    Pharmacy* pharmacy = nullptr;
-                    for (int p = 0; p < islamabad->getMedicalManager()->pharmacies.getSize(); p++) {
-                        if (islamabad->getMedicalManager()->pharmacies[p]->id == selectedNode->databaseID) {
-                            pharmacy = islamabad->getMedicalManager()->pharmacies[p];
-                            break;
-                        }
-                    }
-                    if (pharmacy) {
-                        detailItems.push_back(text("PHARMACY INFO") | bold | color(Color::Magenta));
-                        detailItems.push_back(hbox({ text("Medicines: ") | bold, text(std::to_string(pharmacy->getMedicineCount())) | color(Color::Cyan) }));
-                        if (pharmacy->getMedicineCount() > 0) {
-                            const Medicine* firstMed = pharmacy->getMedicine(0);
-                            if (firstMed) {
-                                detailItems.push_back(hbox({ text("Sample: ") | bold, text(firstMed->name.substr(0, 15)) | color(Color::Yellow) }));
-                                detailItems.push_back(hbox({ text("Formula: ") | bold, text(firstMed->formula) | color(Color::Yellow) }));
-                                detailItems.push_back(hbox({ text("Price: ") | bold, text("Rs. " + std::to_string((int)firstMed->price)) | color(Color::Green) }));
-                            }
-                        }
-                        detailItems.push_back(text("Press 'A' to Add Medicine") | blink | color(Color::Yellow));
-                    }
-                }
-            }
-            else if (selectedNode->type == "STOP") {
-                detailItems.push_back(text("BUS STOP INFO") | bold | color(Color::GreenLight));
-                if (!selectedNode->operatingHours.empty()) {
-                    detailItems.push_back(hbox({ text("Hours: ") | bold, text(selectedNode->operatingHours) | color(Color::Cyan) }));
-                }
-                if (islamabad && islamabad->getTransportManager()) {
-                    int waiting = islamabad->getTransportManager()->getWaitingCount(selectedNode->id);
-                    detailItems.push_back(hbox({ text("Waiting: ") | bold, text(std::to_string(waiting) + " passengers") | color(Color::Yellow) }));
-                }
-            }
-
-            // --- SECTOR POPULATION (Restored) ---
-            detailItems.push_back(separator());
-            detailItems.push_back(text("SECTOR POPULATION") | bold | color(Color::Orange1));
-
-            if (islamabad && islamabad->getPopulationManager()) {
-                Vector<Citizen*> residents = islamabad->getPopulationManager()->getCitizensInSector(currentSector);
-                detailItems.push_back(hbox({ text("Residents: ") | bold, text(std::to_string(residents.getSize())) | color(Color::Green) }));
-
-                int showCount = std::min(5, residents.getSize());
-                if (showCount > 0) {
-                    detailItems.push_back(text("Sample Residents:") | dim);
-                    for (int r = 0; r < showCount; r++) {
-                        string resInfo = "  " + residents[r]->name + " (" + residents[r]->currentStatus + ")";
-                        if (resInfo.length() > 32) resInfo = resInfo.substr(0, 29) + "...";
-                        detailItems.push_back(text(resInfo) | dim);
-                    }
-                }
-            }
-
+        if (selectedItemIdx < (int)filteredNodes.size()) {
+            CityNode* n = filteredNodes[selectedItemIdx];
+            detailItems.push_back(text("Name: " + n->name));
+            detailItems.push_back(text("Type: " + n->type));
+            detailItems.push_back(text("Sector: " + n->sector));
+        } else {
+            detailItems.push_back(text("Press Enter to add"));
         }
-        else {
-            // Selected "Add Facility"
-            detailItems.push_back(text("Create New Facility") | bold | color(Color::Green));
-            detailItems.push_back(text(""));
-            detailItems.push_back(text("Press ENTER to add a"));
-            detailItems.push_back(text("new facility to"));
-            detailItems.push_back(text("Sector " + currentSector) | bold);
-        }
-
         auto detailPanel = vbox(detailItems) | border | flex;
 
-        // ===== HELP BAR =====
-        auto helpBar = hbox({
-            text("↑↓/←→: Navigate "),
-            text("Tab: Category "),
-            text("A: Add Offering ") | bold | color(Color::Yellow),
-            text("Enter: Select "),
-            text("[ SEARCH ENGINE (S) ]") | border | bold | color(Color::Yellow), // New Button
-            text("Esc: Back")
-            }) | center;
+        // Category tabs
+        Elements categoryTabs;
+        for (int i = 0; i < (int)categories.size(); i++) {
+            auto tab = text(" " + categories[i] + " ");
+            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Green);
+            categoryTabs.push_back(tab);
+        }
 
         return vbox({
-            hbox({text(" DATABASE VIEW ") | bold | bgcolor(Color::Green) | color(Color::Black), filler()}),
+            text(" DATABASE VIEW ") | bold | center | bgcolor(Color::Green) | color(Color::Black),
             hbox(categoryTabs) | center,
             separator(),
             hbox({sectorPanel, itemPanel, detailPanel}) | flex,
             separator(),
-            helpBar
-            });
+            text("Arrows: Navigate | Tab: Category | S: Search | Esc: Back") | dim | center
         });
+    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
-        // Navigation Logic
         if (e == Event::ArrowUp) {
             if (focusPanel == 0 && selectedSectorIdx > 0) selectedSectorIdx--;
             else if (focusPanel == 2 && selectedItemIdx > 0) selectedItemIdx--;
@@ -1691,286 +1829,25 @@ inline void CitySimulator::runDatabaseView() {
         }
         if (e == Event::ArrowDown) {
             if (focusPanel == 0 && selectedSectorIdx < (int)sectorList.size() - 1) selectedSectorIdx++;
-            else if (focusPanel == 2) {
-                selectedItemIdx++;
-            }
+            else if (focusPanel == 2) selectedItemIdx++;
             return true;
         }
         if (e == Event::ArrowLeft) { focusPanel = std::max(0, focusPanel - 2); return true; }
         if (e == Event::ArrowRight) { focusPanel = std::min(2, focusPanel + 2); return true; }
         if (e == Event::Tab) { selectedCategoryIdx = (selectedCategoryIdx + 1) % categories.size(); selectedItemIdx = 0; return true; }
+        if (e == Event::Character('s') || e == Event::Character('S')) { currentState = SimulatorState::SEARCH_VIEW; screen.Exit(); return true; }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
-
-        // --- NEW FUNCTIONALITY TRIGGERS ---
-
-        // 1. ADD FACILITY / SELECT ITEM
-        if (e == Event::Return) {
-            if (focusPanel == 0) focusPanel = 2; // Move focus to items
-            else if (focusPanel == 2) {
-                // Re-calculate filtered list size to check if we are on the "Add" button
-                int count = 0;
-                CityGraph* g = islamabad->getCityGraph();
-                string curSec = sectorList[selectedSectorIdx];
-                string curCat = categories[selectedCategoryIdx];
-                for (int i = 0; i < g->getNodeCount(); i++) {
-                    CityNode* n = g->getNode(i);
-                    if (n && n->sector == curSec && n->type != "CORNER") {
-                        bool inc = (curCat == "All" || (curCat + "S" == n->type + "S") ||
-                            (curCat == "Stops" && n->type == "STOP") ||
-                            (curCat == "Pharmacies" && n->type == "PHARMACY") ||
-                            (curCat == "Schools" && n->type == "SCHOOL") ||
-                            (curCat == "Hospitals" && n->type == "HOSPITAL") ||
-                            (curCat == "Malls" && n->type == "MALL"));
-                        if (inc) count++;
-                    }
-                }
-
-                // If index is past the items, it's the "Add" button
-                if (selectedItemIdx >= count) {
-                    runAddFacilityForm(curSec);
-                }
-            }
-            return true;
-        }
-
-        // 2. ADD OFFERING (Press 'A')
-        if (focusPanel == 2 && (e == Event::Character('a') || e == Event::Character('A'))) {
-            CityNode* selectedNode = nullptr;
-            int currentIdx = 0;
-            CityGraph* g = islamabad->getCityGraph();
-            string curSec = sectorList[selectedSectorIdx];
-            string curCat = categories[selectedCategoryIdx];
-
-            for (int i = 0; i < g->getNodeCount(); i++) {
-                CityNode* n = g->getNode(i);
-                if (n && n->sector == curSec && n->type != "CORNER") {
-                    bool inc = (curCat == "All" ||
-                        (curCat == "Stops" && n->type == "STOP") ||
-                        (curCat == "Schools" && n->type == "SCHOOL") ||
-                        (curCat == "Hospitals" && n->type == "HOSPITAL") ||
-                        (curCat == "Pharmacies" && n->type == "PHARMACY") ||
-                        (curCat == "Malls" && n->type == "MALL"));
-                    if (inc) {
-                        if (currentIdx == selectedItemIdx) {
-                            selectedNode = n;
-                            break;
-                        }
-                        currentIdx++;
-                    }
-                }
-            }
-
-            if (selectedNode) {
-                runAddOfferingForm(selectedNode);
-            }
-            return true;
-        }
-
-        // 3. SEARCH ENGINE (Press 'S')
-        if (e == Event::Character('s') || e == Event::Character('S')) {
-            currentState = SimulatorState::SEARCH_VIEW;
-            screen.Exit();
-            return true;
-        }
-
         return false;
-        });
-
+    });
     screen.Loop(comp);
 }
 
 // ============================================================================
-// UNIVERSAL SEARCH VIEW
+// MANAGEMENT MENU
 // ============================================================================
-
-inline void CitySimulator::runSearchView() {
-    auto screen = ScreenInteractive::Fullscreen();
-
-    // State
-    string query = "";
-    int selected = 0;
-    std::vector<string> menu_entries;
-    string message = ""; // To show the ID on selection
-
-    // Helper: string lowercase
-    auto toLower = [](const string& s) -> string {
-        string lower = s;
-        for (char& c : lower) {
-            if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
-        }
-        return lower;
-        };
-
-    // Helper to perform the search
-    auto performSearch = [&]() {
-        menu_entries.clear();
-        selected = 0;
-        message = "";
-
-        if (query.length() < 2) return;
-
-        string q = toLower(query);
-
-        // 1. Search Facilities (Graph Nodes)
-        if (islamabad && islamabad->getCityGraph()) {
-            CityGraph* g = islamabad->getCityGraph();
-            for (int i = 0; i < g->getNodeCount(); i++) {
-                CityNode* n = g->getNode(i);
-                if (!n || n->type == "CORNER") continue;
-
-                string lowerName = toLower(n->name);
-
-                if (lowerName.find(q) != string::npos) {
-                    menu_entries.push_back("[ID: " + n->databaseID + "] " + n->name + " (" + n->type + ") in " + n->sector);
-                }
-            }
-        }
-
-        // 2. Search Commercial (Malls, Shops, Products)
-        if (islamabad && islamabad->getCommercialManager()) {
-            CommercialManager* cm = islamabad->getCommercialManager();
-            for (int i = 0; i < cm->malls.getSize(); i++) {
-                Mall* m = cm->malls[i];
-
-                // Search Mall Name
-                string mLower = toLower(m->name);
-                if (mLower.find(q) != string::npos) {
-                    menu_entries.push_back("[ID: " + m->id + "] " + m->name + " (" + m->getSector() + ")");
-                }
-
-                // Search Shops
-                for (int j = 0; j < m->shops.getSize(); j++) {
-                    Shop* s = m->shops[j];
-                    string sLower = toLower(s->name);
-
-                    if (sLower.find(q) != string::npos) {
-                        menu_entries.push_back("[ID: " + s->id + "] " + s->name + " @ " + m->name);
-                    }
-
-                    // Search Products within Shop
-                    for (int k = 0; k < s->inventory.getSize(); k++) {
-                        const Product* p = s->getProduct(k);
-                        if (!p) continue;
-
-                        string pLower = toLower(p->name);
-
-                        if (pLower.find(q) != string::npos) {
-                            menu_entries.push_back("[ID: " + s->id + "] Item: " + p->name + " (Rs." + std::to_string(p->price) + ") @ " + s->name);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Search Medical (Medicines)
-        if (islamabad && islamabad->getMedicalManager()) {
-            MedicalManager* mm = islamabad->getMedicalManager();
-
-            for (int i = 0; i < mm->pharmacies.getSize(); i++) {
-                Pharmacy* p = mm->pharmacies[i];
-                for (int j = 0; j < p->inventory.getSize(); j++) {
-                    const Medicine* m = p->getMedicine(j);
-                    if (!m) continue;
-
-                    string mLower = toLower(m->name);
-                    string fLower = toLower(m->formula);
-
-                    if (mLower.find(q) != string::npos || fLower.find(q) != string::npos) {
-                        menu_entries.push_back("[ID: " + p->id + "] Med: " + m->name + " (" + m->formula + ") @ " + p->name);
-                    }
-                }
-            }
-        }
-
-        // Limit results for performance UI
-        if (menu_entries.size() > 100) {
-            menu_entries.resize(100);
-            menu_entries.push_back("... (matches truncated) ...");
-        }
-        };
-
-    // --- Components ---
-
-    InputOption input_opt;
-    input_opt.on_change = performSearch;
-    input_opt.placeholder = "Search for items, medicines, shops, or places...";
-    auto input_component = Input(&query, input_opt);
-
-    MenuOption menu_opt;
-    menu_opt.on_enter = [&] {
-        if (selected >= 0 && selected < (int)menu_entries.size()) {
-            string selection = menu_entries[selected];
-
-            // Extract ID logic
-            size_t start = selection.find("[ID: ");
-            if (start != string::npos) {
-                start += 5; // Skip "[ID: "
-                size_t end = selection.find("]", start);
-                if (end != string::npos) {
-                    string extractedID = selection.substr(start, end - start);
-                    message = "Selected Item ID: " + extractedID + " (Press Esc to return)";
-
-                    // PLACEHOLDER FOR MANAGEMENT VIEW INTEGRATION
-                    // When pressing Enter, we will eventually pass 'extractedID' 
-                    // to a Management View that looks up the object via HashTable.
-                    // For now, we just display the ID.
-                }
-                else {
-                    message = "ID format not recognized.";
-                }
-            }
-            else {
-                message = "No ID associated with this entry.";
-            }
-        }
-        };
-    auto menu_component = Menu(&menu_entries, &selected, menu_opt);
-
-    auto container = Container::Vertical({
-        input_component,
-        menu_component | vscroll_indicator | frame | flex
-        });
-
-    // --- Renderer ---
-    auto renderer = Renderer(container, [&] {
-        return vbox({
-            text(" UNIVERSAL SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
-            separator(),
-            hbox({ text(" FIND: "), input_component->Render() | flex }),
-            separator(),
-            (menu_entries.empty())
-                ? (query.length() < 2
-                    ? text("Type at least 2 characters to begin...") | dim | center
-                    : text("No results found.") | color(Color::Red) | center)
-                : menu_component->Render() | flex,
-            separator(),
-            // Message Area for ID display
-            (message.empty() ? text("Select an item and press Enter") | dim | center
-                             : text(message) | bold | color(Color::Green) | center),
-            text("Esc: Back to Database") | dim | center
-            }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
-        });
-
-    // --- Event Loop ---
-    auto component = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Escape) {
-            currentState = SimulatorState::DATABASE_VIEW; // Return to DB view
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-
-    screen.Loop(component);
-}
-
-// ============================================================================
-// MANAGEMENT MENU - Placeholder for city management functions
-// ============================================================================
-
 inline void CitySimulator::runManagementMenu() {
     auto screen = ScreenInteractive::Fullscreen();
-    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back to Main Menu" };
+    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back" };
     int sel = 0;
 
     auto renderer = Renderer([&] {
@@ -1980,41 +1857,80 @@ inline void CitySimulator::runManagementMenu() {
             if (i == sel) item = item | bold | color(Color::Green);
             items.push_back(item);
         }
-
-        auto menuBox = vbox({
+        return vbox({ filler(), vbox({
             text("MANAGEMENT MENU") | bold | center | color(Color::Cyan),
-            separator(),
-            vbox(items),
-            separator(),
-            text("Feature coming soon...") | dim | center,
-            }) | border | size(WIDTH, EQUAL, 35);
-
-        return vbox({
-            filler(),
-            hbox({ filler(), menuBox, filler() }),
-            filler()
-            });
-        });
+            separator(), vbox(items), separator(),
+            text("Feature coming soon...") | dim | center
+        }) | border | size(WIDTH, EQUAL, 35) | center, filler() });
+    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
         if (e == Event::ArrowDown) { sel = (sel + 1) % options.size(); return true; }
-        if (e == Event::Return) {
-            if (sel == 3) { // Back to Main Menu
-                currentState = SimulatorState::MAIN_MENU;
-                screen.Exit();
-            }
-            // Other options can be implemented later
-            return true;
-        }
-        if (e == Event::Escape) {
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
+        if (e == Event::Return && sel == 3) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
+        if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-        });
+    });
     screen.Loop(comp);
+}
+
+// ============================================================================
+// SEARCH VIEW
+// ============================================================================
+inline void CitySimulator::runSearchView() {
+    auto screen = ScreenInteractive::Fullscreen();
+    string query = "";
+    int selected = 0;
+    std::vector<string> menu_entries;
+    string message = "";
+
+    auto toLower = [](const string& s) -> string {
+        string lower = s;
+        for (char& c : lower) if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+        return lower;
+    };
+
+    auto performSearch = [&]() {
+        menu_entries.clear();
+        selected = 0;
+        if (query.length() < 2) return;
+        string q = toLower(query);
+        if (islamabad && islamabad->getCityGraph()) {
+            CityGraph* g = islamabad->getCityGraph();
+            for (int i = 0; i < g->getNodeCount(); i++) {
+                CityNode* n = g->getNode(i);
+                if (!n || n->type == "CORNER") continue;
+                if (toLower(n->name).find(q) != string::npos) {
+                    menu_entries.push_back("[" + n->type + "] " + n->name + " @ " + n->sector);
+                }
+            }
+        }
+        if (menu_entries.size() > 50) menu_entries.resize(50);
+    };
+
+    InputOption input_opt;
+    input_opt.on_change = performSearch;
+    auto input_component = Input(&query, input_opt);
+    auto menu_component = Menu(&menu_entries, &selected);
+    auto container = Container::Vertical({ input_component, menu_component | vscroll_indicator | frame | flex });
+
+    auto renderer = Renderer(container, [&] {
+        return vbox({
+            text(" SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            separator(),
+            hbox({ text(" FIND: "), input_component->Render() | flex }),
+            separator(),
+            menu_entries.empty() ? text("Type to search...") | dim | center : menu_component->Render() | flex,
+            separator(),
+            text("Esc: Back") | dim | center
+        }) | border | size(WIDTH, EQUAL, 70) | size(HEIGHT, EQUAL, 30) | center;
+    });
+
+    auto component = CatchEvent(renderer, [&](Event e) {
+        if (e == Event::Escape) { currentState = SimulatorState::DATABASE_VIEW; screen.Exit(); return true; }
+        return false;
+    });
+    screen.Loop(component);
 }
 
 #endif // CITY_SIMULATOR_ENHANCED_H

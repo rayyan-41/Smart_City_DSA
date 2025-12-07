@@ -1,27 +1,3 @@
-/*
- * ============================================================================
- * CITY GRAPH - Core Graph Data Structure for Islamabad Smart City
- * ============================================================================
- * 
- * PURPOSE:
- * Manages the city's transportation network as a weighted undirected graph.
- * Nodes represent locations (stops, schools, hospitals, etc.)
- * Edges represent roads with distances as weights.
- * 
- * KEY FEATURES:
- * - Sector-based organization with corner nodes for connectivity
- * - Dijkstra's algorithm for shortest path finding
- * - Support for various facility types (transport stops, public facilities)
- * - CSV loading for bulk data import
- * 
- * GRAPH STRUCTURE:
- * - Each sector has 4 corner nodes (SW, NW, NE, SE) forming a frame
- * - All non-corner nodes connect to their sector's corners
- * - This ensures connectivity between sectors via shared boundaries
- * 
- * ============================================================================
- */
-
 #pragma once
 #include "CityUtils.h"
 
@@ -224,13 +200,7 @@ inline void CityGraph::connectNodeToSectorCorners(int nodeID, const string& sect
     }
 }
 
-// ==================== NODE CREATION ====================
-/*
- * Adds a new location node to the graph.
- * - Automatically resolves sector from coordinates
- * - Initializes sector frame if needed
- * - Connects non-corner nodes to sector corners
- */
+
 
 inline int CityGraph::addLocation(const string& databaseID, const string& stopID, 
                                    const string& name, const string& type, 
@@ -423,16 +393,6 @@ inline Vector<int> CityGraph::getAllStopsInSector(const string& sector) {
 inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon) {
     GeometryUtils::getIslamabadBounds(minLat, maxLat, minLon, maxLon);
 }
-
-// ==================== PATHFINDING: DIJKSTRA'S ALGORITHM ====================
-/*
- * Finds the shortest path between two nodes using Dijkstra's algorithm.
- * 
- * Returns: Vector of node IDs from start to end
- * Output param: totalDistance in km
- * 
- * Time Complexity: O((V + E) log V) with priority queue
- */
 
 inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& totalDistance) {
     Vector<int> path;
@@ -752,68 +712,3 @@ inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
     }
     file.close();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

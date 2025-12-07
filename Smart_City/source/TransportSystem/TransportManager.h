@@ -1040,8 +1040,6 @@ inline TransportStats TransportManager::getStats() const {
     return stats;
 }
 
-// ==================== CSV LOADING ====================
-
 inline bool TransportManager::loadBusesFromCSV(const string& filename, bool hasHeader) {
     ifstream file(filename);
     if (!file.is_open()) return false;
