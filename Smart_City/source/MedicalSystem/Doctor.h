@@ -12,6 +12,8 @@ public:
 	string doctorID;
 	string specialization;
 	
+	// ==================== SETTERS ====================
+
 	Doctor()
 		: citizen(nullptr), doctorID(""), specialization("") {
 	}
@@ -19,6 +21,9 @@ public:
 		: citizen(citizen), specialization(specialization) {
 		doctorID = IDGenerator::generateDoctorID();
 	}
+
+	// ==================== GETTERS ====================
+
 	Citizen* getCitizen() const {
 		return citizen;
 	}

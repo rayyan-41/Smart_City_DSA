@@ -23,9 +23,6 @@
 
 using std::string;
 
-// ============================================================================
-// PASSENGER - Represents a passenger on a bus
-// ============================================================================
 struct Passenger {
     string citizenCNIC;
     int boardingStopID;
@@ -43,35 +40,27 @@ struct Passenger {
     }
 };
 
-// ============================================================================
-// BUS CLASS
-// ============================================================================
 class Bus : public Vehicle {
 private:
-    // Bus-specific attributes
-    string busNo;               // Bus number (e.g., "B101")
-    string company;             // Operating company
-    string routeName;           // Route name (e.g., "G-10 to Blue Area")
+    string busNo;              
+    string company;             
+    string routeName;         
     
-    // Route endpoints (database IDs)
     string startStopID;
     string endStopID;
     
-    // Passenger management using Circular Queue
     CircularQueue<Passenger> waitingQueue;
     Vector<Passenger> onboardPassengers;
     
-    // Schedule
     int departureIntervalMinutes;
     bool isRoundTrip;
     
-    // Statistics
     int totalPassengersServed;
     double totalFareCollected;
     int tripsCompleted;
 
 public:
-    // ==================== LIFECYCLE ====================
+    // ==================== Constructores ====================
     
     Bus() 
         : Vehicle("", VehicleType::BUS, 50),
@@ -123,8 +112,8 @@ public:
     
     ~Bus() override = default;
     
-    // ==================== ACCESSORS ====================
-    
+    // ==================== GETTERS ====================
+
     string getBusNo() const { return busNo; }
     string getCompany() const { return company; }
     string getRouteName() const { return routeName; }
@@ -138,7 +127,6 @@ public:
     int getWaitingPassengerCount() const { return waitingQueue.size(); }
     int getOnboardCount() const { return onboardPassengers.getSize(); }
     
-    // Legacy compatibility
     string getCurrentStop() const { return currentStopName; }
     int getStopCount() const { return route.size(); }
     
@@ -156,26 +144,23 @@ public:
         routeName = start + " to " + end;
     }
     
-    // Legacy compatibility - set route from Vector<int>
     void setRoute(const Vector<int>& newRoute, double distance) {
         setRouteSimple(newRoute, distance);
     }
     
-    // ==================== PASSENGER OPERATIONS ====================
+    // ==================== OPERATIONS ====================
     
-    // Add passenger to waiting queue at stop
     bool addWaitingPassenger(const Passenger& p) {
         return waitingQueue.enqueue(p);
     }
     
-    // Board passengers from waiting queue
     int boardWaitingPassengers() {
         int boarded = 0;
         
         while (!waitingQueue.empty() && !isFull()) {
             Passenger p = waitingQueue.dequeue();
             
-            // Only board if destination is on route ahead
+            // Boarding if dest on routr
             int currentPos = getRoutePosition(currentNodeID);
             int destPos = getRoutePosition(p.destinationStopID);
             
@@ -190,7 +175,6 @@ public:
         return boarded;
     }
     
-    // Alight passengers whose destination is current stop
     int alightPassengers() {
         int alighted = 0;
         Vector<Passenger> remaining;
@@ -209,17 +193,15 @@ public:
         return alighted;
     }
     
-    // Process stop: alight then board
     void processStop() {
         status = VehicleStatus::BOARDING;
-        alightPassengers();
+        alightPassengers();    // alight then board
         boardWaitingPassengers();
         status = VehicleStatus::AT_STOP;
     }
     
-    // ==================== ROUTE OPERATIONS ====================
+    // ==================== OPERATIONS ====================
     
-    // Reset bus to start of route
     void resetToRouteStart() {
         resetRoute();
         tripsCompleted = 0;
@@ -230,15 +212,12 @@ public:
         status = VehicleStatus::AT_STOP;
     }
     
-    // Complete a trip
     void completeTrip() {
         ++tripsCompleted;
         
         if (isRoundTrip) {
-            // Reverse route for return journey
             route.reverse();
             
-            // Swap start and end
             string temp = startStopID;
             startStopID = endStopID;
             endStopID = temp;
@@ -247,13 +226,11 @@ public:
         resetRoute();
     }
     
-    // Override moveToNextStop to handle end of route
     bool moveToNextStop() override {
         if (Vehicle::moveToNextStop()) {
             return true;
         }
         
-        // End of route
         if (isRoundTrip) {
             completeTrip();
             return true;

@@ -1,36 +1,4 @@
-/*
- * ============================================================================
- * TRANSPORT MANAGER - Central Transport System Controller
- * ============================================================================
- * 
- * PURPOSE:
- * Manages all three types of transport vehicles in the Smart City with O(1) 
- * lookups, priority-based dispatch, and sector-aware routing. This manager
- * coordinates public buses, school buses, and emergency ambulances, ensuring
- * efficient transport across the city's 30 sectors.
- * 
- * WHAT IT MANAGES:
- *   1. BUSES - Public transport with fixed routes and fare collection
- *   2. SCHOOL BUSES - Student transport with sector priority
- *   3. AMBULANCES - Emergency patient transfers with priority dispatch
- *   4. PASSENGER QUEUES - Waiting passengers at each stop (Circular Queue)
- *   5. TRANSFER REQUESTS - Emergency patient transfers (Priority Queue)
- * 
- * SIMULATION:
- *   - Step-based simulation (no real-time threading)
- *   - Each call to runSimulationStep() moves vehicles one stop forward
- *   - Buses loop back to start when reaching end of route
- *   - Ready for future visualization integration
- * 
- * DATA STRUCTURES USED:
- *   - Hash Tables: O(1) vehicle lookups (7 different tables)
- *   - Circular Queues: Passenger waiting at stops (FIFO, size 200)
- *   - Priority Queue: Emergency transfers (Min-Heap by priority)
- *   - Vectors: Store all vehicles and manage collections
- *   - Singly Linked Lists: Route management in each vehicle
- * 
- * ============================================================================
- */
+
 
 #pragma once
 #include <string>

@@ -23,7 +23,6 @@ struct Medicine {
     void setFormula(const string& f) { formula = f; }
     void setPrice(float p) { price = p; }
 
-    // Equality check for search/hashing collisions
     bool operator==(const Medicine& other) const {
         return name == other.name && formula == other.formula;
     }

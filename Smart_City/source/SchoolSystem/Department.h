@@ -27,13 +27,11 @@ public:
     const Vector<Faculty*>& getFaculty() const { return faculty; }
     const Vector<string>& getSubjects() const { return subjects; }
     
-    // Get class by index
     Class* getClass(int index) const {
         if (index >= 0 && index < classes.getSize()) return classes[index];
         return nullptr;
     }
     
-    // Get class by number
     Class* getClassByNumber(int classNumber) const {
         for (int i = 0; i < classes.getSize(); i++) {
             if (classes[i]->classNumber == classNumber) return classes[i];
@@ -41,13 +39,11 @@ public:
         return nullptr;
     }
     
-    // Get faculty by index
     Faculty* getFacultyMember(int index) const {
         if (index >= 0 && index < faculty.getSize()) return faculty[index];
         return nullptr;
     }
     
-    // Get total student count
     int getTotalStudentCount() const {
         int total = 0;
         for (int i = 0; i < classes.getSize(); i++) {
@@ -69,7 +65,7 @@ public:
     bool hasSubject(const string& subject) const;
 };
 
-// Implementation
+// ==================== Implemenation ====================
 inline Department::Department() : name(""), classes(), faculty(), subjects() {}
 
 inline Department::Department(const string& name)

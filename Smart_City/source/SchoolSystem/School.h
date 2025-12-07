@@ -7,23 +7,20 @@
 
 using std::string;
 
-// School owns Departments, which own Classes & Faculty.
 class School {
 public:
     string id;
     string name;
     float rating;
 
-    Location location;     // sector + coordinates
-    string graphNodeID;    // ID in the city graph
+    Location location;     
+    string graphNodeID;    
 
     Vector<string> subjects;
     Vector<Department*> departments;
 
-    // SIMULATION: Tracking who is currently physically inside the school
     Vector<Student*> currentStudents;
 
-    // Constructors
     School();
     School(const string& id,
         const string& name,
@@ -62,26 +59,24 @@ public:
     void setGraphNodeID(const string& nodeID) { graphNodeID = nodeID; }
     void setLocation(const Location& loc) { location = loc; }
 
-    // Administrative Methods
+    // ==================== OPERATIONS ====================
+       
     void addDepartment(Department* d);
     bool addStudentToDepartment(const string& deptName, Student* student, int classNumber);
     bool removeStudent(const string& cnic);
     bool addFacultyToDepartment(const string& deptName, Faculty* faculty);
     Department* findDepartment(const string& deptName);
 
-    // Simulation Methods (Arrivals/Departures)
     void processArrival(Student* s);
     void processDeparture(Student* s);
     bool isStudentPresent(const string& rollNo) const;
 
-    // Utility methods for simulation
     int getTotalEnrolledStudents() const;
     int getTotalFaculty() const;
 };
 
-// ==========================================
-// IMPLEMENTATION
-// ==========================================
+// ==================== Implemenation ====================
+
 
 inline School::School()
     : id(""), name(""), rating(0.0f), location(), graphNodeID(""), subjects(), departments() {
@@ -182,7 +177,7 @@ inline int School::getTotalFaculty() const {
     return total;
 }
 
-// --- Simulation Logic ---
+// --- Simu.lation  ---
 
 inline void School::processArrival(Student* s) {
     if (!isStudentPresent(s->rollNumber)) {

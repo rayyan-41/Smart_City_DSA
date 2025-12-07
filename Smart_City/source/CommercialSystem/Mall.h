@@ -35,7 +35,6 @@ public:
     int getShopCount() const { return shops.getSize(); }
     const Vector<Shop*>& getShops() const { return shops; }
     
-    // Get total product count across all shops
     int getTotalProductCount() const {
         int total = 0;
         for (int i = 0; i < shops.getSize(); i++) {
@@ -44,7 +43,6 @@ public:
         return total;
     }
     
-    // Get all categories in mall
     Vector<string> getCategories() const {
         Vector<string> categories;
         for (int i = 0; i < shops.getSize(); i++) {
@@ -65,7 +63,7 @@ public:
     void setCoordinates(double lat, double lon) { location.coord.x = lat; location.coord.y = lon; }
     void setLocation(const Location& loc) { location = loc; }
 
-    // ==================== SHOP OPERATIONS ====================
+    // ==================== OPERATIONS ====================
     void addShop(Shop* s);
     bool removeShop(const string& shopID);
     Shop* findShop(const string& shopName);
@@ -76,7 +74,7 @@ public:
     }
 };
 
-// Implementation
+// ==================== Implemenation ====================
 
 inline void Mall::addShop(Shop* s) {
     shops.push_back(s);

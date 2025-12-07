@@ -1,20 +1,4 @@
-/*
- * ============================================================================
- * VEHICLE BASE CLASS - Abstract Base for All Transport Vehicles
- * ============================================================================
- * 
- * Base class providing common functionality for:
- *   - Buses (public transport)
- *   - School Buses (school-to-school transport)
- *   - Ambulances (hospital-to-hospital emergency transport)
- * 
- * Uses Singly Linked List for route management.
- * 
- * Rubric:
- *   - Singly Linked List for Bus route management (4 marks)
- *   - Transport Module (5 marks)
- * ============================================================================
- */
+
 
 #pragma once
 #include <string>

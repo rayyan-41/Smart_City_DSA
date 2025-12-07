@@ -39,13 +39,11 @@ public:
     int getProductCount() const { return inventory.getSize(); }
     const Vector<Product>& getInventory() const { return inventory; }
     
-    // Get product by index
     const Product* getProduct(int index) const {
         if (index >= 0 && index < inventory.getSize()) return &inventory[index];
         return nullptr;
     }
     
-    // Get product by name
     const Product* getProductByName(const string& productName) const {
         for (int i = 0; i < inventory.getSize(); i++) {
             if (inventory[i].name == productName) return &inventory[i];
@@ -53,7 +51,6 @@ public:
         return nullptr;
     }
     
-    // Get total inventory value
     double getTotalInventoryValue() const {
         double total = 0.0;
         for (int i = 0; i < inventory.getSize(); i++) {
@@ -67,13 +64,13 @@ public:
     void setName(const string& newName) { name = newName; }
     void setCategory(const string& newCategory) { category = newCategory; }
 
-    // ==================== PRODUCT OPERATIONS ====================
+    // ==================== OPERATIONS ====================
     void addProduct(const Product& p);
     bool hasProduct(const string& productName);
     bool removeProduct(const string& productName);
 };
 
-// Implementation
+
 inline void Shop::addProduct(const Product& p) {
     inventory.push_back(p);
 }

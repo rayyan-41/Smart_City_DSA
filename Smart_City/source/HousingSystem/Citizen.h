@@ -8,7 +8,6 @@ struct Citizen {
     int age;
     string currentStatus;
 
-    // Home Address (Tree Traversal Links)
     string sector;
     int street;
     int houseNo;
@@ -32,12 +31,10 @@ struct Citizen {
     int getStreet() const { return street; }
     int getHouseNo() const { return houseNo; }
     
-    // Full address for display
     string getFullAddress() const {
         return sector + ", Street " + std::to_string(street) + ", House " + std::to_string(houseNo);
     }
     
-    // Check status helpers
     bool isAtHome() const { return currentStatus == "Home"; }
     bool isAtSchool() const { return currentStatus.find("School") != string::npos; }
     bool isAtHospital() const { return currentStatus.find("Hospital") != string::npos; }
@@ -52,7 +49,6 @@ struct Citizen {
     void setStreet(int newStreet) { street = newStreet; }
     void setHouseNo(int newHouseNo) { houseNo = newHouseNo; }
     
-    // Set full address at once
     void setAddress(const string& sec, int st, int house) {
         sector = sec;
         street = st;

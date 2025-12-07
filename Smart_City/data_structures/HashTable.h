@@ -1,11 +1,8 @@
-
 #pragma once
 #include <string>
 #include <stdexcept>
 #include <iostream>
 
-
-// Forward declaration of node for separate chaining
 template <typename K, typename V>
 struct HashNode {
     K key;
@@ -18,17 +15,14 @@ struct HashNode {
 template <typename K, typename V>
 class HashTable {
 private:
-    HashNode<K, V>** table; // Array of pointers to HashNodes
-    int capacity;           // Total buckets
-    int size;               // Total elements
+    HashNode<K, V>** table; 
+    int capacity;          
+    int size;               
 
-    // --- 1. Manual Hash Functions  ---
 
-    // Polynomial Rolling Hash for Strings
-    // Formula: (c0 * p^0 + c1 * p^1 + ... + cn * p^n) % m
     unsigned long hashFunction(const std::string& key) const {
         unsigned long hash = 0;
-        unsigned long p = 31;      // Prime number roughly equal to number of chars (a-z)
+        unsigned long p = 31;     
         unsigned long m = capacity;
         unsigned long p_pow = 1;
 
@@ -39,35 +33,29 @@ private:
         return hash;
     }
 
-    // Modular Hash for Integers
     unsigned long hashFunction(int key) const {
         return key % capacity;
     }
 
 public:
-    // Constructor
     HashTable(int cap = 101) : capacity(cap), size(0) {
-        // Using a prime number for capacity helps with distribution
         table = new HashNode<K, V>* [capacity];
         for (int i = 0; i < capacity; i++) {
             table[i] = nullptr;
         }
     }
 
-    // Destructor
     ~HashTable() {
         clear();
         delete[] table;
     }
 
-    // --- Core Operations ---
 
     void insert(const K& key, const V& value) {
         unsigned long index = hashFunction(key);
 
         HashNode<K, V>* current = table[index];
 
-        // Check if key already exists (Update value)
         while (current != nullptr) {
             if (current->key == key) {
                 current->value = value;
@@ -76,14 +64,12 @@ public:
             current = current->next;
         }
 
-        // Insert new node at head (Collision Resolution: Separate Chaining) 
         HashNode<K, V>* newNode = new HashNode<K, V>(key, value);
         newNode->next = table[index];
         table[index] = newNode;
         size++;
     }
 
-    // Returns pointer to value if found, nullptr if not
     V* get(const K& key) const {
         unsigned long index = hashFunction(key);
         HashNode<K, V>* current = table[index];
@@ -109,11 +95,9 @@ public:
         while (current != nullptr) {
             if (current->key == key) {
                 if (prev == nullptr) {
-                    // Node is head of the list
                     table[index] = current->next;
                 }
                 else {
-                    // Node is in the middle or end
                     prev->next = current->next;
                 }
                 delete current;

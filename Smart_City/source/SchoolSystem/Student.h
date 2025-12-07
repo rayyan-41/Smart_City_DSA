@@ -16,7 +16,6 @@ class Student {
 			: profile(citizen), rollNumber(IDGenerator::generateStudentID()) {
 		}
 
-		// Equality check based on Student ID
 		bool operator==(const Student& other) const {
 			return rollNumber == other.rollNumber;
 		}

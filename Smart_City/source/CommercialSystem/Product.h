@@ -14,6 +14,7 @@ struct Product {
         : name(n), category(c), price(p) {
     }
 
+    
     // ==================== GETTERS ====================
     string getName() const { return name; }
     string getCategory() const { return category; }

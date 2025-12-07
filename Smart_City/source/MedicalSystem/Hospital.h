@@ -18,7 +18,7 @@ public:
     Vector<Doctor> doctors;
     Vector<string> specializations;
 
-    // EMERGENCY ROOM (ER) QUEUE (Min-Heap / Priority Queue)
+    // QUEUE (Min-Heap / Priority Queue)
     PriorityQueue<Patient> emergencyRoom;
 
     Location location;
@@ -50,13 +50,11 @@ public:
     const Vector<Doctor>& getDoctors() const { return doctors; }
     const Vector<string>& getSpecializations() const { return specializations; }
     
-    // Occupancy percentage for rendering
     double getOccupancyRate() const {
         if (totalBeds == 0) return 0.0;
         return (double)admittedPatients.getSize() / totalBeds * 100.0;
     }
     
-    // Check if hospital is at capacity
     bool isAtCapacity() const { return getAvailableBeds() <= 0; }
     bool hasEmergencyQueue() const { return !emergencyRoom.empty(); }
 
@@ -69,7 +67,7 @@ public:
     void setCoordinates(double lat, double lon) { location.coord.x = lat; location.coord.y = lon; }
     void setLocation(const Location& loc) { location = loc; }
 
-    // ==================== CORE HOSPITAL LOGIC ====================
+    // ==================== Implementation ====================
 
     bool admitPatient(const Patient& p) {
         if (getAvailableBeds() > 0) {

@@ -25,13 +25,10 @@
 
 using std::string;
 
-// ============================================================================
-// STUDENT PASSENGER - Represents a student on a school bus
-// ============================================================================
 struct StudentPassenger {
     string studentCNIC;
     string studentName;
-    string pickupLocation;      // Can be school ID or home address (sector-street-house)
+    string pickupLocation;      
     string dropoffSchoolID;     // Destination school
     int pickupNodeID;
     int dropoffNodeID;

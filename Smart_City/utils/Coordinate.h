@@ -7,7 +7,6 @@ public:
     double x;   
     double y;   
 
-    // Rule of three
     Coordinate();
     Coordinate(double x, double y);
     Coordinate(const Coordinate& other);
@@ -15,7 +14,6 @@ public:
     ~Coordinate();
 };
 
-// Implementation
 Coordinate::Coordinate() : x(0.0), y(0.0) {}
 
 Coordinate::Coordinate(double x, double y) : x(x), y(y) {}
