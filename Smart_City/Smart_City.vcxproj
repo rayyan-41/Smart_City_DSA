@@ -179,9 +179,11 @@
   <ItemGroup>
     <None Include="dataset\buses.csv" />
     <None Include="dataset\hospitals.csv" />
+    <None Include="dataset\malls.csv" />
     <None Include="dataset\pharmacies.csv" />
     <None Include="dataset\population.csv" />
     <None Include="dataset\schools.csv" />
+    <None Include="dataset\shops.csv" />
     <None Include="dataset\stops.csv" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
