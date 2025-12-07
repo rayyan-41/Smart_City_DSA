@@ -5,11 +5,11 @@
 template <typename T>
 class Vector {
     T* data;
-    int _size;
+    int size;
     int capacity;
 
 public:
-    Vector(int s = 0) : data(nullptr), _size(0), capacity(s) {
+    Vector(int s = 0) : data(nullptr), size(0), capacity(s) {
         if (s < 0)
             throw std::invalid_argument("Invalid size");
 
@@ -18,10 +18,10 @@ public:
     }
 
     Vector(const Vector& other)
-        : data(nullptr), _size(other._size), capacity(other.capacity) {
+        : data(nullptr), size(other.size), capacity(other.capacity) {
         if (capacity > 0) {
             data = new T[capacity];
-            for (int i = 0; i < _size; i++)
+            for (int i = 0; i < size; i++)
                 data[i] = other.data[i];
         }
 	}
@@ -30,12 +30,12 @@ public:
         if (this == &other)
             return *this;
         delete[] data;
-        _size = other._size;
+        size = other.size;
         capacity = other.capacity;
         data = nullptr;
         if (capacity > 0) {
             data = new T[capacity];
-            for (int i = 0; i < _size; i++)
+            for (int i = 0; i < size; i++)
                 data[i] = other.data[i];
         }
         return *this;
@@ -46,85 +46,85 @@ public:
     }
 
     void push_back(const T& obj) {
-        if (_size == capacity) {
+        if (size == capacity) {
             int newCap = (capacity == 0) ? 1 : capacity * 2;
             reallocate(newCap);
         }
-        data[_size++] = obj;
+        data[size++] = obj;
     }
 
     void push_front(const T& obj) {
-        if (_size == capacity) {
+        if (size == capacity) {
             int newCap = (capacity == 0) ? 1 : capacity * 2;
             reallocate(newCap);
         }
-        for (int i = _size; i > 0; i--)
+        for (int i = size; i > 0; i--)
             data[i] = data[i - 1];
         data[0] = obj;
-        _size++;
+        size++;
 	}
 
     T& at(int index) {
-        if (index < 0 || index >= _size)
+        if (index < 0 || index >= size)
             throw std::out_of_range("Index out of range");
         return data[index];
     }
 
     const T& at(int index) const {
-        if (index < 0 || index >= _size)
+        if (index < 0 || index >= size)
             throw std::out_of_range("Index out of range");
         return data[index];
     }
 
     T& operator[](int index) {
-        if (index < 0 || index >= _size)
+        if (index < 0 || index >= size)
             throw std::out_of_range("Index out of range");
         return data[index];
     }
 
     const T& operator[](int index) const {
-        if (index < 0 || index >= _size)
+        if (index < 0 || index >= size)
             throw std::out_of_range("Index out of range");
         return data[index];
     }
 
     T& front() {
-        if (_size == 0)
+        if (size == 0)
             throw std::out_of_range("Vector is empty");
         return data[0];
     }
 
     const T& front() const {
-        if (_size == 0)
+        if (size == 0)
             throw std::out_of_range("Vector is empty");
         return data[0];
     }
 
     T& back() {
-        if (_size == 0)
+        if (size == 0)
             throw std::out_of_range("Vector is empty");
-        return data[_size - 1];
+        return data[size - 1];
     }
 
     const T& back() const {
-        if (_size == 0)
+        if (size == 0)
             throw std::out_of_range("Vector is empty");
-        return data[_size - 1];
+        return data[size - 1];
     }
 
     void pop_back() {
-        if (_size == 0)
+        if (size == 0)
             return;
-        _size--;
+        size--;
         shrinkCheck();
     }
 
     void pop_front() {
-        if (_size == 0)
+        if (size == 0)
             return;
-        for (int i = 0; i < _size - 1; i++)
+        for (int i = 0; i < size - 1; i++)
             data[i] = data[i + 1];
-        _size--;
+        size--;
         shrinkCheck();
 	}
 
@@ -136,41 +136,37 @@ public:
     void resize(int newSize, const T& defVal = T()) {
         if (newSize < 0)
             throw std::invalid_argument("Invalid size");
-        if (newSize < _size) {
-            _size = newSize;
+        if (newSize < size) {
+            size = newSize;
             shrinkCheck();  
         }
-        else if (newSize > _size) { 
+        else if (newSize > size) { 
             if (newSize > capacity)
                 reallocate(newSize);
-            for (int i = _size; i < newSize; i++)
+            for (int i = size; i < newSize; i++)
                 data[i] = defVal;
-            _size = newSize;
+            size = newSize;
         }
     }
-    bool empty() const { return _size == 0; }
+    bool empty() const { return size == 0; }
 
     void clear() {
-        _size = 0;
+        size = 0;
         shrinkCheck();
     }
 
-	// Begin and end for range-based for loops
-	T* begin() { return data; }
-	T* end() { return data + _size; }
-
     void swap(Vector& other) {
         T* tempData = data;
-        int tempSize = _size;
+        int tempSize = size;
         int tempCapacity = capacity;
         data = other.data;
-        _size = other._size;
+        size = other.size;
         capacity = other.capacity;
         other.data = tempData;
     }
 
     int find(const T& value) const {
-        for (int i = 0; i < _size; ++i) {
+        for (int i = 0; i < size; ++i) {
             if (data[i] == value)
                 return i;
         }
@@ -184,29 +180,29 @@ public:
     void remove(const T& value) {
         int idx = find(value);
         if (idx == -1) return;
-        for (int i = idx; i < _size - 1; ++i) {
+        for (int i = idx; i < size - 1; ++i) {
             data[i] = data[i + 1];
         }
-        --_size;
+        --size;
         shrinkCheck();
     }
 
     void erase(int index) {
-        if (index < 0 || index >= _size)
+        if (index < 0 || index >= size)
             throw std::out_of_range("Index out of range");
-        for (int i = index; i < _size - 1; i++)
+        for (int i = index; i < size - 1; i++)
             data[i] = data[i + 1];
-        _size--;
+        size--;
         shrinkCheck();
 	}
 
-    int getSize() const { return _size; }
+    int getSize() const { return size; }
     int getCapacity() const { return capacity; }
 
 private:
     void reallocate(int newCap) {
         T* newData = new T[newCap];
-        for (int i = 0; i < _size; i++)
+        for (int i = 0; i < size; i++)
             newData[i] = data[i];
         delete[] data;
         data = newData;
@@ -214,7 +210,7 @@ private:
 	}
 
     void shrinkCheck() {
-        if (capacity > 4 && _size <= capacity / 3) {
+        if (capacity > 4 && size <= capacity / 3) {
             int newCap = capacity / 2;
             if (newCap < 1) newCap = 1;
             reallocate(newCap);
