@@ -1,22 +1,4 @@
-/*
- * ============================================================================
- * SCHOOL MANAGER - Education System Controller
- * ============================================================================
- * 
- * PURPOSE:
- * Manages all schools in the Smart City with a 3-level hierarchical tree
- * structure (School ? Department ? Class). Provides O(1) lookups by school ID
- * and subject offerings, enabling efficient student enrollment and school
- * discovery across the city's education system.
- * 
- * DATA STRUCTURES USED:
- *   - Vector<School*>: Store all schools for iteration
- *   - HashTable<string, School*>: O(1) school lookup by ID
- *   - HashTable<string, Vector<School*>>: O(1) schools by subject
- *   - 3-Level Tree: School ? Department ? Class hierarchy
- * 
- * ============================================================================
- */
+
 
 #pragma once
 #include <string>
