@@ -251,7 +251,7 @@ private:
     double dijkstraDistance;
     int dijkstraNodeSelection;      // For selecting start node
     int dijkstraEndNodeSelection;   // For selecting end node (point-to-point)
-    std::vector<int> selectableNodes;  // Nodes user can select from
+    Vector<int> selectableNodes;  // Nodes user can select from
 
     string stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV;
     string busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV;
@@ -940,7 +940,7 @@ inline void CitySimulator::run() {
         case SimulatorState::DATABASE_VIEW: runDatabaseView(); break;
         case SimulatorState::MANAGEMENT_MENU: runManagementMenu(); break;
         case SimulatorState::DIJKSTRA_VIEW: runDijkstraView(); break;
-        case SimulatorState::SEARCH_VIEW: runSearchView(); break; // New State
+        case SimulatorState::SEARCH_VIEW: runSearchView(); break; 
         case SimulatorState::EXIT: break;
         }
     }
@@ -1430,7 +1430,7 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
 
             int startIdx = std::max(0, dijkstraNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
+            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
 
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
@@ -1485,7 +1485,7 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
 
             int startIdx = std::max(0, dijkstraEndNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
+            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
 
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
@@ -1562,7 +1562,7 @@ inline void CitySimulator::runDijkstraView() {
                 dijkstraNodeSelection--;
                 return true;
             }
-            if (e == Event::ArrowDown && dijkstraNodeSelection < (int)selectableNodes.size() - 1) {
+            if (e == Event::ArrowDown && dijkstraNodeSelection < (int)selectableNodes.getSize() - 1) {
                 dijkstraNodeSelection++;
                 return true;
             }
@@ -1607,7 +1607,7 @@ inline void CitySimulator::runDijkstraView() {
                 dijkstraEndNodeSelection--;
                 return true;
             }
-            if (e == Event::ArrowDown && dijkstraEndNodeSelection < (int)selectableNodes.size() - 1) {
+            if (e == Event::ArrowDown && dijkstraEndNodeSelection < (int)selectableNodes.getSize() - 1) {
                 dijkstraEndNodeSelection++;
                 return true;
             }
@@ -1851,37 +1851,6 @@ inline void CitySimulator::runDatabaseView() {
     screen.Loop(comp);
 }
 
-// ============================================================================
-// MANAGEMENT MENU
-// ============================================================================
-inline void CitySimulator::runManagementMenu() {
-    auto screen = ScreenInteractive::Fullscreen();
-    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back" };
-    int sel = 0;
-
-    auto renderer = Renderer([&] {
-        Elements items;
-        for (int i = 0; i < (int)options.size(); i++) {
-            auto item = text((i == sel ? " > " : "   ") + options[i]);
-            if (i == sel) item = item | bold | color(Color::Green);
-            items.push_back(item);
-        }
-        return vbox({ filler(), vbox({
-            text("MANAGEMENT MENU") | bold | center | color(Color::Cyan),
-            separator(), vbox(items), separator(),
-            text("Feature coming soon...") | dim | center
-        }) | border | size(WIDTH, EQUAL, 35) | center, filler() });
-    });
-
-    auto comp = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
-        if (e == Event::ArrowDown) { sel = (sel + 1) % options.size(); return true; }
-        if (e == Event::Return && sel == 3) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
-        if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
-        return false;
-    });
-    screen.Loop(comp);
-}
 
 // ============================================================================
 // SEARCH VIEW
