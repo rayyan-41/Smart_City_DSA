@@ -53,6 +53,11 @@ public:
         data[size++] = obj;
     }
 
+    // Begin and end
+
+	T* begin() { return data; }
+	T* end() { return data + size; }
+
     void push_front(const T& obj) {
         if (size == capacity) {
             int newCap = (capacity == 0) ? 1 : capacity * 2;

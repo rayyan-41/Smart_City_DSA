@@ -1,6 +1,3 @@
-
-
-
 #include <string>
 #include <vector>
 #include <sstream>
@@ -41,79 +38,46 @@ public:
     ~CityManagement() = default;
 
     // ==================== SCHOOL MANAGEMENT ====================
-    
-    /**
-     * Create a new school with specified departments
-     * @return School ID if successful, empty string otherwise
-     */
     string addSchool(const string& name, const string& sector, float rating,
                      const Vector<string>& departments, const Vector<string>& subjects);
-    
-    /**
-     * Remove a school and all its data
-     */
+
     bool removeSchool(const string& schoolID);
     
-    /**
-     * Add a department to existing school
-     */
+
     bool addDepartmentToSchool(const string& schoolID, const string& deptName);
     
-    /**
-     * Remove department from school
-     */
+
     bool removeDepartmentFromSchool(const string& schoolID, const string& deptName);
     
-    /**
-     * Add a class to a department
-     */
+
     bool addClassToDepartment(const string& schoolID, const string& deptName, int classNumber);
     
     // ==================== FACULTY MANAGEMENT ====================
     
-    /**
-     * Create new faculty member and add to school department
-     */
+
     string addNewFaculty(const string& name, const string& cnic, const string& qualification,
                          const string& schoolID, const string& deptName, double salary);
     
-    /**
-     * Hire unemployed citizen as faculty
-     * Returns employee ID if successful
-     */
+
     string hireCitizenAsFaculty(const string& citizenCNIC, const string& schoolID,
                                  const string& deptName, const string& qualification,
                                  double salary);
     
-    /**
-     * Remove faculty from school (makes them unemployed citizen again)
-     */
+ 
     bool removeFaculty(const string& schoolID, const string& deptName, const string& employeeID);
     
-    /**
-     * Get list of unemployed citizens available for hiring
-     */
+
     Vector<Citizen*> getUnemployedCitizens();
     
     // ==================== BUS & ROUTE MANAGEMENT ====================
     
-    /**
-     * Register a new bus and calculate route using Dijkstra
-     * @param startStopDBID Database ID of start stop
-     * @param endStopDBID Database ID of end stop
-     * @return Bus number if successful, empty string otherwise
-     */
+
     string registerNewBus(const string& company, const string& startStopDBID,
                           const string& endStopDBID);
     
-    /**
-     * Remove a bus from the system
-     */
+
     bool removeBus(const string& busNo);
-    
-    /**
-     * Create a new route between two stops (returns route info)
-     */
+
     struct RouteInfo {
         Vector<int> path;
         double distance;
@@ -128,182 +92,118 @@ public:
     RouteInfo calculateRoute(const string& startStopDBID, const string& endStopDBID);
     RouteInfo calculateRouteByName(const string& startName, const string& endName);
     
-    /**
-     * Register school bus for a school
-     */
+
     string registerSchoolBus(const string& schoolID, const string& sector);
     
-    /**
-     * Remove school bus
-     */
+
     bool removeSchoolBus(const string& busID);
     
-    // ==================== HOSPITAL MANAGEMENT ====================
+
     
-    /**
-     * Add a new hospital to the city
-     */
+  
     string addHospital(const string& name, const string& sector, int beds,
                        const Vector<string>& specializations);
 
-	// void admitPatient(const string& cnic, const string& hospitalID, int severity, const string&, )
     
-    /**
-     * Remove hospital from city
-     */
+ 
     bool removeHospital(const string& hospitalID);
-    
-    /**
-     * Add specialization to hospital
-     */
+
+    bool admitPatient(const string& cnic, const string& hospitalID, int severity, const string& disease) {
+		PopulationManager* pm = city->getPopulationManager();
+		Citizen* citizen = pm->getCitizen(cnic);
+		if (!citizen) return false;
+		MedicalManager* mm = city->getMedicalManager();
+		Patient p(citizen, disease, severity);
+		return mm->addPatient(hospitalID, p);
+
+    }
+
     bool addSpecializationToHospital(const string& hospitalID, const string& specialization);
     
-    /**
-     * Get all hospitals
-     */
+
     Vector<Hospital*> getAllHospitals();
     
-    /**
-     * Get hospitals in a sector
-     */
+
     Vector<Hospital*> getHospitalsInSector(const string& sector);
-    
-    // ==================== PHARMACY MANAGEMENT ====================
-    
-    /**
-     * Add a new pharmacy to the city
-     */
+
     string addPharmacy(const string& name, const string& sector);
     
-    /**
-     * Remove pharmacy from city
-     */
+
     bool removePharmacy(const string& pharmacyID);
-    
-    /**
-     * Add medicine to pharmacy
-     */
+
     bool addMedicineToPharmacy(const string& pharmacyID, const string& medName,
                                 const string& formula, float price);
     
-    /**
-     * Get all pharmacies
-     */
+
     Vector<Pharmacy*> getAllPharmacies();
     
     // ==================== AMBULANCE MANAGEMENT ====================
     
-    /**
-     * Register new ambulance for a hospital
-     */
+  
     string registerAmbulance(const string& hospitalID, const string& sector);
     
-    /**
-     * Remove ambulance
-     */
+ 
     bool removeAmbulance(const string& ambulanceID);
     
-    /**
-     * Get all ambulances
-     */
+ 
     Vector<Ambulance*> getAllAmbulances();
     
-    /**
-     * Get available ambulances
-     */
+   
     Vector<Ambulance*> getAvailableAmbulances();
     
     // ==================== CITIZEN MANAGEMENT ====================
     
-    /**
-     * Add new citizen to the city
-     */
+  
     string addCitizen(const string& name, int age, const string& sector,
                       int streetNo, int houseNo);
     
-    /**
-     * Remove citizen from city (also removes from schools, employment, etc.)
-     */
+   
     bool removeCitizen(const string& cnic);
-    
-    /**
-     * Enroll citizen as student in school
-     */
+  
     bool enrollStudent(const string& citizenCNIC, const string& schoolID,
                        const string& deptName, int classNumber);
     
-    /**
-     * Remove student from school
-     */
+ 
     bool removeStudent(const string& schoolID, const string& studentCNIC);
     
-    /**
-     * Get all citizens in a sector
-     */
+  
     Vector<Citizen*> getCitizensInSector(const string& sector);
     
-    /**
-     * Get citizen count
-     */
+ 
     int getTotalCitizenCount();
     
     // ==================== LOCATION MANAGEMENT ====================
     
-    /**
-     * Add a new bus stop to the graph
-     */
+ 
     int addBusStop(const string& name, const string& sector, double lat, double lon);
     
-    /**
-     * Add a new bus stop with auto-generated coordinates
-     */
+   
     int addBusStopInSector(const string& name, const string& sector);
     
-    /**
-     * Add a road connection between two nodes
-     */
+   
     bool addRoad(int node1ID, int node2ID);
     
-    /**
-     * Remove a road connection
-     */
+ 
     bool removeRoad(int node1ID, int node2ID);
     
     // ==================== QUERY METHODS ====================
     
-    /**
-     * Get all schools in a sector
-     */
+
     Vector<School*> getSchoolsInSector(const string& sector);
-    
-    /**
-     * Get all schools
-     */
+ 
     Vector<School*> getAllSchools();
-    
-    /**
-     * Get all buses
-     */
+
     Vector<Bus*> getAllBuses();
     
-    /**
-     * Get all school buses
-     */
+
     Vector<SchoolBus*> getAllSchoolBuses();
-    
-    /**
-     * Get all stops
-     */
+
     Vector<CityNode*> getAllStops();
     
-    /**
-     * Get stops in a sector
-     */
+ 
     Vector<CityNode*> getStopsInSector(const string& sector);
     
-    /**
-     * Get school details
-     */
+
     struct SchoolDetails {
         string id;
         string name;
@@ -318,9 +218,7 @@ public:
     
     SchoolDetails getSchoolDetails(const string& schoolID);
     
-    /**
-     * Get route details for a bus
-     */
+ 
     struct BusDetails {
         string busNo;
         string company;
@@ -334,9 +232,7 @@ public:
     
     BusDetails getBusDetails(const string& busNo);
     
-    /**
-     * Get hospital details
-     */
+  
     struct HospitalDetails {
         string id;
         string name;
@@ -349,9 +245,7 @@ public:
     
     HospitalDetails getHospitalDetails(const string& hospitalID);
     
-    /**
-     * Get city-wide statistics
-     */
+
     struct CityManagementStats {
         int totalSchools;
         int totalHospitals;
@@ -368,29 +262,15 @@ public:
 
     // ==================== COMMERCIAL MANAGEMENT ====================
 
-    /**
-     * Add a new Mall to the city
-     */
     string addMall(const string& name, const string& sector);
 
-    /**
-     * Remove a Mall and all its shops
-     */
+
     bool removeMall(const string& mallID);
 
-    /**
-     * Add a Shop to an existing Mall
-     */
+  
     string addShop(const string& mallID, const string& name, const string& category);
-
-    /**
-     * Remove a Shop from a Mall
-     */
     bool removeShop(const string& mallID, const string& shopID);
 
-    /**
-     * Get all Malls
-     */
     Vector<Mall*> getAllMalls();
 
 

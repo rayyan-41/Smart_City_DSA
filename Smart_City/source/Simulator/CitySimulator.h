@@ -1852,93 +1852,186 @@ inline void CitySimulator::runDatabaseView() {
 }
 
 // ============================================================================
-// MANAGEMENT MENU
-// ============================================================================
-inline void CitySimulator::runManagementMenu() {
-    auto screen = ScreenInteractive::Fullscreen();
-    std::vector<string> options = { "View Statistics", "Manage Transport", "Manage Facilities", "Back" };
-    int sel = 0;
-
-    auto renderer = Renderer([&] {
-        Elements items;
-        for (int i = 0; i < (int)options.size(); i++) {
-            auto item = text((i == sel ? " > " : "   ") + options[i]);
-            if (i == sel) item = item | bold | color(Color::Green);
-            items.push_back(item);
-        }
-        return vbox({ filler(), vbox({
-            text("MANAGEMENT MENU") | bold | center | color(Color::Cyan),
-            separator(), vbox(items), separator(),
-            text("Feature coming soon...") | dim | center
-        }) | border | size(WIDTH, EQUAL, 35) | center, filler() });
-    });
-
-    auto comp = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::ArrowUp) { sel = (sel - 1 + options.size()) % options.size(); return true; }
-        if (e == Event::ArrowDown) { sel = (sel + 1) % options.size(); return true; }
-        if (e == Event::Return && sel == 3) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
-        if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
-        return false;
-    });
-    screen.Loop(comp);
-}
-
-// ============================================================================
 // SEARCH VIEW
 // ============================================================================
 inline void CitySimulator::runSearchView() {
     auto screen = ScreenInteractive::Fullscreen();
+
+    // State
     string query = "";
     int selected = 0;
     std::vector<string> menu_entries;
-    string message = "";
+    string message = ""; // To show the ID on selection
 
+    // Helper: string lowercase
     auto toLower = [](const string& s) -> string {
         string lower = s;
-        for (char& c : lower) if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+        for (char& c : lower) {
+            if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+        }
         return lower;
-    };
+        };
 
+    // Helper to perform the search
     auto performSearch = [&]() {
         menu_entries.clear();
         selected = 0;
+        message = "";
+
         if (query.length() < 2) return;
+
         string q = toLower(query);
+
+        // 1. Search Facilities (Graph Nodes)
         if (islamabad && islamabad->getCityGraph()) {
             CityGraph* g = islamabad->getCityGraph();
             for (int i = 0; i < g->getNodeCount(); i++) {
                 CityNode* n = g->getNode(i);
                 if (!n || n->type == "CORNER") continue;
-                if (toLower(n->name).find(q) != string::npos) {
-                    menu_entries.push_back("[" + n->type + "] " + n->name + " @ " + n->sector);
+
+                string lowerName = toLower(n->name);
+
+                if (lowerName.find(q) != string::npos) {
+                    menu_entries.push_back("[ID: " + n->databaseID + "] " + n->name + " (" + n->type + ") in " + n->sector);
                 }
             }
         }
-        if (menu_entries.size() > 50) menu_entries.resize(50);
-    };
+
+        // 2. Search Commercial (Malls, Shops, Products)
+        if (islamabad && islamabad->getCommercialManager()) {
+            CommercialManager* cm = islamabad->getCommercialManager();
+            for (int i = 0; i < cm->malls.getSize(); i++) {
+                Mall* m = cm->malls[i];
+
+                // Search Mall Name
+                string mLower = toLower(m->name);
+                if (mLower.find(q) != string::npos) {
+                    menu_entries.push_back("[ID: " + m->id + "] " + m->name + " (" + m->getSector() + ")");
+                }
+
+                // Search Shops
+                for (int j = 0; j < m->shops.getSize(); j++) {
+                    Shop* s = m->shops[j];
+                    string sLower = toLower(s->name);
+
+                    if (sLower.find(q) != string::npos) {
+                        menu_entries.push_back("[ID: " + s->id + "] " + s->name + " @ " + m->name);
+                    }
+
+                    // Search Products within Shop
+                    for (int k = 0; k < s->inventory.getSize(); k++) {
+                        const Product* p = s->getProduct(k);
+                        if (!p) continue;
+
+                        string pLower = toLower(p->name);
+
+                        if (pLower.find(q) != string::npos) {
+                            menu_entries.push_back("[ID: " + s->id + "] Item: " + p->name + " (Rs." + std::to_string(p->price) + ") @ " + s->name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Search Medical (Medicines)
+        if (islamabad && islamabad->getMedicalManager()) {
+            MedicalManager* mm = islamabad->getMedicalManager();
+
+            for (int i = 0; i < mm->pharmacies.getSize(); i++) {
+                Pharmacy* p = mm->pharmacies[i];
+                for (int j = 0; j < p->inventory.getSize(); j++) {
+                    const Medicine* m = p->getMedicine(j);
+                    if (!m) continue;
+
+                    string mLower = toLower(m->name);
+                    string fLower = toLower(m->formula);
+
+                    if (mLower.find(q) != string::npos || fLower.find(q) != string::npos) {
+                        menu_entries.push_back("[ID: " + p->id + "] Med: " + m->name + " (" + m->formula + ") @ " + p->name);
+                    }
+                }
+            }
+        }
+
+        // Limit results for performance UI
+        if (menu_entries.size() > 100) {
+            menu_entries.resize(100);
+            menu_entries.push_back("... (matches truncated) ...");
+        }
+        };
+
+    // --- Components ---
 
     InputOption input_opt;
     input_opt.on_change = performSearch;
+    input_opt.placeholder = "Search for items, medicines, shops, or places...";
     auto input_component = Input(&query, input_opt);
-    auto menu_component = Menu(&menu_entries, &selected);
-    auto container = Container::Vertical({ input_component, menu_component | vscroll_indicator | frame | flex });
 
+    MenuOption menu_opt;
+    menu_opt.on_enter = [&] {
+        if (selected >= 0 && selected < (int)menu_entries.size()) {
+            string selection = menu_entries[selected];
+
+            // Extract ID logic
+            size_t start = selection.find("[ID: ");
+            if (start != string::npos) {
+                start += 5; // Skip "[ID: "
+                size_t end = selection.find("]", start);
+                if (end != string::npos) {
+                    string extractedID = selection.substr(start, end - start);
+                    message = "Selected Item ID: " + extractedID + " (Press Esc to return)";
+
+                    // PLACEHOLDER FOR MANAGEMENT VIEW INTEGRATION
+                    // When pressing Enter, we will eventually pass 'extractedID' 
+                    // to a Management View that looks up the object via HashTable.
+                    // For now, we just display the ID.
+                }
+                else {
+                    message = "ID format not recognized.";
+                }
+            }
+            else {
+                message = "No ID associated with this entry.";
+            }
+        }
+        };
+    auto menu_component = Menu(&menu_entries, &selected, menu_opt);
+
+    auto container = Container::Vertical({
+        input_component,
+        menu_component | vscroll_indicator | frame | flex
+        });
+
+    // --- Renderer ---
     auto renderer = Renderer(container, [&] {
         return vbox({
-            text(" SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text(" UNIVERSAL SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
             separator(),
             hbox({ text(" FIND: "), input_component->Render() | flex }),
             separator(),
-            menu_entries.empty() ? text("Type to search...") | dim | center : menu_component->Render() | flex,
+            (menu_entries.empty())
+                ? (query.length() < 2
+                    ? text("Type at least 2 characters to begin...") | dim | center
+                    : text("No results found.") | color(Color::Red) | center)
+                : menu_component->Render() | flex,
             separator(),
-            text("Esc: Back") | dim | center
-        }) | border | size(WIDTH, EQUAL, 70) | size(HEIGHT, EQUAL, 30) | center;
-    });
+            // Message Area for ID display
+            (message.empty() ? text("Select an item and press Enter") | dim | center
+                             : text(message) | bold | color(Color::Green) | center),
+            text("Esc: Back to Database") | dim | center
+            }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
+        });
 
+    // --- Event Loop ---
     auto component = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Escape) { currentState = SimulatorState::DATABASE_VIEW; screen.Exit(); return true; }
+        if (e == Event::Escape) {
+            currentState = SimulatorState::DATABASE_VIEW; // Return to DB view
+            screen.Exit();
+            return true;
+        }
         return false;
-    });
+        });
+
     screen.Loop(component);
 }
 
@@ -2276,8 +2369,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
             runInputForm("Admission", { "Condition", "Severity (1-10)" }, [&](std::vector<string> res) {
                 int sev = 5; try { sev = std::stoi(res[1]); }
                 catch (...) {}
-               /* if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;*/
-                if (false) {}
+                if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;
                 else message = "Admission Failed (No beds?)";
                 });
         }
