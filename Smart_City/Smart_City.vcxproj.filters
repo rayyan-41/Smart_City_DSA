@@ -174,9 +174,6 @@
     <ClInclude Include="SmartCity.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Graphics.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">
@@ -203,6 +200,8 @@
     <None Include="dataset\shops.csv">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="dataset\ambulances.csv" />
+    <None Include="dataset\schoolbuses.csv" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

@@ -1,35 +1,30 @@
 #pragma once
 #include "CityUtils.h"
-#include <unordered_map>  // For house deduplication in loadResidentialAreas
+#include <unordered_map> 
 
 class CityGraph {
 private:
     CityNode* nodes[MAX_NODES];
     int nodeCount;
-    
-    // Counters for generating unique IDs per facility type
-    int facilityCounters[14];  // One for each public facility type
-    
-    // Connect a node to all corner nodes in its sector
+
+    int facilityCounters[14];
+
     void connectNodeToSectorCorners(int nodeID, const string& sector);
-   
+
 public:
     CityGraph();
     ~CityGraph();
-    
+
     // ==================== SECTOR MANAGEMENT ====================
     void initializeSectorFrame(const string& sectorName);
-    
-    // ==================== NODE ACCESS ====================
+
     CityNode* getNode(int index) const;
     int getNodeCount() const { return nodeCount; }
-    
-    // ==================== NODE CREATION ====================
-    int addLocation(const string& databaseID, const string& stopID, 
-                    const string& name, const string& type, double lat, double lon);
+
+    int addLocation(const string& databaseID, const string& stopID,
+        const string& name, const string& type, double lat, double lon);
     int addPublicFacility(const string& name, const string& type, const string& sector);
-    
-    // Convenience methods for specific facility types
+
     int addMosque(const string& name, const string& sector, const string& prayerTimes = "");
     int addPark(const string& name, const string& sector, const string& hours = "06:00-22:00");
     int addWaterCooler(const string& name, const string& sector);
@@ -41,39 +36,33 @@ public:
     int addATM(const string& name, const string& sector, const string& bankName = "");
     int addRestaurant(const string& name, const string& sector, const string& cuisine = "");
     int addPublicToilet(const string& name, const string& sector);
-    
+
     // ==================== ROAD MANAGEMENT ====================
     void addRoad(int id1, int id2);
-    
-    // ==================== PATHFINDING ====================
+
     Vector<int> findShortestPath(int startID, int endID, double& totalDistance);
     int findNearestFacility(int fromNodeID, const string& facilityType);
     Vector<int> findAllNearestFacilities(int fromNodeID, const string& facilityType, int maxCount = 5);
     Vector<int> calculateBusRoute(int startNodeID, int endNodeID, double& distance);
-    
-    // ==================== LOOKUP FUNCTIONS ====================
+
+    // ==================== GETTER ====================
     int getIDByName(const string& name);
     int getIDByDatabaseID(const string& dbID);
     int getIDByStopID(const string& sID);
-    
-    // ==================== QUERY FUNCTIONS ====================
+
     Vector<int> getFacilitiesInSector(const string& sector, const string& type = "");
     Vector<int> getAllStopsInSector(const string& sector);
     void getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon);
-    
-    // ==================== CSV LOADING ====================
+
     void loadStopsCSV(const string& filename);
     void loadBuildingsCSV(const string& filename, const string& type);
     void loadPublicFacilitiesCSV(const string& filename);
     void loadResidentialAreas(const string& filename);  // NEW: Load houses from population.csv
-    
-    // ==================== ID GENERATION ====================
+
     string generateStopID(const string& type);
 };
 
-// ============================================================================
-// IMPLEMENTATION
-// ============================================================================
+
 
 // ==================== CONSTRUCTOR / DESTRUCTOR ====================
 
@@ -100,13 +89,11 @@ inline CityNode* CityGraph::getNode(int index) const {
 }
 
 // ==================== ID GENERATION ====================
-// Maps facility type to counter index and generates unique ID
 
 inline string CityGraph::generateStopID(const string& type) {
     string prefix = FacilityType::getStopIDPrefix(type);
     int counterIdx = 0;
-    
-    // Map type to counter index
+
     if (type == FacilityType::MOSQUE) counterIdx = 0;
     else if (type == FacilityType::PARK) counterIdx = 1;
     else if (type == FacilityType::WATER_COOLER) counterIdx = 2;
@@ -121,27 +108,18 @@ inline string CityGraph::generateStopID(const string& type) {
     else if (type == FacilityType::PETROL_STATION) counterIdx = 11;
     else if (type == FacilityType::RESTAURANT) counterIdx = 12;
     else if (type == FacilityType::PUBLIC_TOILET) counterIdx = 13;
-    
+
     int count = ++facilityCounters[counterIdx];
-    
-    // Format: PREFIX-001, PREFIX-002, etc.
+
+    // Format: PREFIX-001, PREFIX-002
     string countStr = std::to_string(count);
     while (countStr.length() < 3) countStr = "0" + countStr;
-    
+
     return prefix + "-" + countStr;
 }
 
 // ==================== SECTOR FRAME INITIALIZATION ====================
-/*
- * Creates 4 corner nodes for a sector and connects them in a ring.
- * This provides the base connectivity framework for the sector.
- * 
- *     NW -------- NE
- *      |          |
- *      |  SECTOR  |
- *      |          |
- *     SW -------- SE
- */
+
 
 inline void CityGraph::initializeSectorFrame(const string& sectorName) {
     int idx = GeometryUtils::getSectorIndex(sectorName);
@@ -149,20 +127,18 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
 
     SectorBox& box = SECTOR_GRID[idx];
 
-    // Create corner nodes
     int cSW = nodeCount;
     addLocation("C-" + sectorName + "-SW", "", sectorName + " SW", FacilityType::CORNER, box.minLat, box.minLon);
-    
+
     int cNW = nodeCount;
     addLocation("C-" + sectorName + "-NW", "", sectorName + " NW", FacilityType::CORNER, box.maxLat, box.minLon);
-    
+
     int cNE = nodeCount;
     addLocation("C-" + sectorName + "-NE", "", sectorName + " NE", FacilityType::CORNER, box.maxLat, box.maxLon);
-    
+
     int cSE = nodeCount;
     addLocation("C-" + sectorName + "-SE", "", sectorName + " SE", FacilityType::CORNER, box.minLat, box.maxLon);
 
-    // Connect corners in a ring: SW-NW-NE-SE-SW
     addRoad(cSW, cNW);
     addRoad(cNW, cNE);
     addRoad(cNE, cSE);
@@ -172,21 +148,17 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
 }
 
 // ==================== NODE-TO-CORNER CONNECTION ====================
-/*
- * Connects a node to all corner nodes in its sector.
- * This ensures the node is reachable from the sector's road network.
- */
+
 
 inline void CityGraph::connectNodeToSectorCorners(int nodeID, const string& sector) {
     if (nodeID < 0 || nodeID >= nodeCount) return;
     if (sector.empty() || sector == "Unknown") return;
-    
+
     for (int i = 0; i < nodeCount; i++) {
         if (!nodes[i] || nodes[i]->sector != sector || nodes[i]->type != FacilityType::CORNER) {
             continue;
         }
-        
-        // Check if road already exists
+
         bool exists = false;
         const LinkedList<Edge>& roads = nodes[nodeID]->getRoads();
         for (int j = 0; j < roads.size(); j++) {
@@ -195,7 +167,7 @@ inline void CityGraph::connectNodeToSectorCorners(int nodeID, const string& sect
                 break;
             }
         }
-        
+
         if (!exists) {
             addRoad(nodeID, i);
         }
@@ -204,14 +176,13 @@ inline void CityGraph::connectNodeToSectorCorners(int nodeID, const string& sect
 
 
 
-inline int CityGraph::addLocation(const string& databaseID, const string& stopID, 
-                                   const string& name, const string& type, 
-                                   double lat, double lon) {
+inline int CityGraph::addLocation(const string& databaseID, const string& stopID,
+    const string& name, const string& type,
+    double lat, double lon) {
     if (nodeCount >= MAX_NODES) return -1;
 
     string sector = GeometryUtils::resolveSector(lat, lon);
 
-    // Initialize sector frame for non-corner nodes
     if (type != FacilityType::CORNER && sector != "Unknown") {
         int sectorIdx = GeometryUtils::getSectorIndex(sector);
         if (sectorIdx != -1 && !SECTOR_GRID[sectorIdx].initialized) {
@@ -219,12 +190,10 @@ inline int CityGraph::addLocation(const string& databaseID, const string& stopID
         }
     }
 
-    // Create and store node
     int newID = nodeCount;
     nodes[newID] = new CityNode(newID, databaseID, stopID, name, type, lat, lon);
     nodeCount++;
 
-    // Connect to sector corners
     if (type != FacilityType::CORNER) {
         connectNodeToSectorCorners(newID, sector);
     }
@@ -232,7 +201,7 @@ inline int CityGraph::addLocation(const string& databaseID, const string& stopID
     return newID;
 }
 
-// ==================== PUBLIC FACILITY CREATION ====================
+// ==================== PUBLIC FACILITY ====================
 
 inline int CityGraph::addPublicFacility(const string& name, const string& type, const string& sector) {
     double lat, lon;
@@ -241,7 +210,6 @@ inline int CityGraph::addPublicFacility(const string& name, const string& type, 
     return addLocation(stopID, stopID, name, type, lat, lon);
 }
 
-// Convenience methods with default metadata
 
 inline int CityGraph::addMosque(const string& name, const string& sector, const string& prayerTimes) {
     int id = addPublicFacility(name, FacilityType::MOSQUE, sector);
@@ -325,10 +293,7 @@ inline int CityGraph::addPublicToilet(const string& name, const string& sector) 
 }
 
 // ==================== ROAD MANAGEMENT ====================
-/*
- * Adds a bidirectional road between two nodes.
- * Weight is calculated using grid distance.
- */
+
 
 inline void CityGraph::addRoad(int id1, int id2) {
     if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount || id1 == id2) {
@@ -399,12 +364,11 @@ inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon,
 inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& totalDistance) {
     Vector<int> path;
     totalDistance = 0.0;
-    
+
     if (startID < 0 || startID >= nodeCount || endID < 0 || endID >= nodeCount) {
         return path;
     }
 
-    // Dijkstra state arrays
     double distance[MAX_NODES];
     int parent[MAX_NODES];
     bool visited[MAX_NODES];
@@ -415,12 +379,10 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
         visited[i] = false;
     }
 
-    // Initialize with start node
     PriorityQueue<DijkstraNode> pq;
     distance[startID] = 0.0;
     pq.push(DijkstraNode(startID, 0.0));
 
-    // Process nodes in order of increasing distance
     while (!pq.empty()) {
         DijkstraNode current = pq.top();
         pq.pop();
@@ -429,12 +391,10 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
         if (visited[u]) continue;
         visited[u] = true;
 
-        // Early exit if destination reached
         if (u == endID) break;
 
         if (!nodes[u]) continue;
 
-        // Relax edges
         const LinkedList<Edge>& roads = nodes[u]->roads;
         for (int i = 0; i < roads.size(); i++) {
             int v = roads[i].destinationID;
@@ -447,127 +407,116 @@ inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& t
             }
         }
     }
-    
-    // Reconstruct path by backtracking from end to start
+
     if (parent[endID] != -1 || startID == endID) {
         int current = endID;
         while (current != -1) {
             path.push_back(current);
             current = parent[current];
         }
-        
-        // Reverse to get start-to-end order
+
         for (int i = 0; i < path.getSize() / 2; i++) {
             int temp = path[i];
             path[i] = path[path.getSize() - 1 - i];
             path[path.getSize() - 1 - i] = temp;
         }
-        
+
         totalDistance = distance[endID];
     }
-    
+
     return path;
 }
 
 // ==================== FACILITY SEARCH ====================
-/*
- * Finds the nearest facility of a given type using modified Dijkstra.
- * Stops as soon as a matching facility is found (guaranteed shortest).
- */
 
 inline int CityGraph::findNearestFacility(int fromNodeID, const string& facilityType) {
     if (fromNodeID < 0 || fromNodeID >= nodeCount) return -1;
-    
+
     double distance[MAX_NODES];
     bool visited[MAX_NODES];
-    
+
     for (int i = 0; i < MAX_NODES; i++) {
         distance[i] = INF;
         visited[i] = false;
     }
-    
+
     PriorityQueue<DijkstraNode> pq;
     distance[fromNodeID] = 0.0;
     pq.push(DijkstraNode(fromNodeID, 0.0));
-    
+
     while (!pq.empty()) {
         DijkstraNode current = pq.top();
         pq.pop();
-        
+
         int u = current.nodeID;
         if (visited[u]) continue;
         visited[u] = true;
-        
-        // Check if this is the target facility type
+
         if (u != fromNodeID && nodes[u] && nodes[u]->type == facilityType) {
             return u;
         }
-        
+
         if (!nodes[u]) continue;
-        
-        // Expand neighbors
+
         const LinkedList<Edge>& roads = nodes[u]->roads;
         for (int i = 0; i < roads.size(); i++) {
             int v = roads[i].destinationID;
             double weight = roads[i].weight;
-            
+
             if (!visited[v] && distance[u] + weight < distance[v]) {
                 distance[v] = distance[u] + weight;
                 pq.push(DijkstraNode(v, distance[v]));
             }
         }
     }
-    
+
     return -1;
 }
 
-/*
- * Finds multiple nearest facilities of a given type.
- * Continues until maxCount facilities are found.
- */
+
 
 inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const string& facilityType, int maxCount) {
     Vector<int> results;
     if (fromNodeID < 0 || fromNodeID >= nodeCount) return results;
-    
+
     double distance[MAX_NODES];
     bool visited[MAX_NODES];
-    
+
     for (int i = 0; i < MAX_NODES; i++) {
         distance[i] = INF;
         visited[i] = false;
     }
-    
+
     PriorityQueue<DijkstraNode> pq;
     distance[fromNodeID] = 0.0;
     pq.push(DijkstraNode(fromNodeID, 0.0));
-    
+
     while (!pq.empty() && results.getSize() < maxCount) {
         DijkstraNode current = pq.top();
         pq.pop();
-        
+
         int u = current.nodeID;
         if (visited[u]) continue;
         visited[u] = true;
-        
+
         if (u != fromNodeID && nodes[u] && nodes[u]->type == facilityType) {
             results.push_back(u);
         }
-        
+
         if (!nodes[u]) continue;
-        
+
         const LinkedList<Edge>& roads = nodes[u]->roads;
         for (int i = 0; i < roads.size(); i++) {
             int v = roads[i].destinationID;
             double weight = roads[i].weight;
-            
+
             if (!visited[v] && distance[u] + weight < distance[v]) {
                 distance[v] = distance[u] + weight;
                 pq.push(DijkstraNode(v, distance[v]));
             }
         }
     }
-    
+
     return results;
 }
 
@@ -575,18 +524,14 @@ inline Vector<int> CityGraph::calculateBusRoute(int startNodeID, int endNodeID, 
     return findShortestPath(startNodeID, endNodeID, distance);
 }
 
-// ==================== CSV LOADING ====================
-/*
- * CSV Format for stops: DatabaseID,Name,Sector
- * Coordinates are auto-generated within the sector bounds.
- */
+
 
 inline void CityGraph::loadStopsCSV(const string& filename) {
     ifstream file(filename);
     if (!file.is_open()) return;
 
     string line;
-    getline(file, line);  // Skip header
+    getline(file, line);
 
     while (getline(file, line)) {
         if (line.empty()) continue;
@@ -594,7 +539,6 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
         string databaseID, name, sector;
         int i = 0;
 
-        // Parse: DatabaseID,Name,Sector
         while (i < (int)line.size() && line[i] != ',') databaseID += line[i++];
         i++;
         while (i < (int)line.size() && line[i] != ',') name += line[i++];
@@ -613,17 +557,13 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
     file.close();
 }
 
-/*
- * CSV Format for buildings: DatabaseID,Name,Sector,...
- * Generic loader for schools, hospitals, etc.
- */
 
 inline void CityGraph::loadBuildingsCSV(const string& filename, const string& type) {
     ifstream file(filename);
     if (!file.is_open()) return;
 
     string line;
-    getline(file, line);  // Skip header
+    getline(file, line);
 
     while (getline(file, line)) {
         if (line.empty()) continue;
@@ -632,7 +572,6 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, const string& ty
         int i = 0;
         bool inQuotes = false;
 
-        // Parse DatabaseID
         while (i < (int)line.size()) {
             char c = line[i++];
             if (c == '"') { inQuotes = !inQuotes; continue; }
@@ -640,7 +579,6 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, const string& ty
             databaseID += c;
         }
 
-        // Parse Name
         inQuotes = false;
         while (i < (int)line.size()) {
             char c = line[i++];
@@ -649,7 +587,6 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, const string& ty
             name += c;
         }
 
-        // Parse Sector
         inQuotes = false;
         while (i < (int)line.size()) {
             char c = line[i++];
@@ -667,25 +604,20 @@ inline void CityGraph::loadBuildingsCSV(const string& filename, const string& ty
     file.close();
 }
 
-/*
- * CSV Format: Name,Type,Sector,Hours,Accessible,Info
- */
-
 inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
     ifstream file(filename);
     if (!file.is_open()) return;
-    
+
     string line;
-    getline(file, line);  // Skip header
-    
+    getline(file, line);
+
     while (getline(file, line)) {
         if (line.empty()) continue;
-        
+
         string name, type, sector, hours, accessible, info;
         int i = 0;
         bool inQuotes = false;
-        
-        // Helper lambda to parse next field
+
         auto parseField = [&](string& field) {
             inQuotes = false;
             while (i < (int)line.size()) {
@@ -694,17 +626,17 @@ inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
                 if ((c == ',' || c == '\r' || c == '\n') && !inQuotes) break;
                 field += c;
             }
-        };
-        
+            };
+
         parseField(name);
         parseField(type);
         parseField(sector);
         parseField(hours);
         parseField(accessible);
         parseField(info);
-        
+
         if (name.empty() || type.empty() || sector.empty()) continue;
-        
+
         int nodeID = addPublicFacility(name, type, sector);
         if (nodeID != -1) {
             if (!hours.empty()) nodes[nodeID]->operatingHours = hours;
@@ -715,31 +647,24 @@ inline void CityGraph::loadPublicFacilitiesCSV(const string& filename) {
     file.close();
 }
 
-/*
- * CSV Format for residential areas: CNIC,Name,Age,Sector,Street,HouseNo,Occupation
- * Extracts unique house locations (Sector + Street + HouseNo) and creates HOUSE nodes.
- * Houses are represented as small nodes that can be displayed on the map.
- */
 
 inline void CityGraph::loadResidentialAreas(const string& filename) {
     ifstream file(filename);
     if (!file.is_open()) return;
-    
+
     string line;
-    getline(file, line);  // Skip header (CNIC,Name,Age,Sector,Street,HouseNo,Occupation)
-    
-    // Track unique houses to avoid duplicates
-    // Format: "Sector-Street-HouseNo" -> node ID
+    getline(file, line);
+
+
     std::unordered_map<string, int> houseMap;
-    
+
     while (getline(file, line)) {
         if (line.empty()) continue;
-        
+
         string cnic, name, ageStr, sector, streetStr, houseStr, occupation;
         int i = 0;
         bool inQuotes = false;
 
-        // Helper lambda to parse next field
         auto parseField = [&](string& field) {
             inQuotes = false;
             field.clear();
@@ -747,15 +672,13 @@ inline void CityGraph::loadResidentialAreas(const string& filename) {
                 char c = line[i++];
                 if (c == '"') { inQuotes = !inQuotes; continue; }
                 if ((c == ',' || c == '\r' || c == '\n') && !inQuotes) break;
-                // Only add non-whitespace, or whitespace if field is not empty
                 if ((c != ' ' && c != '\t') || !field.empty()) field += c;
             }
-            // Trim trailing whitespace
             while (!field.empty() && (field.back() == ' ' || field.back() == '\t')) {
                 field.pop_back();
             }
-        };
-        
+            };
+
         parseField(cnic);
         parseField(name);
         parseField(ageStr);
@@ -763,59 +686,48 @@ inline void CityGraph::loadResidentialAreas(const string& filename) {
         parseField(streetStr);
         parseField(houseStr);
         parseField(occupation);
-        
+
         if (sector.empty() || streetStr.empty() || houseStr.empty()) continue;
-        
-        // Create unique house identifier
+
         string houseKey = sector + "-St" + streetStr + "-H" + houseStr;
-        
-        // Check if this house already exists
+
         if (houseMap.find(houseKey) == houseMap.end()) {
-            // Check if we have room for more nodes
             if (nodeCount >= MAX_NODES - 10) {
-                // Stop loading houses to prevent overflow
                 break;
             }
-            
-            // Generate coordinates for this house within the sector
+
             double lat, lon;
             GeometryUtils::generateCoords(sector, lat, lon);
-            
-            // Add slight offset based on street and house number for variety
-            // This ensures houses in the same sector have slightly different positions
+
+
             int street = 0, house = 0;
             try {
                 if (!streetStr.empty()) street = std::stoi(streetStr);
                 if (!houseStr.empty()) house = std::stoi(houseStr);
-            } catch (...) {
-                // If parsing fails, use default values (0)
+            }
+            catch (...) {
                 street = 0;
                 house = 0;
             }
-            
-            // Apply small offset (0.0001 degrees ~ 11 meters)
+
             double streetOffset = (street % 50) * 0.0001;
             double houseOffset = (house % 200) * 0.0001;
             lat += streetOffset;
             lon += houseOffset;
-            
-            // Create house name
+
             string houseName = "House " + houseStr + ", St " + streetStr;
-            
-            // Generate database ID
+
             string houseID = "HOUSE-" + sector + "-" + streetStr + "-" + houseStr;
-            
-            // Add house node to graph
+
             int nodeID = addLocation(houseID, "", houseName, FacilityType::HOUSE, lat, lon);
-            
+
             if (nodeID != -1) {
                 houseMap[houseKey] = nodeID;
-                
-                // Add metadata
+
                 nodes[nodeID]->additionalInfo = "Residential";
             }
         }
     }
-    
+
     file.close();
 }

@@ -8,7 +8,6 @@
 #include <functional>
 #include <fstream>
 #include <atomic>
-#include <vector>
 #include <sstream>
 #include <cmath>
 #include <algorithm> 
@@ -26,10 +25,6 @@
 using namespace ftxui;
 using std::string;
 
-// ============================================================================
-// GRAPH VISUALIZATION STRUCTURES
-// ============================================================================
-
 struct Point2D {
     double x, y;
     Point2D(double _x = 0, double _y = 0) : x(_x), y(_y) {}
@@ -37,17 +32,17 @@ struct Point2D {
 
 struct GraphNode2D {
     int id;
-    double lat, lon;        // Store original geo coordinates (immutable)
-    Point2D pos;            // Computed canvas position (recomputed on render)
+    double lat, lon;        
+    Point2D pos;           
     string name;
     string type;
     string sector;
     Color color;
     bool isCorner;
-    bool isOnPath;      // For Dijkstra visualization
-    bool isVisited;     // For Dijkstra visualization
-    bool isStart;       // Starting node
-    bool isEnd;         // Destination node
+    bool isOnPath;      
+    bool isVisited;    
+    bool isStart;       
+    bool isEnd;        
 
     GraphNode2D() : id(-1), lat(0), lon(0), pos(), name(""), type(""), sector(""),
         color(Color::White), isCorner(false), isOnPath(false),
@@ -57,20 +52,21 @@ struct GraphNode2D {
 
 struct GraphEdge2D {
     int fromID, toID;
-    bool isOnPath;  // For Dijkstra visualization
+    bool isOnPath;  
 
-    GraphEdge2D(int f, int t) : fromID(f), toID(t), isOnPath(false) {}
+    GraphEdge2D(int f = -1, int t = -1) : fromID(f), toID(t), isOnPath(false) {}
 };
 
 struct SectorRegion {
     string name;
-    double minLat, maxLat, minLon, maxLon;  // Store original geo bounds
-    Point2D topLeft, bottomRight;            // Computed canvas positions
+    double minLat, maxLat, minLon, maxLon;  
+    Point2D topLeft, bottomRight;           
     Point2D center;
     bool isHovered;
 
     SectorRegion() : name(""), minLat(0), maxLat(0), minLon(0), maxLon(0),
-        topLeft(), bottomRight(), center(), isHovered(false) {}
+        topLeft(), bottomRight(), center(), isHovered(false) {
+    }
 
     bool contains(Point2D p) const {
         return p.x >= topLeft.x && p.x <= bottomRight.x &&
@@ -78,36 +74,29 @@ struct SectorRegion {
     }
 };
 
-// Traffic vehicle for animation
 struct TrafficVehicle {
     int edgeFromID, edgeToID;
-    double progress;        // 0.0 to 1.0 along the edge
-    double speed;           // Progress per frame
+    double progress;        
+    double speed;           
     Color color;
-    
+
     TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02), color(Color::Yellow) {}
 };
 
-// ============================================================================
-// GRAPH RENDERING CONSTANTS
-// ============================================================================
+
 namespace GraphRenderConfig {
-    // Edge (road) thickness - number of parallel lines to draw
-    constexpr int ROAD_THICKNESS = 2;          // Normal roads
-    constexpr int PATH_THICKNESS = 3;          // Dijkstra path roads (thicker)
-    
-    // Vertex (node) size - radius in canvas units
-    constexpr int FACILITY_RADIUS = 3;         // Facilities like schools, hospitals
-    constexpr int CORNER_RADIUS = 2;           // Sector corners/intersections
-    constexpr int PATH_NODE_RADIUS = 4;        // Nodes on Dijkstra path (larger)
-    constexpr int START_END_RADIUS = 5;        // Start/End nodes (largest)
-    constexpr int HOUSE_RADIUS = 1;            // Houses (small dots)
-    constexpr int TRAFFIC_RADIUS = 2;          // Traffic vehicles
+    constexpr int ROAD_THICKNESS = 2;         
+    constexpr int PATH_THICKNESS = 3;          
+
+    constexpr int FACILITY_RADIUS = 3;         
+    constexpr int CORNER_RADIUS = 2;        
+    constexpr int PATH_NODE_RADIUS = 4;       
+    constexpr int START_END_RADIUS = 5;       
+    constexpr int HOUSE_RADIUS = 1;        
+    constexpr int TRAFFIC_RADIUS = 2;        
 }
 
-// ============================================================================
-// GRAPH VIEWPORT - Simple coordinate transformation (no normalization)
-// ============================================================================
+
 class GraphViewport {
 private:
     double minLat, maxLat, minLon, maxLon;
@@ -131,23 +120,17 @@ public:
         canvasWidth = w; canvasHeight = h;
     }
 
-    // Get canvas dimensions
     int getCanvasWidth() const { return canvasWidth; }
     int getCanvasHeight() const { return canvasHeight; }
 
-    // Simple linear mapping - keeps natural tilt of geographic data
-    // This is called at RENDER time, not build time
+
     Point2D geoToCanvas(double lat, double lon) const {
-        // Map longitude to X (west to east = left to right)
         double normX = (lon - minLon) / (maxLon - minLon);
-        // Map latitude to Y (north to south = top to bottom, so invert)
         double normY = (maxLat - lat) / (maxLat - minLat);
 
-        // Apply zoom centered on view
         normX = (normX - 0.5) * zoom + 0.5 + offsetX;
         normY = (normY - 0.5) * zoom + 0.5 + offsetY;
 
-        // Small padding
         double pad = 0.02;
         double canvasX = pad * canvasWidth + normX * canvasWidth * (1.0 - 2 * pad);
         double canvasY = pad * canvasHeight + normY * canvasHeight * (1.0 - 2 * pad);
@@ -168,9 +151,7 @@ public:
     double getOffsetY() const { return offsetY; }
 };
 
-// ============================================================================
-// ENUMS
-// ============================================================================
+
 
 enum class SimulatorState {
     INTRO_PHASE_1, INTRO_PHASE_2, INTRO_PHASE_3,
@@ -212,9 +193,7 @@ namespace ASCIIArt {
     const int REDEFINED_TITLE_HEIGHT = 6;
 }
 
-// ============================================================================
-// CITY SIMULATOR CLASS
-// ============================================================================
+
 
 class CitySimulator {
 private:
@@ -224,11 +203,11 @@ private:
     CSVLoadMode loadMode;
     bool cityInitialized;
 
-    std::vector<GraphNode2D> graphNodes;
-    std::vector<GraphEdge2D> graphEdges;
-    std::vector<SectorRegion> sectorRegions;
-    std::vector<int> nodeIdToIndex;
-    std::vector<TrafficVehicle> trafficVehicles;  // Traffic simulation
+    Vector<GraphNode2D> graphNodes;
+    Vector<GraphEdge2D> graphEdges;
+    Vector<SectorRegion> sectorRegions;
+    Vector<int> nodeIdToIndex;
+    Vector<TrafficVehicle> trafficVehicles;  
     GraphViewport viewport;
 
     int mouseX, mouseY;
@@ -238,29 +217,27 @@ private:
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
-    bool showHouses;          // Toggle houses display
-    bool showTraffic;         // Toggle traffic animation
-    bool trafficPaused;       // Pause traffic
+    bool showHouses;         
+    bool showTraffic;      
+    bool trafficPaused;       
 
-    // Dijkstra visualization state
     DijkstraMode dijkstraMode;
     int dijkstraStartNode;
     int dijkstraEndNode;
-    string dijkstraTargetType;  // "SCHOOL", "HOSPITAL", "STOP", "SECTOR", "CUSTOM"
+    string dijkstraTargetType;  
     Vector<int> dijkstraPath;
     double dijkstraDistance;
-    int dijkstraNodeSelection;      // For selecting start node
-    int dijkstraEndNodeSelection;   // For selecting end node (point-to-point)
-    std::vector<int> selectableNodes;  // Nodes user can select from
+    int dijkstraNodeSelection;    
+    int dijkstraEndNodeSelection;  
+    Vector<int> selectableNodes; 
 
     string stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV;
     string busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV;
 
-    // Counter for naming intersections
     int intersectionCounter;
 
     Color getNodeColor(const string& type) {
-        if (type == "CORNER") return Color::White;  // Corners are white
+        if (type == "CORNER") return Color::White;  
         if (type == "STOP") return Color::GreenLight;
         if (type == "SCHOOL") return Color::Blue;
         if (type == "HOSPITAL") return Color::Red;
@@ -298,30 +275,30 @@ public:
     void runSearchView();
     void runManagementMenu();
     void runDijkstraView();
-    void runEditObjectView(const string& objectID, const string& objectType); // New Edit View
+    void runEditObjectView(const string& objectID, const string& objectType); 
 
     void runAddFacilityForm(const string& sector);
     void runAddOfferingForm(CityNode* node);
 
-    // ------- EDITING FUNCTIONS MANAGEMENT -------
     void runInputForm(const string& title, const std::vector<string>& labels, std::function<void(std::vector<string>)> onConfirm);
+    void runManagementAddForm(const string& category); 
     Citizen* runPopulationSelector(const string& title);
     void runEditSchoolView(School* school);
-	void runEditHospitalView(Hospital* hospital);
-	void runEditShopView(Shop* shop, Mall* mall);
+    void runEditHospitalView(Hospital* hospital);
+    void runEditPharmacyView(Pharmacy* pharmacy); 
+    void runEditMallView(Mall* mall);             
+    void runEditShopView(Shop* shop, Mall* mall);
 
 
     Canvas renderGraphToCanvas(int width, int height);
     void updateHoverState(int mx, int my);
     string getHoverInfo();
 
-    // Dijkstra helpers
     void clearDijkstraVisualization();
     void runDijkstraAlgorithm();
-    void runDijkstraPointToPoint();  // New: point-to-point pathfinding
+    void runDijkstraPointToPoint();  
     void buildSelectableNodesList();
 
-    // Traffic simulation
     void initializeTraffic();
     void updateTraffic();
 
@@ -329,9 +306,6 @@ public:
     bool fileExists(const string& path);
 };
 
-// ============================================================================
-// IMPLEMENTATION
-// ============================================================================
 
 inline CitySimulator::CitySimulator()
     : islamabad(nullptr), cityMgmt(nullptr),
@@ -373,9 +347,7 @@ inline bool CitySimulator::fileExists(const string& path) {
     return f.good();
 }
 
-// ============================================================================
-// GRAPH VISUALIZATION - Cleaned up, single block per node
-// ============================================================================
+
 
 inline void CitySimulator::buildGraphVisualization() {
     graphNodes.clear();
@@ -387,7 +359,6 @@ inline void CitySimulator::buildGraphVisualization() {
     if (!islamabad || !islamabad->getCityGraph()) return;
     CityGraph* graph = islamabad->getCityGraph();
 
-    // Use actual data bounds
     viewport.setBounds(BASE_LAT, MAX_LAT, BASE_LON, MAX_LON);
 
     int maxId = 0;
@@ -397,16 +368,15 @@ inline void CitySimulator::buildGraphVisualization() {
     }
     nodeIdToIndex.resize(maxId + 1, -1);
 
-    // Build graph nodes - store GEO coordinates, not canvas positions
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
 
         GraphNode2D gNode;
         gNode.id = node->id;
-        gNode.lat = node->lat;      // Store original lat
-        gNode.lon = node->lon;      // Store original lon
-        gNode.pos = Point2D(0, 0);  // Will be computed at render time
+        gNode.lat = node->lat;      
+        gNode.lon = node->lon;      
+        gNode.pos = Point2D(0, 0);  
         gNode.type = node->type;
         gNode.sector = node->sector;
         gNode.color = getNodeColor(node->type);
@@ -416,7 +386,6 @@ inline void CitySimulator::buildGraphVisualization() {
         gNode.isStart = false;
         gNode.isEnd = false;
 
-        // Rename corners to "Intersection X"
         if (gNode.isCorner) {
             intersectionCounter++;
             gNode.name = "Intersection " + std::to_string(intersectionCounter);
@@ -425,19 +394,17 @@ inline void CitySimulator::buildGraphVisualization() {
             gNode.name = node->name;
         }
 
-        nodeIdToIndex[node->id] = (int)graphNodes.size();
+        nodeIdToIndex[node->id] = (int)graphNodes.getSize();
         graphNodes.push_back(gNode);
     }
 
-    // Build edges from actual road connections in the graph
     for (int i = 0; i < graph->getNodeCount(); i++) {
         CityNode* node = graph->getNode(i);
         if (!node) continue;
 
         const LinkedList<Edge>& roads = node->getRoads();
         for (int j = 0; j < roads.size(); j++) {
-            Edge edge = roads[j];
-            // Only add edge once (when fromID < toID)
+            Edge edge = roads.at(j); 
             if (node->id < edge.destinationID) {
                 GraphEdge2D gEdge(node->id, edge.destinationID);
                 gEdge.isOnPath = false;
@@ -446,7 +413,6 @@ inline void CitySimulator::buildGraphVisualization() {
         }
     }
 
-    // Build sector regions - store GEO bounds, not canvas positions
     for (int i = 0; i < SECTOR_COUNT; i++) {
         SectorRegion region;
         region.name = SECTOR_GRID[i].name;
@@ -458,13 +424,8 @@ inline void CitySimulator::buildGraphVisualization() {
         sectorRegions.push_back(region);
     }
 
-    // Initialize traffic if enabled
     initializeTraffic();
 }
-
-// ============================================================================
-// GRAPH RENDERING - Optimized and Centralized
-// ============================================================================
 
 inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
     Canvas canvas(width * 2, height * 4);
@@ -475,28 +436,26 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
 
     auto stylize = [](Color c) -> Canvas::Stylizer {
         return [c](Pixel& p) { p.foreground_color = c; };
-    };
+        };
 
-    // Helper function to draw a thick line (multiple parallel lines)
     auto drawThickLine = [&](int x1, int y1, int x2, int y2, int thickness, Color c) {
         double dx = x2 - x1;
         double dy = y2 - y1;
         double len = std::sqrt(dx * dx + dy * dy);
         if (len < 0.001) return;
-        
+
         double perpX = -dy / len;
         double perpY = dx / len;
-        
+
         int halfThick = thickness / 2;
         for (int t = -halfThick; t <= halfThick; t++) {
             int offsetX = (int)(perpX * t);
             int offsetY = (int)(perpY * t);
-            canvas.DrawBlockLine(x1 + offsetX, y1 + offsetY, 
-                                 x2 + offsetX, y2 + offsetY, stylize(c));
+            canvas.DrawBlockLine(x1 + offsetX, y1 + offsetY,
+                x2 + offsetX, y2 + offsetY, stylize(c));
         }
-    };
+        };
 
-    // Helper function to draw a filled circle (for vertices)
     auto drawFilledCircle = [&](int cx, int cy, int radius, Color c) {
         for (int dy = -radius; dy <= radius; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -509,38 +468,38 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 }
             }
         }
-    };
+        };
 
-    // Compute canvas positions for all nodes (at render time, not build time)
-    for (auto& node : graphNodes) {
-        node.pos = viewport.geoToCanvas(node.lat, node.lon);
+    for (int i = 0; i < graphNodes.getSize(); i++) {
+        graphNodes[i].pos = viewport.geoToCanvas(graphNodes[i].lat, graphNodes[i].lon);
     }
 
-    // Compute canvas positions for sector regions
-    for (auto& region : sectorRegions) {
+    for (int i = 0; i < sectorRegions.getSize(); i++) {
+        SectorRegion& region = sectorRegions[i];
         Point2D tl = viewport.geoToCanvas(region.maxLat, region.minLon);
         Point2D br = viewport.geoToCanvas(region.minLat, region.maxLon);
         region.topLeft = Point2D(std::min(tl.x, br.x), std::min(tl.y, br.y));
         region.bottomRight = Point2D(std::max(tl.x, br.x), std::max(tl.y, br.y));
         region.center = Point2D((region.topLeft.x + region.bottomRight.x) / 2,
-                                (region.topLeft.y + region.bottomRight.y) / 2);
+            (region.topLeft.y + region.bottomRight.y) / 2);
     }
 
-    // Draw sector boundaries if enabled
     if (showSectorBounds) {
-        for (const auto& region : sectorRegions) {
+        for (int i = 0; i < sectorRegions.getSize(); i++) {
+            const SectorRegion& region = sectorRegions[i];
             int x1 = (int)region.topLeft.x;
             int y1 = (int)region.topLeft.y;
             int x2 = (int)region.bottomRight.x;
             int y2 = (int)region.bottomRight.y;
 
-            // Clamp to canvas bounds
             x1 = std::max(0, std::min(cw - 1, x1));
             y1 = std::max(0, std::min(ch - 1, y1));
             x2 = std::max(0, std::min(cw - 1, x2));
             y2 = std::max(0, std::min(ch - 1, y2));
 
             Color boundColor = region.isHovered ? Color::Yellow : Color::GrayDark;
+            if (dijkstraMode == DijkstraMode::COMPLETE) boundColor = Color::GrayDark;
+
             canvas.DrawBlockLine(x1, y1, x2, y1, stylize(boundColor));
             canvas.DrawBlockLine(x2, y1, x2, y2, stylize(boundColor));
             canvas.DrawBlockLine(x2, y2, x1, y2, stylize(boundColor));
@@ -548,31 +507,34 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
         }
     }
 
-    // Draw roads (edges) with proportional thickness
     if (showRoads) {
-        // First pass: draw non-path roads
-        for (const auto& edge : graphEdges) {
+        for (int i = 0; i < graphEdges.getSize(); i++) {
+            const GraphEdge2D& edge = graphEdges[i];
             if (edge.isOnPath) continue;
-            
-            int idx1 = (edge.fromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.fromID] : -1;
-            int idx2 = (edge.toID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.toID] : -1;
-            if (idx1 >= 0 && idx2 >= 0 && idx1 < (int)graphNodes.size() && idx2 < (int)graphNodes.size()) {
+
+            if (dijkstraMode == DijkstraMode::COMPLETE) continue; // Skip non-path edges
+
+            int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
                 const GraphNode2D& n1 = graphNodes[idx1];
                 const GraphNode2D& n2 = graphNodes[idx2];
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
                 int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
 
-                drawThickLine(x1, y1, x2, y2, GraphRenderConfig::ROAD_THICKNESS, Color::GrayDark);
+                // Use DrawPointLine for Braille look
+                canvas.DrawPointLine(x1, y1, x2, y2, stylize(Color::GrayDark));
             }
         }
-        
+
         // Second pass: draw path roads on top (green, thicker)
-        for (const auto& edge : graphEdges) {
+        for (int i = 0; i < graphEdges.getSize(); i++) {
+            const GraphEdge2D& edge = graphEdges[i];
             if (!edge.isOnPath) continue;
-            
-            int idx1 = (edge.fromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.fromID] : -1;
-            int idx2 = (edge.toID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[edge.toID] : -1;
-            if (idx1 >= 0 && idx2 >= 0 && idx1 < (int)graphNodes.size() && idx2 < (int)graphNodes.size()) {
+
+            int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
                 const GraphNode2D& n1 = graphNodes[idx1];
                 const GraphNode2D& n2 = graphNodes[idx2];
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
@@ -584,91 +546,82 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
     }
 
     // Draw traffic vehicles if enabled
-    if (showTraffic && !trafficPaused) {
-        for (const auto& vehicle : trafficVehicles) {
-            int idx1 = (vehicle.edgeFromID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[vehicle.edgeFromID] : -1;
-            int idx2 = (vehicle.edgeToID < (int)nodeIdToIndex.size()) ? nodeIdToIndex[vehicle.edgeToID] : -1;
+    if (showTraffic && !trafficPaused && dijkstraMode != DijkstraMode::COMPLETE) {
+        for (int i = 0; i < trafficVehicles.getSize(); i++) {
+            const TrafficVehicle& vehicle = trafficVehicles[i];
+            int idx1 = (vehicle.edgeFromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[vehicle.edgeFromID] : -1;
+            int idx2 = (vehicle.edgeToID < nodeIdToIndex.getSize()) ? nodeIdToIndex[vehicle.edgeToID] : -1;
             if (idx1 >= 0 && idx2 >= 0) {
                 const GraphNode2D& n1 = graphNodes[idx1];
                 const GraphNode2D& n2 = graphNodes[idx2];
-                
-                // Interpolate position along edge
+
                 int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
                 int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
-                
+
                 if (vx >= 0 && vx < cw && vy >= 0 && vy < ch) {
-                    drawFilledCircle(vx, vy, GraphRenderConfig::TRAFFIC_RADIUS, vehicle.color);
+                    canvas.DrawPoint(vx, vy, true, stylize(vehicle.color));
                 }
             }
         }
     }
 
     // Draw houses if enabled
-    if (showHouses) {
-        for (const auto& node : graphNodes) {
+    if (showHouses && dijkstraMode != DijkstraMode::COMPLETE) {
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            const GraphNode2D& node = graphNodes[i];
             if (node.type != "HOUSE") continue;
             int x = (int)node.pos.x;
             int y = (int)node.pos.y;
             if (x >= 0 && x < cw && y >= 0 && y < ch) {
-                drawFilledCircle(x, y, GraphRenderConfig::HOUSE_RADIUS, Color::GrayLight);
+                canvas.DrawPoint(x, y, true, stylize(Color::GrayLight));
             }
         }
     }
 
-    // Draw corners (intersections) - white colored with fixed size
     if (showCorners) {
-        for (const auto& node : graphNodes) {
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            const GraphNode2D& node = graphNodes[i];
             if (!node.isCorner) continue;
+
+            if (dijkstraMode == DijkstraMode::COMPLETE && !node.isOnPath) continue;
+
             int x = (int)node.pos.x;
             int y = (int)node.pos.y;
             if (x >= 0 && x < cw && y >= 0 && y < ch) {
                 Color c = Color::White;
-                int radius = GraphRenderConfig::CORNER_RADIUS;
-                
-                if (node.isOnPath) {
-                    c = Color::GreenLight;
-                    radius = GraphRenderConfig::PATH_NODE_RADIUS;
-                }
-                
-                drawFilledCircle(x, y, radius, c);
+                if (node.isOnPath) c = Color::GreenLight;
+                else if (dijkstraMode == DijkstraMode::COMPLETE) continue;
+                else c = Color::GrayDark; 
+
+                canvas.DrawPoint(x, y, true, stylize(c));
             }
         }
     }
 
-    // Draw facilities - fixed width with color coding
-    for (const auto& node : graphNodes) {
+    for (int i = 0; i < graphNodes.getSize(); i++) {
+        const GraphNode2D& node = graphNodes[i];
         if (node.isCorner || node.type == "HOUSE") continue;
+
+        if (dijkstraMode == DijkstraMode::COMPLETE && !node.isOnPath && !node.isStart && !node.isEnd) continue;
+
         int x = (int)node.pos.x;
         int y = (int)node.pos.y;
         if (x < 0 || x >= cw || y < 0 || y >= ch) continue;
 
         Color nodeColor = node.color;
-        int radius = GraphRenderConfig::FACILITY_RADIUS;
 
-        // Override colors and sizes for Dijkstra visualization
-        if (node.isStart) {
-            nodeColor = Color::Cyan;
-            radius = GraphRenderConfig::START_END_RADIUS;
-        }
-        else if (node.isEnd) {
-            nodeColor = Color::Yellow;
-            radius = GraphRenderConfig::START_END_RADIUS;
-        }
-        else if (node.isOnPath) {
-            nodeColor = Color::GreenLight;
-            radius = GraphRenderConfig::PATH_NODE_RADIUS;
-        }
-        else if (node.isVisited) {
-            nodeColor = Color::Orange1;
-        }
+        if (node.isStart) nodeColor = Color::Cyan;
+        else if (node.isEnd) nodeColor = Color::Yellow;
+        else if (node.isOnPath) nodeColor = Color::GreenLight;
+        else if (node.isVisited && dijkstraMode != DijkstraMode::COMPLETE) nodeColor = Color::Orange1;
 
-        // Hovered node highlight
-        if (node.id == hoveredNodeID) {
-            nodeColor = Color::White;
-            radius = GraphRenderConfig::PATH_NODE_RADIUS;
-        }
+        if (node.id == hoveredNodeID) nodeColor = Color::White;
 
-        drawFilledCircle(x, y, radius, nodeColor);
+        canvas.DrawPoint(x, y, true, stylize(nodeColor));
+        canvas.DrawPoint(x + 1, y, true, stylize(nodeColor));
+        canvas.DrawPoint(x - 1, y, true, stylize(nodeColor));
+        canvas.DrawPoint(x, y + 1, true, stylize(nodeColor));
+        canvas.DrawPoint(x, y - 1, true, stylize(nodeColor));
     }
 
     return canvas;
@@ -680,15 +633,15 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
     hoveredNodeID = -1;
     hoveredSector = "";
 
-    // Convert mouse position to canvas coordinates
     int canvasX = (mx - 1) * 2;
     int canvasY = (my - 2) * 4;
 
     double minDist = 25.0;  // Increased hover distance
-    for (const auto& node : graphNodes) {
+    for (int i = 0; i < graphNodes.getSize(); i++) {
+        const GraphNode2D& node = graphNodes[i];
         if (node.isCorner && !showCorners) continue;
         if (node.type == "HOUSE" && !showHouses) continue;
-        
+
         double dx = node.pos.x - canvasX;
         double dy = node.pos.y - canvasY;
         double dist = std::sqrt(dx * dx + dy * dy);
@@ -698,7 +651,8 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
         }
     }
 
-    for (auto& region : sectorRegions) {
+    for (int i = 0; i < sectorRegions.getSize(); i++) {
+        SectorRegion& region = sectorRegions[i];
         region.isHovered = region.contains(Point2D(canvasX, canvasY));
         if (region.isHovered) {
             hoveredSector = region.name;
@@ -709,9 +663,9 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
 inline string CitySimulator::getHoverInfo() {
     std::stringstream ss;
 
-    if (hoveredNodeID >= 0 && hoveredNodeID < (int)nodeIdToIndex.size()) {
+    if (hoveredNodeID >= 0 && hoveredNodeID < nodeIdToIndex.getSize()) {
         int idx = nodeIdToIndex[hoveredNodeID];
-        if (idx >= 0 && idx < (int)graphNodes.size()) {
+        if (idx >= 0 && idx < graphNodes.getSize()) {
             const GraphNode2D& node = graphNodes[idx];
             ss << node.name.substr(0, 18) << "\n";
             ss << "Type: " << node.type << "\n";
@@ -729,19 +683,17 @@ inline string CitySimulator::getHoverInfo() {
     return ss.str();
 }
 
-// ============================================================================
-// DIJKSTRA VISUALIZATION HELPERS
-// ============================================================================
+
 
 inline void CitySimulator::clearDijkstraVisualization() {
-    for (auto& node : graphNodes) {
-        node.isOnPath = false;
-        node.isVisited = false;
-        node.isStart = false;
-        node.isEnd = false;
+    for (int i = 0; i < graphNodes.getSize(); i++) {
+        graphNodes[i].isOnPath = false;
+        graphNodes[i].isVisited = false;
+        graphNodes[i].isStart = false;
+        graphNodes[i].isEnd = false;
     }
-    for (auto& edge : graphEdges) {
-        edge.isOnPath = false;
+    for (int i = 0; i < graphEdges.getSize(); i++) {
+        graphEdges[i].isOnPath = false;
     }
     dijkstraPath.clear();
     dijkstraDistance = 0.0;
@@ -751,9 +703,9 @@ inline void CitySimulator::clearDijkstraVisualization() {
 
 inline void CitySimulator::buildSelectableNodesList() {
     selectableNodes.clear();
-    for (const auto& node : graphNodes) {
-        if (!node.isCorner) {
-            selectableNodes.push_back(node.id);
+    for (int i = 0; i < graphNodes.getSize(); i++) {
+        if (!graphNodes[i].isCorner) {
+            selectableNodes.push_back(graphNodes[i].id);
         }
     }
 }
@@ -764,7 +716,6 @@ inline void CitySimulator::runDijkstraAlgorithm() {
 
     CityGraph* graph = islamabad->getCityGraph();
 
-    // Find target based on type
     if (dijkstraTargetType == "SCHOOL" || dijkstraTargetType == "HOSPITAL" ||
         dijkstraTargetType == "PHARMACY" || dijkstraTargetType == "STOP") {
         dijkstraEndNode = graph->findNearestFacility(dijkstraStartNode, dijkstraTargetType);
@@ -772,35 +723,32 @@ inline void CitySimulator::runDijkstraAlgorithm() {
 
     if (dijkstraEndNode < 0) return;
 
-    // Run Dijkstra
     dijkstraPath = graph->findShortestPath(dijkstraStartNode, dijkstraEndNode, dijkstraDistance);
 
-    // Mark nodes on path
     for (int i = 0; i < dijkstraPath.getSize(); i++) {
         int nodeId = dijkstraPath[i];
-        if (nodeId < (int)nodeIdToIndex.size()) {
+        if (nodeId < nodeIdToIndex.getSize()) {
             int idx = nodeIdToIndex[nodeId];
-            if (idx >= 0 && idx < (int)graphNodes.size()) {
+            if (idx >= 0 && idx < graphNodes.getSize()) {
                 graphNodes[idx].isOnPath = true;
             }
         }
     }
 
-    // Mark start and end
-    if (dijkstraStartNode < (int)nodeIdToIndex.size()) {
+    if (dijkstraStartNode < nodeIdToIndex.getSize()) {
         int idx = nodeIdToIndex[dijkstraStartNode];
         if (idx >= 0) graphNodes[idx].isStart = true;
     }
-    if (dijkstraEndNode < (int)nodeIdToIndex.size()) {
+    if (dijkstraEndNode < nodeIdToIndex.getSize()) {
         int idx = nodeIdToIndex[dijkstraEndNode];
         if (idx >= 0) graphNodes[idx].isEnd = true;
     }
 
-    // Mark edges on path
     for (int i = 0; i < dijkstraPath.getSize() - 1; i++) {
         int from = dijkstraPath[i];
         int to = dijkstraPath[i + 1];
-        for (auto& edge : graphEdges) {
+        for (int j = 0; j < graphEdges.getSize(); j++) {
+            GraphEdge2D& edge = graphEdges[j];
             if ((edge.fromID == from && edge.toID == to) ||
                 (edge.fromID == to && edge.toID == from)) {
                 edge.isOnPath = true;
@@ -815,35 +763,32 @@ inline void CitySimulator::runDijkstraPointToPoint() {
 
     CityGraph* graph = islamabad->getCityGraph();
 
-    // Run Dijkstra between two specific points
     dijkstraPath = graph->findShortestPath(dijkstraStartNode, dijkstraEndNode, dijkstraDistance);
 
-    // Mark nodes on path
     for (int i = 0; i < dijkstraPath.getSize(); i++) {
         int nodeId = dijkstraPath[i];
-        if (nodeId < (int)nodeIdToIndex.size()) {
+        if (nodeId < nodeIdToIndex.getSize()) {
             int idx = nodeIdToIndex[nodeId];
-            if (idx >= 0 && idx < (int)graphNodes.size()) {
+            if (idx >= 0 && idx < graphNodes.getSize()) {
                 graphNodes[idx].isOnPath = true;
             }
         }
     }
 
-    // Mark start and end
-    if (dijkstraStartNode < (int)nodeIdToIndex.size()) {
+    if (dijkstraStartNode < nodeIdToIndex.getSize()) {
         int idx = nodeIdToIndex[dijkstraStartNode];
         if (idx >= 0) graphNodes[idx].isStart = true;
     }
-    if (dijkstraEndNode < (int)nodeIdToIndex.size()) {
+    if (dijkstraEndNode < nodeIdToIndex.getSize()) {
         int idx = nodeIdToIndex[dijkstraEndNode];
         if (idx >= 0) graphNodes[idx].isEnd = true;
     }
 
-    // Mark edges on path
     for (int i = 0; i < dijkstraPath.getSize() - 1; i++) {
         int from = dijkstraPath[i];
         int to = dijkstraPath[i + 1];
-        for (auto& edge : graphEdges) {
+        for (int j = 0; j < graphEdges.getSize(); j++) {
+            GraphEdge2D& edge = graphEdges[j];
             if ((edge.fromID == from && edge.toID == to) ||
                 (edge.fromID == to && edge.toID == from)) {
                 edge.isOnPath = true;
@@ -852,69 +797,65 @@ inline void CitySimulator::runDijkstraPointToPoint() {
     }
 }
 
-// ============================================================================
-// TRAFFIC SIMULATION
-// ============================================================================
 
 inline void CitySimulator::initializeTraffic() {
     trafficVehicles.clear();
-    
+
     if (graphEdges.empty()) return;
-    
-    // Create some random traffic vehicles on edges
-    int numVehicles = std::min(20, (int)graphEdges.size() / 3);
-    
+
+    int numVehicles = std::min(20, (int)graphEdges.getSize() / 3);
+
     for (int i = 0; i < numVehicles; i++) {
         TrafficVehicle vehicle;
-        int edgeIdx = rand() % graphEdges.size();
+        int edgeIdx = rand() % graphEdges.getSize();
         vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
         vehicle.edgeToID = graphEdges[edgeIdx].toID;
         vehicle.progress = (rand() % 100) / 100.0;
-        vehicle.speed = 0.01 + (rand() % 30) / 1000.0;  // Variable speeds
-        
-        // Different vehicle colors
+        vehicle.speed = 0.01 + (rand() % 30) / 1000.0;  
+
         int colorChoice = rand() % 4;
         if (colorChoice == 0) vehicle.color = Color::Yellow;
         else if (colorChoice == 1) vehicle.color = Color::Orange1;
         else if (colorChoice == 2) vehicle.color = Color::Cyan;
         else vehicle.color = Color::RedLight;
-        
+
         trafficVehicles.push_back(vehicle);
     }
 }
 
 inline void CitySimulator::updateTraffic() {
     if (trafficPaused || trafficVehicles.empty()) return;
-    
-    for (auto& vehicle : trafficVehicles) {
+
+    for (int i = 0; i < trafficVehicles.getSize(); i++) {
+        TrafficVehicle& vehicle = trafficVehicles[i];
         vehicle.progress += vehicle.speed;
-        
-        // When vehicle reaches end, pick a new random edge
+
         if (vehicle.progress >= 1.0) {
             vehicle.progress = 0.0;
-            
-            // Try to find a connected edge for smooth traffic flow
+
             int currentEndID = vehicle.edgeToID;
-            std::vector<int> connectedEdges;
-            
-            for (int i = 0; i < (int)graphEdges.size(); i++) {
-                if (graphEdges[i].fromID == currentEndID || graphEdges[i].toID == currentEndID) {
-                    connectedEdges.push_back(i);
+            Vector<int> connectedEdges;
+
+            for (int j = 0; j < graphEdges.getSize(); j++) {
+                if (graphEdges[j].fromID == currentEndID || graphEdges[j].toID == currentEndID) {
+                    connectedEdges.push_back(j);
                 }
             }
-            
-            if (!connectedEdges.empty()) {
-                int nextEdgeIdx = connectedEdges[rand() % connectedEdges.size()];
-                if (graphEdges[nextEdgeIdx].fromID == currentEndID) {
-                    vehicle.edgeFromID = graphEdges[nextEdgeIdx].fromID;
-                    vehicle.edgeToID = graphEdges[nextEdgeIdx].toID;
-                } else {
-                    vehicle.edgeFromID = graphEdges[nextEdgeIdx].toID;
-                    vehicle.edgeToID = graphEdges[nextEdgeIdx].fromID;
+
+            if (connectedEdges.getSize() > 0) {
+                int nextEdgeIdx = connectedEdges[rand() % connectedEdges.getSize()];
+                const GraphEdge2D& nextEdge = graphEdges[nextEdgeIdx];
+                if (nextEdge.fromID == currentEndID) {
+                    vehicle.edgeFromID = nextEdge.fromID;
+                    vehicle.edgeToID = nextEdge.toID;
                 }
-            } else if (!graphEdges.empty()) {
-                // Pick random edge if no connection found
-                int edgeIdx = rand() % graphEdges.size();
+                else {
+                    vehicle.edgeFromID = nextEdge.toID;
+                    vehicle.edgeToID = nextEdge.fromID;
+                }
+            }
+            else if (!graphEdges.empty()) {
+                int edgeIdx = rand() % graphEdges.getSize();
                 vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
                 vehicle.edgeToID = graphEdges[edgeIdx].toID;
             }
@@ -922,9 +863,7 @@ inline void CitySimulator::updateTraffic() {
     }
 }
 
-// ============================================================================
-// MAIN LOOP
-// ============================================================================
+
 
 inline void CitySimulator::run() {
     while (currentState != SimulatorState::EXIT) {
@@ -947,9 +886,6 @@ inline void CitySimulator::run() {
     std::cout << "\nThank you for using Islamabad Redefined!\n" << std::endl;
 }
 
-// ============================================================================
-// INTRO PHASES
-// ============================================================================
 
 inline void CitySimulator::runIntroPhase1() {
     auto screen = ScreenInteractive::Fullscreen();
@@ -1032,9 +968,7 @@ inline void CitySimulator::runIntroPhase3() {
 
 inline void CitySimulator::runWelcomeAnimation() { currentState = SimulatorState::MAIN_MENU; }
 
-// ============================================================================
-// DEBUG MODE
-// ============================================================================
+
 
 inline void CitySimulator::runDebugMode() {
     std::cout << "=== DEBUG MODE ===" << std::endl;
@@ -1047,9 +981,6 @@ inline void CitySimulator::runDebugMode() {
     runGraphView();
 }
 
-// ============================================================================
-// MAIN MENU
-// ============================================================================
 
 inline void CitySimulator::runMainMenu() {
     auto screen = ScreenInteractive::Fullscreen();
@@ -1132,9 +1063,7 @@ inline void CitySimulator::runMainMenu() {
     screen.Loop(comp);
 }
 
-// ============================================================================
-// CSV SELECTION & LOADING
-// ============================================================================
+
 
 inline void CitySimulator::runCSVSelection() {
     auto screen = ScreenInteractive::Fullscreen();
@@ -1201,7 +1130,6 @@ inline void CitySimulator::runLoadingScreen() {
     std::atomic<bool> done{ false };
     std::atomic<int> totalSteps{ 14 };  // Total loading steps
 
-    // Loading stage descriptions
     std::vector<string> loadingStages = {
         "Initializing city graph...",
         "Loading sector frames...",
@@ -1228,7 +1156,6 @@ inline void CitySimulator::runLoadingScreen() {
             progressBar += (i < filledWidth) ? "█" : "░";
         }
 
-        // Get current stage description
         string stageDesc = (s < (int)loadingStages.size()) ? loadingStages[s] : "Completing...";
 
         return vbox({
@@ -1246,14 +1173,11 @@ inline void CitySimulator::runLoadingScreen() {
         });
 
     std::thread t([&]() {
-        // Step 0: Create SmartCity
         islamabad = new SmartCity();
         islamabad->setDatasetPaths(stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV,
             busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV);
         step.store(1); screen.PostEvent(Event::Custom); sleepMs(80);
 
-        // Steps 1-13: Initialize (SmartCity::initialize handles the rest internally)
-        // We simulate progress here as initialize() is a single call
         for (int i = 2; i <= 6; i++) {
             step.store(i); screen.PostEvent(Event::Custom); sleepMs(60);
         }
@@ -1281,15 +1205,10 @@ inline void CitySimulator::runLoadingScreen() {
     if (t.joinable()) t.join();
 }
 
-// ============================================================================
-// GRAPH VIEW
-// ============================================================================
-
 inline void CitySimulator::runGraphView() {
     auto screen = ScreenInteractive::Fullscreen();
-    buildGraphVisualization();  // Build once at start
+    buildGraphVisualization(); 
 
-    // Traffic update thread
     std::atomic<bool> running{ true };
     std::thread trafficThread([&]() {
         while (running.load()) {
@@ -1299,7 +1218,7 @@ inline void CitySimulator::runGraphView() {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    });
+        });
 
     auto renderer = Renderer([&] {
         int termW = Terminal::Size().dimx;
@@ -1349,53 +1268,49 @@ inline void CitySimulator::runGraphView() {
         });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
-        // Zoom - NO rebuild needed, positions computed at render time
-        if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('i')) { 
-            viewport.zoomIn(); 
-            return true; 
+        if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('i')) {
+            viewport.zoomIn();
+            return true;
         }
-        if (e == Event::Character('-') || e == Event::Character('o')) { 
-            viewport.zoomOut(); 
-            return true; 
+        if (e == Event::Character('-') || e == Event::Character('o')) {
+            viewport.zoomOut();
+            return true;
         }
-        // Pan - NO rebuild needed
         if (e == Event::ArrowLeft) { viewport.panLeft(); return true; }
         if (e == Event::ArrowRight) { viewport.panRight(); return true; }
         if (e == Event::ArrowUp) { viewport.panUp(); return true; }
         if (e == Event::ArrowDown) { viewport.panDown(); return true; }
-        // Reset view
         if (e == Event::Character('0')) { viewport.resetView(); return true; }
-        // Toggle options
         if (e == Event::Character('r') || e == Event::Character('R')) { showRoads = !showRoads; return true; }
         if (e == Event::Character('c') || e == Event::Character('C')) { showCorners = !showCorners; return true; }
         if (e == Event::Character('s') || e == Event::Character('S')) { showSectorBounds = !showSectorBounds; return true; }
         if (e == Event::Character('h') || e == Event::Character('H')) { showHouses = !showHouses; return true; }
         if (e == Event::Character('t') || e == Event::Character('T')) { showTraffic = !showTraffic; return true; }
         if (e == Event::Character('p') || e == Event::Character('P')) { trafficPaused = !trafficPaused; return true; }
-        if (e == Event::Character('d') || e == Event::Character('D')) { 
+        if (e == Event::Character('d') || e == Event::Character('D')) {
             running.store(false);
-            currentState = SimulatorState::DIJKSTRA_VIEW; 
-            screen.Exit(); 
-            return true; 
+            currentState = SimulatorState::DIJKSTRA_VIEW;
+            screen.Exit();
+            return true;
         }
         if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
-        if (e == Event::Escape) { 
+        if (e == Event::Escape) {
             running.store(false);
-            currentState = SimulatorState::MAIN_MENU; 
-            screen.Exit(); 
-            return true; 
+            currentState = SimulatorState::MAIN_MENU;
+            screen.Exit();
+            return true;
         }
         return false;
         });
     screen.Loop(comp);
-    
+
     running.store(false);
     if (trafficThread.joinable()) trafficThread.join();
 }
 
 inline void CitySimulator::runDijkstraView() {
     auto screen = ScreenInteractive::Fullscreen();
-    if (graphNodes.empty()) buildGraphVisualization();
+    if (graphNodes.getSize() == 0) buildGraphVisualization();
     clearDijkstraVisualization();
     buildSelectableNodesList();
 
@@ -1403,10 +1318,10 @@ inline void CitySimulator::runDijkstraView() {
     dijkstraNodeSelection = 0;
     dijkstraEndNodeSelection = 0;
 
-    std::vector<string> targetTypes = { 
-        "Nearest School", 
-        "Nearest Hospital", 
-        "Nearest Pharmacy", 
+    std::vector<string> targetTypes = {
+        "Nearest School",
+        "Nearest Hospital",
+        "Nearest Pharmacy",
         "Nearest Bus Stop",
         ">>> Custom Location <<<" // New option for point-to-point
     };
@@ -1430,12 +1345,12 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
 
             int startIdx = std::max(0, dijkstraNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
+            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
 
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
                 int idx = nodeIdToIndex[nodeId];
-                if (idx >= 0 && idx < (int)graphNodes.size()) {
+                if (idx >= 0 && idx < graphNodes.getSize()) {
                     string nodeName = graphNodes[idx].name;
                     string nodeType = graphNodes[idx].type;
                     if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
@@ -1452,7 +1367,7 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(text("SELECT DESTINATION") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
 
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
+            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("From: ") | bold);
@@ -1476,7 +1391,7 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(text("SELECT END POINT") | bold | color(Color::Yellow));
             controlItems.push_back(separator());
 
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
+            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("From: " + graphNodes[idx].name.substr(0, 15)) | color(Color::Cyan));
@@ -1485,12 +1400,12 @@ inline void CitySimulator::runDijkstraView() {
             controlItems.push_back(separator());
 
             int startIdx = std::max(0, dijkstraEndNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.size(), startIdx + 10);
+            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
 
             for (int i = startIdx; i < endIdx; i++) {
                 int nodeId = selectableNodes[i];
                 int idx = nodeIdToIndex[nodeId];
-                if (idx >= 0 && idx < (int)graphNodes.size()) {
+                if (idx >= 0 && idx < graphNodes.getSize()) {
                     string nodeName = graphNodes[idx].name;
                     if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
                     auto item = text((i == dijkstraEndNodeSelection ? "> " : "  ") + nodeName);
@@ -1505,19 +1420,20 @@ inline void CitySimulator::runDijkstraView() {
         else if (dijkstraMode == DijkstraMode::COMPLETE) {
             if (dijkstraPath.getSize() > 0) {
                 controlItems.push_back(text("PATH FOUND!") | bold | color(Color::Green));
-            } else {
+            }
+            else {
                 controlItems.push_back(text("NO PATH FOUND") | bold | color(Color::Red));
             }
             controlItems.push_back(separator());
 
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < (int)nodeIdToIndex.size()) {
+            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
                 int idx = nodeIdToIndex[dijkstraStartNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("From:") | bold);
                     controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)));
                 }
             }
-            if (dijkstraEndNode >= 0 && dijkstraEndNode < (int)nodeIdToIndex.size()) {
+            if (dijkstraEndNode >= 0 && dijkstraEndNode < nodeIdToIndex.getSize()) {
                 int idx = nodeIdToIndex[dijkstraEndNode];
                 if (idx >= 0) {
                     controlItems.push_back(text("To:") | bold);
@@ -1531,8 +1447,30 @@ inline void CitySimulator::runDijkstraView() {
                 distStr << std::fixed << std::setprecision(2) << dijkstraDistance;
                 controlItems.push_back(text("Distance:") | bold);
                 controlItems.push_back(text(" " + distStr.str() + " km") | color(Color::Yellow));
-                controlItems.push_back(text("Nodes:") | bold);
-                controlItems.push_back(text(" " + std::to_string(dijkstraPath.getSize())) | color(Color::Yellow));
+                controlItems.push_back(separator());
+
+                controlItems.push_back(text("PATH SEQUENCE:") | bold | color(Color::Cyan));
+
+
+                int limit = 0;
+                for (int i = 0; i < dijkstraPath.getSize(); ++i) {
+                    int nid = dijkstraPath[i];
+                    if (nid < nodeIdToIndex.getSize()) {
+                        int idx = nodeIdToIndex[nid];
+                        if (idx >= 0 && idx < graphNodes.getSize()) {
+                            string name = graphNodes[idx].name;
+                            if (!graphNodes[idx].isCorner || i == 0 || i == dijkstraPath.getSize() - 1) {
+                                if (name.length() > 20) name = name.substr(0, 17) + "...";
+                                controlItems.push_back(text(" " + std::to_string(i + 1) + ". " + name));
+                                limit++;
+                            }
+                        }
+                    }
+                    if (limit > 12) {
+                        controlItems.push_back(text(" ... and " + std::to_string(dijkstraPath.getSize() - i) + " more") | dim);
+                        break;
+                    }
+                }
             }
             controlItems.push_back(separator());
             controlItems.push_back(text("R: New Search") | dim);
@@ -1562,7 +1500,7 @@ inline void CitySimulator::runDijkstraView() {
                 dijkstraNodeSelection--;
                 return true;
             }
-            if (e == Event::ArrowDown && dijkstraNodeSelection < (int)selectableNodes.size() - 1) {
+            if (e == Event::ArrowDown && dijkstraNodeSelection < selectableNodes.getSize() - 1) {
                 dijkstraNodeSelection++;
                 return true;
             }
@@ -1588,7 +1526,8 @@ inline void CitySimulator::runDijkstraView() {
                     // Custom location - go to end point selection
                     dijkstraTargetType = "CUSTOM";
                     dijkstraMode = DijkstraMode::RUNNING;
-                } else {
+                }
+                else {
                     // Nearest facility
                     if (targetSel == 0) dijkstraTargetType = "SCHOOL";
                     else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
@@ -1607,7 +1546,7 @@ inline void CitySimulator::runDijkstraView() {
                 dijkstraEndNodeSelection--;
                 return true;
             }
-            if (e == Event::ArrowDown && dijkstraEndNodeSelection < (int)selectableNodes.size() - 1) {
+            if (e == Event::ArrowDown && dijkstraEndNodeSelection < selectableNodes.getSize() - 1) {
                 dijkstraEndNodeSelection++;
                 return true;
             }
@@ -1672,7 +1611,7 @@ inline void CitySimulator::runAddFacilityForm(const string& sector) {
         }
         if (!newID.empty() || type == "Bus Stop") { screen.Exit(); }
         else { message = "Error: Creation failed."; }
-    });
+        });
 
     Component btn_cancel = Button("Cancel", screen.ExitLoopClosure());
     auto component = Container::Vertical({ input_name, toggle_type, btn_add, btn_cancel });
@@ -1686,8 +1625,8 @@ inline void CitySimulator::runAddFacilityForm(const string& sector) {
             hbox({text("Type: "), toggle_type->Render() | border}),
             hbox({btn_add->Render(), text("  "), btn_cancel->Render()}) | center,
             text(message) | color(Color::Red) | center
-        }) | border | size(WIDTH, EQUAL, 60) | center;
-    });
+            }) | border | size(WIDTH, EQUAL, 60) | center;
+        });
     screen.Loop(renderer);
 }
 
@@ -1709,8 +1648,9 @@ inline void CitySimulator::runAddOfferingForm(CityNode* node) {
                 float price = std::stof(med_price_str);
                 if (cityMgmt->addMedicineToPharmacy(node->databaseID, med_name, med_formula, price)) screen.Exit();
                 else message = "Error: Could not add medicine.";
-            } catch (...) { message = "Error: Invalid Price."; }
-        });
+            }
+            catch (...) { message = "Error: Invalid Price."; }
+            });
         auto component = Container::Vertical({ input_name, input_formula, input_price, btn_add, Button("Cancel", screen.ExitLoopClosure()) });
         auto renderer = Renderer(component, [&] {
             return vbox({
@@ -1721,13 +1661,14 @@ inline void CitySimulator::runAddOfferingForm(CityNode* node) {
                 hbox({text("Price: "), input_price->Render() | border}),
                 btn_add->Render() | center,
                 text(message) | color(Color::Red) | center
-            }) | border | size(WIDTH, EQUAL, 50) | center;
-        });
+                }) | border | size(WIDTH, EQUAL, 50) | center;
+            });
         screen.Loop(renderer);
-    } else {
+    }
+    else {
         auto renderer = Renderer([&] {
             return vbox({ text("No offerings for " + node->type) | center, text("Press Enter to go back") | dim | center }) | border | center;
-        });
+            });
         auto comp = CatchEvent(renderer, [&](Event e) { if (e == Event::Return) screen.Exit(); return true; });
         screen.Loop(comp);
     }
@@ -1790,7 +1731,8 @@ inline void CitySimulator::runDatabaseView() {
             Element item;
             if (idx < (int)filteredNodes.size()) {
                 item = text(string(idx == selectedItemIdx ? "> " : "  ") + filteredNodes[idx]->name.substr(0, 20));
-            } else {
+            }
+            else {
                 item = text(string(idx == selectedItemIdx ? "> " : "  ") + string("[+] Add Facility")) | color(Color::Yellow);
             }
             if (idx == selectedItemIdx) item = item | bold | (focusPanel == 2 ? bgcolor(Color::Blue) : color(Color::Green));
@@ -1807,7 +1749,8 @@ inline void CitySimulator::runDatabaseView() {
             detailItems.push_back(text("Name: " + n->name));
             detailItems.push_back(text("Type: " + n->type));
             detailItems.push_back(text("Sector: " + n->sector));
-        } else {
+        }
+        else {
             detailItems.push_back(text("Press Enter to add"));
         }
         auto detailPanel = vbox(detailItems) | border | flex;
@@ -1827,8 +1770,8 @@ inline void CitySimulator::runDatabaseView() {
             hbox({sectorPanel, itemPanel, detailPanel}) | flex,
             separator(),
             text("Arrows: Navigate | Tab: Category | S: Search | Esc: Back") | dim | center
+            });
         });
-    });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) {
@@ -1847,39 +1790,31 @@ inline void CitySimulator::runDatabaseView() {
         if (e == Event::Character('s') || e == Event::Character('S')) { currentState = SimulatorState::SEARCH_VIEW; screen.Exit(); return true; }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
-    });
+        });
     screen.Loop(comp);
 }
+
 
 // ============================================================================
 // SEARCH VIEW
 // ============================================================================
 inline void CitySimulator::runSearchView() {
     auto screen = ScreenInteractive::Fullscreen();
-
-    // State
     string query = "";
     int selected = 0;
     std::vector<string> menu_entries;
-    string message = ""; // To show the ID on selection
+    string message = "";
 
-    // Helper: string lowercase
     auto toLower = [](const string& s) -> string {
         string lower = s;
-        for (char& c : lower) {
-            if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
-        }
+        for (char& c : lower) if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
         return lower;
         };
 
-    // Helper to perform the search
     auto performSearch = [&]() {
         menu_entries.clear();
         selected = 0;
-        message = "";
-
         if (query.length() < 2) return;
-
         string q = toLower(query);
 
         // 1. Search Facilities (Graph Nodes)
@@ -1888,103 +1823,73 @@ inline void CitySimulator::runSearchView() {
             for (int i = 0; i < g->getNodeCount(); i++) {
                 CityNode* n = g->getNode(i);
                 if (!n || n->type == "CORNER") continue;
-
-                string lowerName = toLower(n->name);
-
-                if (lowerName.find(q) != string::npos) {
+                if (toLower(n->name).find(q) != string::npos) {
                     menu_entries.push_back("[ID: " + n->databaseID + "] " + n->name + " (" + n->type + ") in " + n->sector);
                 }
             }
         }
-
         // 2. Search Commercial (Malls, Shops, Products)
         if (islamabad && islamabad->getCommercialManager()) {
             CommercialManager* cm = islamabad->getCommercialManager();
             for (int i = 0; i < cm->malls.getSize(); i++) {
                 Mall* m = cm->malls[i];
-
-                // Search Mall Name
-                string mLower = toLower(m->name);
-                if (mLower.find(q) != string::npos) {
+                if (toLower(m->name).find(q) != string::npos) {
                     menu_entries.push_back("[ID: " + m->id + "] " + m->name + " (" + m->getSector() + ")");
                 }
-
-                // Search Shops
                 for (int j = 0; j < m->shops.getSize(); j++) {
                     Shop* s = m->shops[j];
-                    string sLower = toLower(s->name);
-
-                    if (sLower.find(q) != string::npos) {
+                    if (toLower(s->name).find(q) != string::npos) {
                         menu_entries.push_back("[ID: " + s->id + "] " + s->name + " @ " + m->name);
-                    }
-
-                    // Search Products within Shop
-                    for (int k = 0; k < s->inventory.getSize(); k++) {
-                        const Product* p = s->getProduct(k);
-                        if (!p) continue;
-
-                        string pLower = toLower(p->name);
-
-                        if (pLower.find(q) != string::npos) {
-                            menu_entries.push_back("[ID: " + s->id + "] Item: " + p->name + " (Rs." + std::to_string(p->price) + ") @ " + s->name);
-                        }
                     }
                 }
             }
         }
-
         // 3. Search Medical (Medicines)
         if (islamabad && islamabad->getMedicalManager()) {
             MedicalManager* mm = islamabad->getMedicalManager();
-
             for (int i = 0; i < mm->pharmacies.getSize(); i++) {
                 Pharmacy* p = mm->pharmacies[i];
-                for (int j = 0; j < p->inventory.getSize(); j++) {
-                    const Medicine* m = p->getMedicine(j);
-                    if (!m) continue;
-
-                    string mLower = toLower(m->name);
-                    string fLower = toLower(m->formula);
-
-                    if (mLower.find(q) != string::npos || fLower.find(q) != string::npos) {
-                        menu_entries.push_back("[ID: " + p->id + "] Med: " + m->name + " (" + m->formula + ") @ " + p->name);
-                    }
+                if (toLower(p->name).find(q) != string::npos) {
+                    menu_entries.push_back("[ID: " + p->id + "] " + p->name + " @ " + p->sector);
                 }
             }
         }
-
-        // Limit results for performance UI
-        if (menu_entries.size() > 100) {
-            menu_entries.resize(100);
-            menu_entries.push_back("... (matches truncated) ...");
-        }
+        if (menu_entries.size() > 50) menu_entries.resize(50);
         };
-
-    // --- Components ---
 
     InputOption input_opt;
     input_opt.on_change = performSearch;
-    input_opt.placeholder = "Search for items, medicines, shops, or places...";
     auto input_component = Input(&query, input_opt);
 
     MenuOption menu_opt;
     menu_opt.on_enter = [&] {
         if (selected >= 0 && selected < (int)menu_entries.size()) {
             string selection = menu_entries[selected];
-
-            // Extract ID logic
             size_t start = selection.find("[ID: ");
             if (start != string::npos) {
-                start += 5; // Skip "[ID: "
+                start += 5;
                 size_t end = selection.find("]", start);
                 if (end != string::npos) {
                     string extractedID = selection.substr(start, end - start);
-                    message = "Selected Item ID: " + extractedID + " (Press Esc to return)";
 
-                    // PLACEHOLDER FOR MANAGEMENT VIEW INTEGRATION
-                    // When pressing Enter, we will eventually pass 'extractedID' 
-                    // to a Management View that looks up the object via HashTable.
-                    // For now, we just display the ID.
+                    // Determine Type (simple heuristic)
+                    string type = "UNKNOWN";
+                    if (selection.find("(SCHOOL)") != string::npos) type = "SCHOOL";
+                    else if (selection.find("(HOSPITAL)") != string::npos) type = "HOSPITAL";
+                    else if (selection.find("(PHARMACY)") != string::npos) type = "PHARMACY";
+                    else if (selection.find("(MALL)") != string::npos) type = "MALL";
+                    else if (selection.find("@") != string::npos) { // Likely shop or pharmacy
+                        if (extractedID.find("S") != string::npos && extractedID.length() < 6) type = "SHOP"; // Shop IDs like S1
+                        else if (extractedID.find("P") != string::npos && extractedID.length() < 6) type = "PHARMACY"; // Pharmacy IDs like P01
+                    }
+
+                    // Attempt to launch editor
+                    if (type != "UNKNOWN") {
+                        runEditObjectView(extractedID, type);
+                        return; // Return after edit to search view
+                    }
+
+                    message = "Selected Item ID: " + extractedID + " (Press Esc to return)";
                 }
                 else {
                     message = "ID format not recognized.";
@@ -1996,42 +1901,26 @@ inline void CitySimulator::runSearchView() {
         }
         };
     auto menu_component = Menu(&menu_entries, &selected, menu_opt);
+    auto container = Container::Vertical({ input_component, menu_component | vscroll_indicator | frame | flex });
 
-    auto container = Container::Vertical({
-        input_component,
-        menu_component | vscroll_indicator | frame | flex
-        });
-
-    // --- Renderer ---
     auto renderer = Renderer(container, [&] {
         return vbox({
-            text(" UNIVERSAL SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text(" SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
             separator(),
             hbox({ text(" FIND: "), input_component->Render() | flex }),
             separator(),
-            (menu_entries.empty())
-                ? (query.length() < 2
-                    ? text("Type at least 2 characters to begin...") | dim | center
-                    : text("No results found.") | color(Color::Red) | center)
-                : menu_component->Render() | flex,
+            menu_entries.empty() ? text("Type to search...") | dim | center : menu_component->Render() | flex,
             separator(),
-            // Message Area for ID display
-            (message.empty() ? text("Select an item and press Enter") | dim | center
+            (message.empty() ? text("Select an item and press Enter to Edit") | dim | center
                              : text(message) | bold | color(Color::Green) | center),
-            text("Esc: Back to Database") | dim | center
+            text("Esc: Back") | dim | center
             }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
         });
 
-    // --- Event Loop ---
     auto component = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Escape) {
-            currentState = SimulatorState::DATABASE_VIEW; // Return to DB view
-            screen.Exit();
-            return true;
-        }
+        if (e == Event::Escape) { currentState = SimulatorState::DATABASE_VIEW; screen.Exit(); return true; }
         return false;
         });
-
     screen.Loop(component);
 }
 
@@ -2076,6 +1965,78 @@ inline void CitySimulator::runInputForm(const string& title, const std::vector<s
 
     screen.Loop(renderer);
 }
+// ============================================================================
+// HELPER: MANAGEMENT ADD FORM
+// ============================================================================
+inline void CitySimulator::runManagementAddForm(const string& category) {
+    auto screen = ScreenInteractive::Fullscreen();
+    string name_val, sector_val;
+    int type_selected = 0;
+
+    std::vector<string> types;
+    if (category == "Schools") types = { "School" };
+    else if (category == "Hospitals") types = { "Hospital" };
+    else if (category == "Pharmacies") types = { "Pharmacy" };
+    else if (category == "Nodes" || category == "All") types = { "Pharmacy", "School", "Hospital", "Bus Stop" };
+    else {
+        types = { "Pharmacy", "School", "Hospital", "Bus Stop" };
+    }
+
+    string message = "";
+
+    Component input_name = Input(&name_val, "Enter Name");
+    Component input_sector = Input(&sector_val, "Enter Sector (e.g. F-10)");
+    Component toggle_type = Toggle(&types, &type_selected);
+
+    Component btn_create = Button("Create", [&] {
+        if (name_val.empty() || sector_val.empty()) {
+            message = "Error: All fields required.";
+            return;
+        }
+
+        string type = types[type_selected];
+        string res = "";
+
+        if (type == "School") res = cityMgmt->addSchool(name_val, sector_val, 3.0, {}, {});
+        else if (type == "Hospital") res = cityMgmt->addHospital(name_val, sector_val, 50, {});
+        else if (type == "Pharmacy") res = cityMgmt->addPharmacy(name_val, sector_val);
+        else if (type == "Bus Stop") {
+            int id = cityMgmt->addBusStopInSector(name_val, sector_val);
+            if (id != -1) res = "STOP";
+        }
+
+        if (!res.empty()) {
+            screen.Exit();
+        }
+        else {
+            message = "Creation Failed (Check Sector validity)";
+        }
+        });
+
+    Component btn_cancel = Button("Cancel", screen.ExitLoopClosure());
+
+    auto container = Container::Vertical({
+        input_name, input_sector, toggle_type,
+        Container::Horizontal({ btn_create, btn_cancel })
+        });
+
+    auto renderer = Renderer(container, [&] {
+        return vbox({
+            text("ADD NEW OBJECT (" + category + ")") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            separator(),
+            hbox({ text("Name:   ") | size(WIDTH, EQUAL, 10), input_name->Render() }),
+            hbox({ text("Sector: ") | size(WIDTH, EQUAL, 10), input_sector->Render() }),
+            separator(),
+            text("Type:") | bold,
+            toggle_type->Render(),
+            separator(),
+            hbox({ btn_create->Render(), text("  "), btn_cancel->Render() }) | center,
+            text(message) | color(Color::Red) | center
+            }) | border | size(WIDTH, EQUAL, 60) | center;
+        });
+
+    screen.Loop(renderer);
+}
 
 // ============================================================================
 // HELPER: POPULATION SELECTOR PORTAL
@@ -2095,19 +2056,16 @@ inline Citizen* CitySimulator::runPopulationSelector(const string& title) {
         displayedCitizens.clear();
         PopulationManager* pm = islamabad->getPopulationManager();
 
-        // Linear scan of master list (Population can be large, limiting display to 50 matches)
         int count = 0;
         for (int i = 0; i < pm->masterList.getSize(); ++i) {
             Citizen* c = pm->masterList[i];
             if (!c) continue;
 
-            // Basic search filter
             bool match = query.empty();
             if (!match) {
                 string q = query;
                 string n = c->name;
                 string id = c->cnic;
-                // Simple case-insensitive check could be added here, strict for now
                 if (n.find(q) != string::npos || id.find(q) != string::npos) match = true;
             }
 
@@ -2162,30 +2120,22 @@ inline Citizen* CitySimulator::runPopulationSelector(const string& title) {
     return selectedCitizen;
 }
 
-// ============================================================================
-// MODULAR EDIT VIEWS (Detailed Control for Each Type)
-// ============================================================================
 
-// --- 1. Edit SCHOOL ---
 inline void CitySimulator::runEditSchoolView(School* school) {
     if (!school) return;
     auto screen = ScreenInteractive::Fullscreen();
     string message = "";
 
-    // Toggle states for panels
     int tab_index = 0;
     std::vector<string> tabs = { "Info", "Departments", "Faculty", "Students" };
 
-    // --- Component Logic ---
 
-    // Tab 1: Info Actions
     Component btn_rename = Button("Rename School", [&] {
         runInputForm("Rename School", { "New Name" }, [&](std::vector<string> res) {
             if (!res[0].empty()) { school->name = res[0]; message = "Renamed to " + res[0]; }
             });
         });
 
-    // Tab 2: Dept Actions
     Component btn_add_dept = Button("Add Department", [&] {
         runInputForm("New Department", { "Department Name" }, [&](std::vector<string> res) {
             if (!res[0].empty()) {
@@ -2202,11 +2152,9 @@ inline void CitySimulator::runEditSchoolView(School* school) {
             });
         });
 
-    // Tab 3: Faculty Actions
     Component btn_hire_fac = Button("Hire Faculty", [&] {
         Citizen* c = runPopulationSelector("Select Citizen to Hire");
         if (c) {
-            // Check if already employed logic in manager, but we do basic flow here
             runInputForm("Employment Contract", { "Department", "Qualification", "Salary" }, [&](std::vector<string> res) {
                 string dept = res[0];
                 string qual = res[1];
@@ -2221,7 +2169,6 @@ inline void CitySimulator::runEditSchoolView(School* school) {
         }
         });
 
-    // Tab 4: Student Actions
     Component btn_enroll = Button("Enroll Student", [&] {
         Citizen* c = runPopulationSelector("Select Student to Enroll");
         if (c) {
@@ -2239,7 +2186,6 @@ inline void CitySimulator::runEditSchoolView(School* school) {
 
     Component btn_back = Button("Back to Manager", screen.ExitLoopClosure());
 
-    // Layout Containers
     auto c_info = Container::Vertical({ btn_rename });
     auto c_dept = Container::Vertical({ btn_add_dept, btn_rem_dept });
     auto c_fac = Container::Vertical({ btn_hire_fac });
@@ -2253,9 +2199,7 @@ inline void CitySimulator::runEditSchoolView(School* school) {
         });
 
     auto renderer = Renderer(main_container, [&] {
-        // --- VIEW GENERATION ---
 
-        // 1. Stats Panel
         auto stats = vbox({
             hbox({text("ID: ") | bold, text(school->id)}),
             hbox({text("Name: ") | bold, text(school->name)}),
@@ -2264,7 +2208,6 @@ inline void CitySimulator::runEditSchoolView(School* school) {
             hbox({text("Faculty: ") | bold, text(std::to_string(school->getTotalFaculty()))}),
             }) | border | size(WIDTH, EQUAL, 40);
 
-        // 2. Dynamic Content Panel
         Element content;
         if (tab_index == 0) { // Info
             content = vbox({ text("School Management Dashboard") | center, separator(), btn_rename->Render() | center });
@@ -2299,9 +2242,8 @@ inline void CitySimulator::runEditSchoolView(School* school) {
         else { // Students
             Elements list;
             int limit = 0;
-            // Just listing first few for brevity
             if (school->departments.getSize() > 0) {
-                Department* d = school->departments[0]; // Just show first dept sample
+                Department* d = school->departments[0]; 
                 if (d->getClassCount() > 0) {
                     Class* c = d->classes[0];
                     for (int k = 0; k < c->students.getSize(); ++k) {
@@ -2331,7 +2273,6 @@ inline void CitySimulator::runEditSchoolView(School* school) {
     screen.Loop(renderer);
 }
 
-// --- 2. Edit HOSPITAL ---
 inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
     if (!hospital) return;
     auto screen = ScreenInteractive::Fullscreen();
@@ -2339,7 +2280,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
     int tab_index = 0;
     std::vector<string> tabs = { "Info", "Doctors", "Patients" };
 
-    // Components
+    
     Component btn_add_beds = Button("Add 10 Beds", [&] { hospital->totalBeds += 10; message = "Beds increased."; });
     Component btn_add_spec = Button("Add Specialization", [&] {
         runInputForm("New Specialization", { "Name (e.g., Cardiology)" }, [&](std::vector<string> res) {
@@ -2355,7 +2296,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
         if (c) {
             runInputForm("Doctor Contract", { "Specialization" }, [&](std::vector<string> res) {
                 if (!res[0].empty()) {
-                    Doctor d(c, res[0]); // Creates ID internally
+                    Doctor d(c, res[0]);
                     hospital->addDoctor(d);
                     message = "Hired Dr. " + c->name;
                 }
@@ -2369,7 +2310,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
             runInputForm("Admission", { "Condition", "Severity (1-10)" }, [&](std::vector<string> res) {
                 int sev = 5; try { sev = std::stoi(res[1]); }
                 catch (...) {}
-                if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;
+                 if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;
                 else message = "Admission Failed (No beds?)";
                 });
         }
@@ -2479,35 +2420,218 @@ inline void CitySimulator::runEditShopView(Shop* shop, Mall* mall) {
 
     screen.Loop(renderer);
 }
-// --- 4. Main Edit Dispatcher ---
+
+// --- 4. Edit PHARMACY ---
+inline void CitySimulator::runEditPharmacyView(Pharmacy* pharmacy) {
+    if (!pharmacy) return;
+    auto screen = ScreenInteractive::Fullscreen();
+    string message = "";
+
+    // Medicine Management
+    Component btn_add_med = Button("Add Medicine", [&] {
+        runInputForm("New Medicine", { "Name", "Formula", "Price" }, [&](std::vector<string> res) {
+            if (!res[0].empty() && !res[2].empty()) {
+                float p = 0.0f; try { p = std::stof(res[2]); }
+                catch (...) {}
+                Medicine med(res[0], res[1], p);
+                pharmacy->addMedicine(med);
+                message = "Added " + res[0];
+            }
+            });
+        });
+
+    Component btn_rem_med = Button("Remove Medicine", [&] {
+        runInputForm("Remove Medicine", { "Name" }, [&](std::vector<string> res) {
+            if (pharmacy->removeMedicine(res[0])) message = "Removed " + res[0];
+            else message = "Medicine not found.";
+            });
+        });
+
+    Component btn_back = Button("Back", screen.ExitLoopClosure());
+
+    auto container = Container::Vertical({ btn_add_med, btn_rem_med, btn_back });
+
+    auto renderer = Renderer(container, [&] {
+        Elements inv;
+        for (int i = 0; i < pharmacy->inventory.getSize(); ++i) {
+            const Medicine* m = pharmacy->getMedicine(i);
+            inv.push_back(hbox({ text(m->name), filler(), text(m->formula) | dim, filler(), text("Rs " + std::to_string((int)m->price)) | color(Color::Green) }));
+        }
+
+        return vbox({
+            text(" PHARMACY INVENTORY: " + pharmacy->name) | bold | center | bgcolor(Color::Magenta) | color(Color::White),
+            separator(),
+            hbox({
+                vbox({
+                    hbox({text("ID: ") | bold, text(pharmacy->id)}),
+                    hbox({text("Sector: ") | bold, text(pharmacy->sector)}),
+                    hbox({text("Items: ") | bold, text(std::to_string(pharmacy->getMedicineCount()))})
+                }) | border | size(WIDTH, EQUAL, 25),
+                vbox(inv) | flex | border,
+                vbox({
+                    text("Actions") | bold | center,
+                    separator(),
+                    btn_add_med->Render(),
+                    text(" "),
+                    btn_rem_med->Render(),
+                    filler(),
+                    btn_back->Render()
+                }) | size(WIDTH, EQUAL, 25)
+            }) | flex,
+            text(message) | color(Color::Red) | center
+            }) | border;
+        });
+
+    screen.Loop(renderer);
+}
+
+// --- 5. Edit MALL ---
+inline void CitySimulator::runEditMallView(Mall* mall) {
+    if (!mall) return;
+    auto screen = ScreenInteractive::Fullscreen();
+    string message = "";
+    int selected_shop_idx = 0;
+
+    Component btn_add_shop = Button("Add Shop", [&] {
+        runInputForm("New Shop", { "Shop Name", "Category" }, [&](std::vector<string> res) {
+            if (!res[0].empty()) {
+                string newID = "SHOP-" + std::to_string(mall->getShopCount() + 100); // Simple ID gen
+                Shop* s = new Shop(newID, res[0], res[1]);
+                mall->addShop(s);
+                message = "Added Shop: " + res[0];
+            }
+            });
+        });
+
+    Component btn_rem_shop = Button("Remove Shop", [&] {
+        runInputForm("Remove Shop", { "Shop ID" }, [&](std::vector<string> res) {
+            bool found = false;
+            for (int i = 0; i < mall->shops.getSize(); ++i) {
+                if (mall->shops[i]->id == res[0]) {
+                    delete mall->shops[i];
+                    mall->shops.erase(i);
+                    found = true;
+                    message = "Removed Shop ID: " + res[0];
+                    break;
+                }
+            }
+            if (!found) message = "Shop ID not found.";
+            });
+        });
+
+    Component btn_edit_shop = Button("Edit Selected Shop", [&] {
+        if (selected_shop_idx >= 0 && selected_shop_idx < mall->shops.getSize()) {
+            runEditShopView(mall->shops[selected_shop_idx], mall);
+        }
+        else {
+            message = "No shop selected.";
+        }
+        });
+
+    Component btn_back = Button("Back", screen.ExitLoopClosure());
+
+    std::vector<string> shop_names;
+
+
+    auto menu_shops = Menu(&shop_names, &selected_shop_idx);
+
+    auto container = Container::Vertical({
+        menu_shops | vscroll_indicator | frame | flex,
+        btn_add_shop, btn_rem_shop, btn_edit_shop, btn_back
+        });
+
+    auto renderer = Renderer(container, [&] {
+        // Sync shop names
+        shop_names.clear();
+        for (int i = 0; i < mall->shops.getSize(); ++i) {
+            shop_names.push_back(mall->shops[i]->name + " (" + mall->shops[i]->category + ")");
+        }
+
+        return vbox({
+            text(" MALL MANAGEMENT: " + mall->name) | bold | center | bgcolor(Color::Yellow) | color(Color::Black),
+            separator(),
+            hbox({
+                vbox({
+                    hbox({text("ID: ") | bold, text(mall->id)}),
+                    hbox({text("Sector: ") | bold, text(mall->getSector())}),
+                    hbox({text("Shops: ") | bold, text(std::to_string(mall->getShopCount()))})
+                }) | border | size(WIDTH, EQUAL, 30),
+                vbox({
+                    text("Shops Directory") | bold | center,
+                    separator(),
+                    menu_shops->Render() | flex
+                }) | flex | border,
+                vbox({
+                    text("Actions") | bold | center,
+                    separator(),
+                    btn_add_shop->Render(),
+                    text(" "),
+                    btn_rem_shop->Render(),
+                    text(" "),
+                    btn_edit_shop->Render(),
+                    filler(),
+                    btn_back->Render()
+                }) | size(WIDTH, EQUAL, 25)
+            }) | flex,
+            text(message) | color(Color::Red) | center
+            }) | border;
+        });
+
+    screen.Loop(renderer);
+}
+
 inline void CitySimulator::runEditObjectView(const string& objectID, const string& objectType) {
-    // 1. Dispatch SCHOOL
     if (objectType == "SCHOOL") {
         if (islamabad && islamabad->getSchoolManager()) {
             School* s = islamabad->getSchoolManager()->findSchoolByID(objectID);
             if (s) { runEditSchoolView(s); return; }
         }
     }
-    // 2. Dispatch HOSPITAL
     else if (objectType == "HOSPITAL") {
         if (islamabad && islamabad->getMedicalManager()) {
             Hospital* h = islamabad->getMedicalManager()->findHospitalByID(objectID);
             if (h) { runEditHospitalView(h); return; }
         }
     }
-    // 3. Dispatch SHOP
     else if (objectType == "SHOP") {
         if (islamabad && islamabad->getCommercialManager()) {
             CommercialManager* cm = islamabad->getCommercialManager();
-            // Need to find which mall this shop is in
             for (int i = 0; i < cm->malls.getSize(); i++) {
                 Shop* s = cm->malls[i]->findShopByID(objectID);
                 if (s) { runEditShopView(s, cm->malls[i]); return; }
             }
         }
     }
+    else if (objectType == "PHARMACY") {
+        if (islamabad && islamabad->getMedicalManager()) {
+            MedicalManager* mm = islamabad->getMedicalManager();
+            for (int i = 0; i < mm->pharmacies.getSize(); ++i) {
+                if (mm->pharmacies[i]->id == objectID) {
+                    runEditPharmacyView(mm->pharmacies[i]);
+                    return;
+                }
+            }
+        }
+    }
+    else if (objectType == "MALL") {
+        if (islamabad && islamabad->getCommercialManager()) {
+            CommercialManager* cm = islamabad->getCommercialManager();
+            if (cm->mallLookup.contains(objectID)) {
+                Mall** m = cm->mallLookup.get(objectID);
+                if (m && *m) {
+                    runEditMallView(*m);
+                    return;
+                }
+            }
+            for (int i = 0; i < cm->malls.getSize(); ++i) {
+                if (cm->malls[i]->id == objectID) {
+                    runEditMallView(cm->malls[i]);
+                    return;
+                }
+            }
+        }
+    }
 
-    // Fallback for generic types or un-implemented ones
     auto screen = ScreenInteractive::Fullscreen();
     auto renderer = Renderer([&] {
         return vbox({
@@ -2525,21 +2649,16 @@ inline void CitySimulator::runEditObjectView(const string& objectID, const strin
     screen.Loop(component);
 }
 
-// ============================================================================
-// MANAGEMENT VIEW (The Big Boss Panel)
-// ============================================================================
 
 inline void CitySimulator::runManagementMenu() {
     auto screen = ScreenInteractive::Fullscreen();
 
-    // State
     int selectedCategoryIdx = 0;
     int selectedItemIdx = 0;
     int focusPanel = 0; // 0=Tabs, 1=List, 2=Actions
 
     std::vector<string> categories = { "All", "Nodes", "Malls", "Shops", "Schools", "Hospitals", "Pharmacies" };
 
-    // Struct to hold flattened list of manageable objects
     struct ManageableItem {
         string id;
         string name;
@@ -2660,9 +2779,7 @@ inline void CitySimulator::runManagementMenu() {
         auto btnStyle = [&](string label, bool selected) {
             return text(label) | center | (selected ? (bgcolor(Color::Red) | bold) : dim) | border;
             };
-        // Visuals only - logic is in event loop
-        // We highlight buttons based on key presses theoretically, but since this is keyboard-driven, 
-        // we mainly show them as available options.
+
         auto midPanel = vbox({
             text("ACTIONS") | bold | center,
             separator(),
@@ -2673,7 +2790,6 @@ inline void CitySimulator::runManagementMenu() {
             btnStyle("[ DELETE ] (Del)", false) // Del key
             }) | border | size(WIDTH, EQUAL, 20);
 
-        // ===== RIGHT PANEL (Details) =====
         Elements details;
         if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
             const auto& sel = currentItems[selectedItemIdx];
@@ -2702,24 +2818,32 @@ inline void CitySimulator::runManagementMenu() {
         });
 
     auto component = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Tab) { focusPanel = (focusPanel + 1) % 2; return true; } // Toggle Tabs/List
+        if (e == Event::Tab) { focusPanel = (focusPanel + 1) % 2; return true; } 
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
 
-        // Global Hotkeys (Work regardless of focus panel for ease of use)
 
-        // ADD
-        if (e == Event::Character('+') || e == Event::Character('=')) { // '=' is unshifted '+'
-            showPlaceholder("ADD OBJECT", "Functionality to ADD a new object is under construction.");
-            refreshList(); // Refresh in case add logic is implemented later
+        if (e == Event::Character('+') || e == Event::Character('=')) {
+            runManagementAddForm(categories[selectedCategoryIdx]);
+            refreshList();
             return true;
         }
 
         // DELETE
-        if (e == Event::Delete || e == Event::Special({ 127 }) || e == Event::Character('x')) { // 127 is usually del/backspace on some terms, 'x' as backup
+        if (e == Event::Delete || e == Event::Special({ 127 }) || e == Event::Character('x')) { 
             if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
-                string msg = "Functionality to DELETE [" + currentItems[selectedItemIdx].name + "] is under construction.";
-                showPlaceholder("DELETE OBJECT", msg);
-                refreshList(); // Refresh in case delete logic is implemented later
+                auto& item = currentItems[selectedItemIdx];
+                bool deleted = false;
+                if (item.type == "SCHOOL") deleted = cityMgmt->removeSchool(item.id);
+                else if (item.type == "HOSPITAL") deleted = cityMgmt->removeHospital(item.id);
+                else if (item.type == "PHARMACY") deleted = cityMgmt->removePharmacy(item.id);
+                else if (item.type == "MALL") {}
+
+                if (deleted) {
+                    refreshList(); // Update list
+                }
+                else {
+                    showPlaceholder("DELETE FAILED", "Could not delete object (Type not supported or dependency)");
+                }
             }
             return true;
         }
@@ -2754,7 +2878,6 @@ inline void CitySimulator::runManagementMenu() {
                 if (selectedItemIdx < (int)currentItems.size() - 1) selectedItemIdx++;
                 return true;
             }
-            // Enter basically acts like Edit here
             if (e == Event::Return) {
                 if (!currentItems.empty()) {
                     runEditObjectView(currentItems[selectedItemIdx].id, currentItems[selectedItemIdx].type);
