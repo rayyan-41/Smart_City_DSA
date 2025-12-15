@@ -1679,94 +1679,21 @@ inline void CitySimulator::runAddOfferingForm(CityNode* node) {
 // ============================================================================
 inline void CitySimulator::runDatabaseView() {
     auto screen = ScreenInteractive::Fullscreen();
-    int selectedSectorIdx = 0;
-    int selectedCategoryIdx = 0;
-    int selectedItemIdx = 0;
-    int focusPanel = 0; // 0=Sector List, 2=Item List
-
+    int selectedSectorIdx = 0, selectedCategoryIdx = 0, selectedItemIdx = 0, focusPanel = 0;
     std::vector<string> categories = { "All", "Stops", "Schools", "Hospitals", "Pharmacies", "Malls" };
     std::vector<string> sectorList;
     for (int i = 0; i < SECTOR_COUNT; i++) sectorList.push_back(SECTOR_GRID[i].name);
 
-    // Unified item structure to aggregate from all managers
-    struct DBItem {
-        string id;
-        string name;
-        string type;
-        string sector;
-        void* objPtr; // Pointer to the actual object (School*, Mall*, etc.)
-    };
-
-    std::vector<DBItem> items;
-
-    // Helper to refresh the items list based on selection
-    auto refreshItems = [&]() {
-        items.clear();
-        string currentSector = sectorList[selectedSectorIdx];
-        string cat = categories[selectedCategoryIdx];
-
-        // 1. STOPS (From Graph)
-        if ((cat == "All" || cat == "Stops") && islamabad->getCityGraph()) {
-            CityGraph* g = islamabad->getCityGraph();
-            for (int i = 0; i < g->getNodeCount(); i++) {
-                CityNode* n = g->getNode(i);
-                if (n && n->type == "STOP" && n->sector == currentSector) {
-                    items.push_back({ n->databaseID, n->name, "STOP", n->sector, n });
-                }
-            }
-        }
-
-        // 2. SCHOOLS (From SchoolManager)
-        if ((cat == "All" || cat == "Schools") && islamabad->getSchoolManager()) {
-            auto& schools = islamabad->getSchoolManager()->schools;
-            for (int i = 0; i < schools.getSize(); i++) {
-                if (schools[i]->getSector() == currentSector) {
-                    items.push_back({ schools[i]->id, schools[i]->name, "SCHOOL", schools[i]->getSector(), schools[i] });
-                }
-            }
-        }
-
-        // 3. HOSPITALS (From MedicalManager)
-        if ((cat == "All" || cat == "Hospitals") && islamabad->getMedicalManager()) {
-            auto& hospitals = islamabad->getMedicalManager()->hospitals;
-            for (int i = 0; i < hospitals.getSize(); i++) {
-                if (hospitals[i]->sector == currentSector) {
-                    items.push_back({ hospitals[i]->id, hospitals[i]->name, "HOSPITAL", hospitals[i]->sector, hospitals[i] });
-                }
-            }
-        }
-
-        // 4. PHARMACIES (From MedicalManager)
-        if ((cat == "All" || cat == "Pharmacies") && islamabad->getMedicalManager()) {
-            auto& pharmacies = islamabad->getMedicalManager()->pharmacies;
-            for (int i = 0; i < pharmacies.getSize(); i++) {
-                if (pharmacies[i]->sector == currentSector) {
-                    items.push_back({ pharmacies[i]->id, pharmacies[i]->name, "PHARMACY", pharmacies[i]->sector, pharmacies[i] });
-                }
-            }
-        }
-
-        // 5. MALLS (From CommercialManager)
-        if ((cat == "All" || cat == "Malls") && islamabad->getCommercialManager()) {
-            auto& malls = islamabad->getCommercialManager()->malls;
-            for (int i = 0; i < malls.getSize(); i++) {
-                if (malls[i]->getSector() == currentSector) {
-                    items.push_back({ malls[i]->id, malls[i]->name, "MALL", malls[i]->getSector(), malls[i] });
-                }
-            }
-        }
-        };
-
-    // Initial load
-    refreshItems();
-
     auto renderer = Renderer([&] {
-        // --- SECTOR PANEL ---
+        string currentSector = sectorList[selectedSectorIdx];
+        string currentCategory = categories[selectedCategoryIdx];
+
+        // Sector panel
         Elements sectorItems;
         sectorItems.push_back(text("SECTORS") | bold | color(Color::Cyan));
         sectorItems.push_back(separator());
-        for (int i = 0; i < (int)sectorList.size() && i < 18; i++) {
-            int idx = std::max(0, selectedSectorIdx - 8) + i;
+        for (int i = 0; i < (int)sectorList.size() && i < 15; i++) {
+            int idx = std::max(0, selectedSectorIdx - 7) + i;
             if (idx >= (int)sectorList.size()) break;
             auto item = text((idx == selectedSectorIdx ? "> " : "  ") + sectorList[idx]);
             if (idx == selectedSectorIdx) item = item | bold | (focusPanel == 0 ? bgcolor(Color::Blue) : color(Color::Green));
@@ -1774,192 +1701,93 @@ inline void CitySimulator::runDatabaseView() {
         }
         auto sectorPanel = vbox(sectorItems) | border | size(WIDTH, EQUAL, 14);
 
+        // Get filtered nodes
+        std::vector<CityNode*> filteredNodes;
+        if (islamabad && islamabad->getCityGraph()) {
+            CityGraph* graph = islamabad->getCityGraph();
+            for (int i = 0; i < graph->getNodeCount(); i++) {
+                CityNode* node = graph->getNode(i);
+                if (node && node->sector == currentSector && node->type != "CORNER") {
+                    bool include = (currentCategory == "All") ||
+                        (currentCategory == "Stops" && node->type == "STOP") ||
+                        (currentCategory == "Schools" && node->type == "SCHOOL") ||
+                        (currentCategory == "Hospitals" && node->type == "HOSPITAL") ||
+                        (currentCategory == "Pharmacies" && node->type == "PHARMACY") ||
+                        (currentCategory == "Malls" && node->type == "MALL");
+                    if (include) filteredNodes.push_back(node);
+                }
+            }
+        }
 
-        // --- ITEM LIST PANEL ---
+        // Item panel
         Elements itemList;
-        itemList.push_back(text("FACILITIES (" + std::to_string(items.size()) + ")") | bold | color(Color::Yellow));
+        itemList.push_back(text("ITEMS (" + std::to_string(filteredNodes.size()) + ")") | bold | color(Color::Yellow));
         itemList.push_back(separator());
-
-        int totalListItems = items.size() + 1; // +1 for "Add Facility"
-        if (selectedItemIdx >= totalListItems) selectedItemIdx = std::max(0, totalListItems - 1);
-
-        int startIdx = std::max(0, selectedItemIdx - 6);
-        int endIdx = std::min(totalListItems, startIdx + 14);
-
-        for (int i = startIdx; i < endIdx; i++) {
-            bool isSelected = (i == selectedItemIdx);
-            string prefix = isSelected ? "> " : "  ";
-            Element e;
-
-            if (i < (int)items.size()) {
-                string icon = "●";
-                if (items[i].type == "STOP") icon = "◎";
-                else if (items[i].type == "SCHOOL") icon = "◆";
-                else if (items[i].type == "HOSPITAL") icon = "✚";
-                else if (items[i].type == "PHARMACY") icon = "⚕";
-                else if (items[i].type == "MALL") icon = "◈";
-
-                string displayName = items[i].name.length() > 20 ? items[i].name.substr(0, 17) + "..." : items[i].name;
-                e = text(prefix + icon + " " + displayName);
+        int totalItems = filteredNodes.size() + 1;
+        if (selectedItemIdx >= totalItems) selectedItemIdx = totalItems - 1;
+        for (int i = 0; i < std::min(12, totalItems); i++) {
+            int idx = std::max(0, selectedItemIdx - 6) + i;
+            if (idx >= totalItems) break;
+            Element item;
+            if (idx < (int)filteredNodes.size()) {
+                item = text(string(idx == selectedItemIdx ? "> " : "  ") + filteredNodes[idx]->name.substr(0, 20));
             }
             else {
-                e = text(prefix + "[+] Add Facility") | color(Color::Yellow);
+                item = text(string(idx == selectedItemIdx ? "> " : "  ") + string("[+] Add Facility")) | color(Color::Yellow);
             }
-
-            if (isSelected) e = e | bold | (focusPanel == 2 ? bgcolor(Color::Blue) : color(Color::Green));
-            itemList.push_back(e);
+            if (idx == selectedItemIdx) item = item | bold | (focusPanel == 2 ? bgcolor(Color::Blue) : color(Color::Green));
+            itemList.push_back(item);
         }
-        auto itemPanel = vbox(itemList) | border | size(WIDTH, EQUAL, 35);
+        auto itemPanel = vbox(itemList) | border | size(WIDTH, EQUAL, 28);
 
-
-        // --- DETAIL PANEL ---
-        Elements details;
-        details.push_back(text("DETAILS") | bold | color(Color::Magenta));
-        details.push_back(separator());
-
-        if (selectedItemIdx < (int)items.size()) {
-            DBItem& item = items[selectedItemIdx];
-            details.push_back(hbox({ text("ID:   ") | bold, text(item.id) | color(Color::Yellow) }));
-            details.push_back(hbox({ text("Name: ") | bold, text(item.name) }));
-            details.push_back(hbox({ text("Type: ") | bold, text(item.type) | color(Color::Cyan) }));
-            details.push_back(separator());
-
-            if (item.type == "SCHOOL") {
-                School* s = (School*)item.objPtr;
-                details.push_back(hbox({ text("Rating: "), text(std::to_string(s->rating).substr(0, 3) + "/5.0") | color(Color::Yellow) }));
-                details.push_back(hbox({ text("Students: "), text(std::to_string(s->getTotalEnrolledStudents())) | color(Color::Green) }));
-                details.push_back(hbox({ text("Faculty: "), text(std::to_string(s->getTotalFaculty())) | color(Color::Green) }));
-                details.push_back(separator());
-                details.push_back(text("Departments:") | dim);
-                for (int k = 0; k < std::min(5, s->departments.getSize()); k++) {
-                    details.push_back(text(" - " + s->departments[k]->name));
-                }
-                if (s->departments.getSize() > 5) details.push_back(text(" ... +" + std::to_string(s->departments.getSize() - 5) + " more") | dim);
-
-            }
-            else if (item.type == "MALL") {
-                Mall* m = (Mall*)item.objPtr;
-                details.push_back(hbox({ text("Total Shops: "), text(std::to_string(m->getShopCount())) | color(Color::Green) }));
-                details.push_back(hbox({ text("Products: "), text(std::to_string(m->getTotalProductCount())) }));
-                details.push_back(separator());
-                details.push_back(text("Shops:") | dim);
-                for (int k = 0; k < std::min(6, m->shops.getSize()); k++) {
-                    Shop* shop = m->shops[k];
-                    details.push_back(text(" - " + shop->name + " (" + shop->category + ")"));
-                }
-                if (m->shops.getSize() > 6) details.push_back(text(" ... +" + std::to_string(m->shops.getSize() - 6) + " more") | dim);
-            }
-            else if (item.type == "HOSPITAL") {
-                Hospital* h = (Hospital*)item.objPtr;
-                details.push_back(hbox({ text("Beds: "), text(std::to_string(h->getAvailableBeds()) + "/" + std::to_string(h->totalBeds)) | color(Color::Red) }));
-                details.push_back(hbox({ text("Patients: "), text(std::to_string(h->getOccupiedBeds())) }));
-                details.push_back(separator());
-                details.push_back(text("Specializations:") | dim);
-                for (int k = 0; k < std::min(5, h->specializations.getSize()); k++) {
-                    details.push_back(text(" - " + h->specializations[k]));
-                }
-            }
-            else if (item.type == "PHARMACY") {
-                Pharmacy* p = (Pharmacy*)item.objPtr;
-                details.push_back(hbox({ text("Meds Count: "), text(std::to_string(p->getMedicineCount())) }));
-                if (p->getMedicineCount() > 0) {
-                    details.push_back(separator());
-                    details.push_back(text("Sample Inventory:") | dim);
-                    for (int k = 0; k < std::min(4, p->getMedicineCount()); k++) {
-                        const Medicine* m = p->getMedicine(k);
-                        details.push_back(text(" - " + m->name + " (" + std::to_string((int)m->price) + " Rs)"));
-                    }
-                }
-            }
-            else if (item.type == "STOP") {
-                CityNode* n = (CityNode*)item.objPtr;
-                if (islamabad->getTransportManager()) {
-                    int w = islamabad->getTransportManager()->getWaitingCount(n->id);
-                    details.push_back(hbox({ text("Waiting: "), text(std::to_string(w) + " passengers") | color(Color::Yellow) }));
-                }
-            }
-
-            // POPULATION SUMMARY
-            details.push_back(separator());
-            details.push_back(text("SECTOR RESIDENTS") | bold);
-            Vector<Citizen*> residents = islamabad->getPopulationManager()->getCitizensInSector(sectorList[selectedSectorIdx]);
-            details.push_back(text("Total Residents: " + std::to_string(residents.getSize())));
+        // Detail panel
+        Elements detailItems;
+        detailItems.push_back(text("DETAILS") | bold | color(Color::Magenta));
+        detailItems.push_back(separator());
+        if (selectedItemIdx < (int)filteredNodes.size()) {
+            CityNode* n = filteredNodes[selectedItemIdx];
+            detailItems.push_back(text("Name: " + n->name));
+            detailItems.push_back(text("Type: " + n->type));
+            detailItems.push_back(text("Sector: " + n->sector));
         }
         else {
-            // "Add Facility" Selected
-            details.push_back(text("Create New Facility") | center);
-            details.push_back(text("in " + sectorList[selectedSectorIdx]) | bold | center | color(Color::Green));
-            details.push_back(text(""));
-            details.push_back(text("Press Enter to open") | dim | center);
-            details.push_back(text("creation wizard.") | dim | center);
+            detailItems.push_back(text("Press Enter to add"));
         }
+        auto detailPanel = vbox(detailItems) | border | flex;
 
-        auto detailPanel = vbox(details) | border | flex;
-
-        // --- TABS ---
-        Elements tabs;
+        // Category tabs
+        Elements categoryTabs;
         for (int i = 0; i < (int)categories.size(); i++) {
             auto tab = text(" " + categories[i] + " ");
-            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Green) | color(Color::Black);
-            else tab = tab | color(Color::GrayLight);
-            tabs.push_back(tab);
+            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Green);
+            categoryTabs.push_back(tab);
         }
-
-        auto helpBar = hbox({
-             text("Arrows: Navigate "),
-             text("Tab: Switch Category "),
-             text("Enter: Select/Edit "),
-             text("Esc: Back")
-            }) | center | dim;
 
         return vbox({
             text(" DATABASE VIEW ") | bold | center | bgcolor(Color::Green) | color(Color::Black),
-            hbox(tabs) | center,
+            hbox(categoryTabs) | center,
             separator(),
             hbox({sectorPanel, itemPanel, detailPanel}) | flex,
             separator(),
-            helpBar
+            text("Arrows: Navigate | Tab: Category | S: Search | Esc: Back") | dim | center
             });
         });
 
     auto comp = CatchEvent(renderer, [&](Event e) {
         if (e == Event::ArrowUp) {
-            if (focusPanel == 0 && selectedSectorIdx > 0) { selectedSectorIdx--; refreshItems(); selectedItemIdx = 0; }
+            if (focusPanel == 0 && selectedSectorIdx > 0) selectedSectorIdx--;
             else if (focusPanel == 2 && selectedItemIdx > 0) selectedItemIdx--;
             return true;
         }
         if (e == Event::ArrowDown) {
-            if (focusPanel == 0 && selectedSectorIdx < (int)sectorList.size() - 1) { selectedSectorIdx++; refreshItems(); selectedItemIdx = 0; }
-            else if (focusPanel == 2 && selectedItemIdx < (int)items.size()) selectedItemIdx++;
+            if (focusPanel == 0 && selectedSectorIdx < (int)sectorList.size() - 1) selectedSectorIdx++;
+            else if (focusPanel == 2) selectedItemIdx++;
             return true;
         }
-        if (e == Event::ArrowLeft) { focusPanel = 0; return true; }
-        if (e == Event::ArrowRight) { focusPanel = 2; return true; }
-        if (e == Event::Tab) {
-            selectedCategoryIdx = (selectedCategoryIdx + 1) % categories.size();
-            refreshItems();
-            selectedItemIdx = 0;
-            return true;
-        }
-
-        if (e == Event::Return) {
-            if (focusPanel == 0) {
-                focusPanel = 2; // Move focus to items
-            }
-            else if (focusPanel == 2) {
-                if (selectedItemIdx < (int)items.size()) {
-                    // Edit Selected Item
-                    runEditObjectView(items[selectedItemIdx].id, items[selectedItemIdx].type);
-                }
-                else {
-                    // Add Facility
-                    runAddFacilityForm(sectorList[selectedSectorIdx]);
-                    refreshItems();
-                }
-            }
-            return true;
-        }
-
+        if (e == Event::ArrowLeft) { focusPanel = std::max(0, focusPanel - 2); return true; }
+        if (e == Event::ArrowRight) { focusPanel = std::min(2, focusPanel + 2); return true; }
+        if (e == Event::Tab) { selectedCategoryIdx = (selectedCategoryIdx + 1) % categories.size(); selectedItemIdx = 0; return true; }
+        if (e == Event::Character('s') || e == Event::Character('S')) { currentState = SimulatorState::SEARCH_VIEW; screen.Exit(); return true; }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
         return false;
         });

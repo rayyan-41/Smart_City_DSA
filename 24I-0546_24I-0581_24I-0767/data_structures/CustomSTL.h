@@ -1,0 +1,10 @@
+#pragma once
+#include "Vector.h"
+#include "LinkedLists.h"
+#include "BST.h"
+#include "PriorityQueue.h"
+#include "Stack.h"
+#include "Queue.h"
+#include "NaryTree.h"
+#include "HashTable.h"
+#include "CircularQueue.h"

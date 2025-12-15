@@ -1,0 +1,77 @@
+PharmacyID,Name,Sector,MedicineName,Formula,Price
+P01,D-Watson E-7,E-7,Brufen,Ibuprofen,100
+P02,D-Watson E-8,E-8,Augmentin,Antibiotic,300
+P03,Green E-9,E-9,Panadol,Paracetamol,50
+P04,Sehat E-10,E-10,Brufen,Ibuprofen,100
+P05,Shaheen E-11,E-11,Augmentin,Antibiotic,300
+P06,Shaheen F-6,F-6,Panadol,Paracetamol,50
+P07,Green F-7,F-7,Brufen,Ibuprofen,100
+P07,Green F-7,F-7,Panadol,Paracetamol,250
+P08,Green F-8,F-8,Augmentin,Antibiotic,300
+P09,Shaheen F-9,F-9,Panadol,Paracetamol,50
+P10,D-Watson F-10,F-10,Brufen,Ibuprofen,100
+P11,Shaheen F-11,F-11,Augmentin,Antibiotic,300
+P12,Shaheen G-6,G-6,Panadol,Paracetamol,50
+P13,Sehat G-7,G-7,Brufen,Ibuprofen,100
+P14,Green G-8,G-8,Augmentin,Antibiotic,300
+P15,Sehat G-9,G-9,Panadol,Paracetamol,50
+P16,D-Watson G-10,G-10,Brufen,Ibuprofen,100
+P17,Shaheen G-11,G-11,Augmentin,Antibiotic,300
+P18,Shaheen H-8,H-8,Panadol,Paracetamol,50
+P19,Green H-9,H-9,Brufen,Ibuprofen,100
+P20,D-Watson H-10,H-10,Augmentin,Antibiotic,300
+P21,Shaheen H-11,H-11,Panadol,Paracetamol,50
+P22,Green H-12,H-12,Brufen,Ibuprofen,100
+P23,Green I-8,I-8,Augmentin,Antibiotic,300
+P24,D-Watson I-9,I-9,Panadol,Paracetamol,50
+P25,Green I-10,I-10,Brufen,Ibuprofen,100
+P26,Shaheen I-11,I-11,Augmentin,Antibiotic,300
+P27,D-Watson I-12,I-12,Panadol,Paracetamol,50
+P28,Shaheen E-7,E-7,Brufen,Ibuprofen,100
+P29,D-Watson E-8,E-8,Augmentin,Antibiotic,300
+P30,Shaheen E-9,E-9,Panadol,Paracetamol,50
+P31,MediPlus E-10,E-10,Aspirin,Acetylsalicylic Acid,75
+P32,CareFirst E-11,E-11,Ciprofloxacin,Antibiotic,450
+P33,HealthMart F-6,F-6,Metformin,Diabetes,200
+P34,WellCare F-7,F-7,Lisinopril,Blood Pressure,350
+P35,MedEx F-8,F-8,Omeprazole,Antacid,180
+P36,PharmaCare F-9,F-9,Atorvastatin,Cholesterol,400
+P37,LifePlus F-10,F-10,Azithromycin,Antibiotic,280
+P38,Medico F-11,F-11,Cetirizine,Antihistamine,90
+P39,RxCare G-6,G-6,Amoxicillin,Antibiotic,220
+P40,QuickMed G-7,G-7,Diclofenac,Pain Relief,120
+P41,MediHub G-8,G-8,Losartan,Hypertension,320
+P42,CityCare G-9,G-9,Ranitidine,Ulcer,150
+P43,PharmaZone G-10,G-10,Clopidogrel,Blood Thinner,380
+P44,MedStation G-11,G-11,Montelukast,Asthma,290
+P45,Remedy H-8,H-8,Prednisolone,Steroid,240
+P46,CureAll H-9,H-9,Levothyroxine,Thyroid,210
+P47,PillBox H-10,H-10,Gabapentin,Nerve Pain,340
+P48,MedStore H-11,H-11,Sertraline,Antidepressant,310
+P49,DrugMart H-12,H-12,Tamsulosin,Prostate,260
+P50,Chemist H-13,H-13,Simvastatin,Cholesterol,290
+P51,MediCare I-8,I-8,Insulin,Diabetes,550
+P52,PharmaPlus I-9,I-9,Warfarin,Anticoagulant,370
+P53,HealthPlus I-10,I-10,Allopurinol,Gout,195
+P54,MedPro I-11,I-11,Furosemide,Diuretic,140
+P55,CarePoint I-12,I-12,Amlodipine,Blood Pressure,270
+P56,MedVault I-13,I-13,Glimepiride,Diabetes,235
+P57,HealthStore I-14,I-14,Tramadol,Pain Relief,410
+P58,MediQuick E-7,E-7,Salbutamol,Asthma,165
+P59,PharmaSave E-8,E-8,Pantoprazole,Acid Reflux,190
+P60,DrugStore E-9,E-9,Fexofenadine,Allergy,125
+P61,MediMax E-10,E-10,Citalopram,Depression,295
+P62,CareShop E-11,E-11,Bisoprolol,Heart,245
+P63,HealthHub F-6,F-6,Trazodone,Sleep Aid,220
+P64,PharmaLink F-7,F-7,Alprazolam,Anxiety,330
+P65,MedCore F-8,F-8,Hydrochlorothiazide,Hypertension,175
+P66,ReliefCare F-9,F-9,Esomeprazole,GERD,255
+P67,MediWorld F-10,F-10,Doxycycline,Antibiotic,270
+P68,DrugHaven F-11,F-11,Clarithromycin,Infection,310
+P69,PharmaBest G-6,G-6,Naproxen,Anti-inflammatory,135
+P70,MedNow G-7,G-7,Fluconazole,Antifungal,285
+P71,HealthFirst G-8,G-8,Prednisone,Inflammation,195
+P72,CarePlus G-9,G-9,Carvedilol,Heart Failure,305
+P73,MediStop G-10,G-10,Meloxicam,Arthritis,215
+P74,PharmaShop G-11,G-11,Venlafaxine,Anxiety,340
+P75,QuickCare H-8,H-8,Spironolactone,Diuretic,265

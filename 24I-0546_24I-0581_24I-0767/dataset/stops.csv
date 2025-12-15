@@ -1,0 +1,76 @@
+StopID,Name,Sector
+Stop1,Faisal Mosque,E-7
+Stop2,Zoo Park,E-7
+Stop3,Bahria University,E-8
+Stop4,Naval Complex,E-8
+Stop5,Air University,E-9
+Stop6,PAF Hospital,E-9
+Stop7,Main Road Stop,E-10
+Stop8,Shaheen Chowk,E-10
+Stop9,E-11 Markaz,E-11
+Stop10,Doctors Town,E-11
+Stop11,Super Market,F-6
+Stop12,Kohsar Market,F-6
+Stop13,Jinnah Super,F-7
+Stop14,Safa Gold Mall,F-7
+Stop15,F-8 Markaz (Kacheri),F-8
+Stop16,Centaurus Mall,F-8
+Stop17,Fatima Jinnah Park,F-9
+Stop18,Bolan Gate,F-9
+Stop19,F-10 Markaz,F-10
+Stop20,Silver Oaks,F-10
+Stop21,F-11 Markaz,F-11
+Stop22,Hamza Tower,F-11
+Stop23,Aabpara Market,G-6
+Stop24,Melody Market,G-6
+Stop25,Sitara Market,G-7
+Stop26,Iqbal Hall,G-7
+Stop27,G-8 Markaz,G-8
+Stop28,PIMS Hospital,G-8
+Stop29,Karachi Company,G-9
+Stop30,Community Center,G-9
+Stop31,G-10 Markaz,G-10
+Stop32,High Court,G-10
+Stop33,G-11 Markaz,G-11
+Stop34,Real Estate Market,G-11
+Stop35,Shifa Int. Hospital,H-8
+Stop36,Allama Iqbal Open Uni,H-8
+Stop37,Sunday Bazaar,H-9
+Stop38,NUML University,H-9
+Stop39,IIUI University,H-10
+Stop40,New Campus,H-10
+Stop41,Police Lines,H-11
+Stop42,Nespak Office,H-11
+Stop43,NUST (Gate 1),H-12
+Stop44,NUST (Gate 2),H-12
+Stop45,I-8 Markaz,I-8
+Stop46,Kachnar Park,I-8
+Stop47,I-9 Markaz,I-9
+Stop48,Industrial Area,I-9
+Stop49,I-10 Markaz,I-10
+Stop50,GPO Office,I-10
+Stop51,Sabzi Mandi,I-11
+Stop52,Metro Depot,I-11
+Stop53,Main Road,I-12
+Stop54,Construction Site,I-12
+Stop55,Diplomatic Enclave,E-7
+Stop56,Margalla View,E-8
+Stop57,Expressway Junction,E-9
+Stop58,Sports Complex,E-10
+Stop59,Model Town,E-11
+Stop60,Beverly Center,F-6
+Stop61,Blue Area Plaza,F-7
+Stop62,Convention Center,F-8
+Stop63,Rose Garden,F-9
+Stop64,University Town,F-10
+Stop65,Garden Avenue,F-11
+Stop66,Press Club,G-6
+Stop67,Radio Pakistan,G-7
+Stop68,Pakistan Monument,G-8
+Stop69,Zero Point,G-9
+Stop70,Supreme Court,G-10
+Stop71,CDA Headquarters,G-11
+Stop72,Quaid-e-Azam University,H-8
+Stop73,Kashmir Highway,H-9
+Stop74,Rawal Lake View,H-10
+Stop75,Judicial Colony,H-11
