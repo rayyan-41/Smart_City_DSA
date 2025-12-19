@@ -7,9 +7,7 @@
 
 using std::string;
 
-// ============================================================================
-// VEHICLE STATUS - String constants instead of enums
-// ============================================================================
+
 namespace VehicleStatus {
     const string IDLE = "IDLE";
     const string EN_ROUTE = "EN_ROUTE";
@@ -20,25 +18,21 @@ namespace VehicleStatus {
     const string RETURNING = "RETURNING";
 }
 
-// ============================================================================
-// VEHICLE TYPE - String constants instead of enums
-// ============================================================================
+
 namespace VehicleType {
     const string BUS = "BUS";
     const string SCHOOL_BUS = "SCHOOL_BUS";
     const string AMBULANCE = "AMBULANCE";
 }
 
-// ============================================================================
-// ROUTE NODE - Represents a stop on the vehicle's route
-// ============================================================================
+
 struct RouteNode {
-    int graphNodeID;            // ID in CityGraph
-    string stopName;            // Human-readable name
-    string sector;              // Sector this node belongs to
-    double distanceFromPrev;    // Distance from previous stop (km)
-    double cumulativeDistance;  // Total distance from start
-    bool isScheduledStop;       // Whether vehicle actually stops here
+    int graphNodeID;            
+    string stopName;           
+    string sector;              
+    double distanceFromPrev;   
+    double cumulativeDistance; 
+    bool isScheduledStop;      
     
     RouteNode() 
         : graphNodeID(-1), stopName(""), sector(""), distanceFromPrev(0.0), 
@@ -53,39 +47,31 @@ struct RouteNode {
     }
 };
 
-// ============================================================================
-// VEHICLE - Abstract Base Class
-// ============================================================================
+
 class Vehicle {
 protected:
-    string vehicleID;           // Unique identifier (e.g., "B101", "AMB-01", "SB-01")
-    string vehicleType;         // Type of vehicle (from VehicleType namespace)
-    string status;              // Current status (from VehicleStatus namespace)
+    string vehicleID;           
+    string vehicleType;         
+    string status;             
     
-    // Route management using Singly Linked List
     LinkedList<RouteNode> route;
-    int currentRouteIndex;      // Current position in route
+    int currentRouteIndex;     
     
-    // Location tracking
-    int currentNodeID;          // Current graph node ID
-    string currentStopName;     // Current stop name
-    string currentSector;       // Current sector
+    int currentNodeID;         
+    string currentStopName;     
+    string currentSector;      
     
-    // Home base
-    string homeSector;          // Primary sector this vehicle serves
-    int homeNodeID;             // Home base node ID
+    string homeSector;          
+    int homeNodeID;            
     
-    // Metrics
-    double totalDistance;       // Total route distance (km)
-    double distanceTraveled;    // Distance traveled so far
-    double speed;               // Average speed (km/h)
+    double totalDistance;       
+    double distanceTraveled;   
+    double speed;             
     
-    // Capacity
-    int maxCapacity;            // Maximum passengers/patients
-    int currentOccupancy;       // Current count
+    int maxCapacity;           
+    int currentOccupancy;      
 
 public:
-    // ==================== LIFECYCLE ====================
     
     Vehicle() 
         : vehicleID(""), vehicleType(VehicleType::BUS), status(VehicleStatus::IDLE),
@@ -103,7 +89,7 @@ public:
     
     virtual ~Vehicle() = default;
     
-    // ==================== ACCESSORS ====================
+    // ==================== GETTERS ====================
     
     string getID() const { return vehicleID; }
     string getType() const { return vehicleType; }
@@ -139,7 +125,6 @@ public:
     
     // ==================== ROUTE MANAGEMENT ====================
     
-    // Set route from vector of node IDs with details
     virtual void setRoute(const Vector<int>& nodeIDs, const Vector<string>& names, 
                          const Vector<string>& sectors, const Vector<double>& distances) {
         route.clear();
@@ -164,7 +149,6 @@ public:
         }
     }
     
-    // Simple route set (just node IDs)
     void setRouteSimple(const Vector<int>& nodeIDs, double totalDist) {
         route.clear();
         for (int i = 0; i < nodeIDs.getSize(); ++i) {
@@ -178,7 +162,6 @@ public:
         }
     }
     
-    // Get current route node
     RouteNode* getCurrentRouteNode() {
         if (currentRouteIndex < route.size()) {
             return &route.at(currentRouteIndex);
@@ -186,7 +169,6 @@ public:
         return nullptr;
     }
     
-    // Get next route node
     RouteNode* getNextRouteNode() {
         if (currentRouteIndex + 1 < route.size()) {
             return &route.at(currentRouteIndex + 1);
@@ -194,7 +176,6 @@ public:
         return nullptr;
     }
     
-    // Check if a node is on this vehicle's route
     bool isOnRoute(int nodeID) const {
         auto* curr = route.getHead();
         while (curr) {
@@ -204,7 +185,6 @@ public:
         return false;
     }
     
-    // Get position of node in route (-1 if not found)
     int getRoutePosition(int nodeID) const {
         auto* curr = route.getHead();
         int pos = 0;
@@ -216,7 +196,6 @@ public:
         return -1;
     }
     
-    // Get route as Vector<int> for compatibility
     Vector<int> getRouteVector() const {
         Vector<int> result;
         auto* curr = route.getHead();
@@ -229,7 +208,6 @@ public:
     
     // ==================== SIMULATION ====================
     
-    // Move to next stop on route
     virtual bool moveToNextStop() {
         if (currentRouteIndex + 1 >= route.size()) {
             return false;
@@ -245,7 +223,6 @@ public:
         return true;
     }
     
-    // Reset to start of route
     virtual void resetRoute() {
         currentRouteIndex = 0;
         distanceTraveled = 0.0;
@@ -256,12 +233,10 @@ public:
         }
     }
     
-    // Check if at end of route
     bool isAtRouteEnd() const {
         return currentRouteIndex >= route.size() - 1;
     }
     
-    // ==================== CAPACITY MANAGEMENT ====================
     
     virtual bool addOccupant() {
         if (currentOccupancy < maxCapacity) {

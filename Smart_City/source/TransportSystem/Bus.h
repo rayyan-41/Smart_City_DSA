@@ -1,20 +1,4 @@
-/*
- * ============================================================================
- * BUS - Public Transport Vehicle
- * ============================================================================
- * 
- * Extends Vehicle base class for public bus transport.
- * Features:
- *   - Route management via Singly Linked List
- *   - Passenger boarding/alighting with Circular Queue
- *   - Schedule-based operation
- *   - Company association
- * 
- * Rubric: 
- *   - Singly Linked List for Bus route management (4 marks)
- *   - Transport Module with graph routes (5 marks)
- * ============================================================================
- */
+
 
 #pragma once
 #include "Vehicle.h"
@@ -160,7 +144,6 @@ public:
         while (!waitingQueue.empty() && !isFull()) {
             Passenger p = waitingQueue.dequeue();
             
-            // Boarding if dest on routr
             int currentPos = getRoutePosition(currentNodeID);
             int destPos = getRoutePosition(p.destinationStopID);
             
@@ -195,7 +178,7 @@ public:
     
     void processStop() {
         status = VehicleStatus::BOARDING;
-        alightPassengers();    // alight then board
+        alightPassengers();   
         boardWaitingPassengers();
         status = VehicleStatus::AT_STOP;
     }

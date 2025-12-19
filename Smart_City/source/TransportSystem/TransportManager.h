@@ -13,12 +13,9 @@
 using std::string;
 using std::ifstream;
 
-// Forward declaration
 class CityGraph;
 
-// ============================================================================
-// BUS STOP QUEUE - Passengers waiting at a stop
-// ============================================================================
+
 struct BusStopQueue {
     int stopNodeID;
     string stopName;
@@ -30,9 +27,7 @@ struct BusStopQueue {
         : stopNodeID(nodeID), stopName(name), sector(sec), waitingPassengers(200) {}
 };
 
-// ============================================================================
-// TRANSPORT STATISTICS
-// ============================================================================
+
 struct TransportStats {
     int totalBuses;
     int activeBuses;
@@ -63,9 +58,6 @@ struct TransportStats {
           totalWaitingPassengers(0) {}
 };
 
-// ============================================================================
-// TRANSPORT MANAGER CLASS
-// ============================================================================
 class TransportManager {
 private:
     CityGraph* cityGraph;
@@ -82,7 +74,6 @@ private:
     HashTable<string, Vector<SchoolBus*>> schoolLookup;
     HashTable<string, Vector<SchoolBus*>> sectorSchoolBusLookup;
     
-    // ========== SCHOOL BUS PICKUP POINTS ==========
     HashTable<int, PickupPoint*> pickupPoints;
     HashTable<string, Vector<int>> sectorPickupPoints;
     
@@ -92,22 +83,17 @@ private:
     HashTable<string, Vector<Ambulance*>> hospitalAmbulanceLookup;
     HashTable<string, Vector<Ambulance*>> sectorAmbulanceLookup;
     
-    // ========== TRANSFER REQUEST QUEUE ==========
     PriorityQueue<PatientTransfer> transferQueue;
     Vector<PatientTransfer> activeTransfers;
     
-    // ========== PASSENGER QUEUES ==========
     HashTable<int, BusStopQueue*> stopQueues;
     
-    // ========== SIMULATION STATE ==========
     int simulationStep;
     
-    // ========== STATISTICS ==========
     int totalTransferRequests;
     int transferIDCounter;
 
 public:
-    // ==================== LIFECYCLE ====================
     
     TransportManager();
     ~TransportManager();
@@ -115,7 +101,6 @@ public:
     TransportManager(const TransportManager&) = delete;
     TransportManager& operator=(const TransportManager&) = delete;
     
-    // ==================== CONFIGURATION ====================
     
     void setCityGraph(CityGraph* graph) { cityGraph = graph; }
     CityGraph* getCityGraph() const { return cityGraph; }
@@ -173,7 +158,6 @@ public:
     Ambulance* getAmbulance(int index) const;
     const Vector<Ambulance*>& getAllAmbulances() const { return ambulances; }
     
-    // ==================== PATIENT TRANSFER DISPATCH ====================
     
     string requestTransfer(const string& patientCNIC, const string& patientName,
                           const string& sourceHospitalID, int sourceNodeID, const string& sourceSector,
@@ -184,7 +168,6 @@ public:
     int getPendingTransferCount() const { return transferQueue.size(); }
     PatientTransfer* peekNextTransfer();
     
-    // ==================== PASSENGER QUEUE MANAGEMENT ====================
     
     void initializeStopQueue(int stopNodeID, const string& stopName, const string& sector);
     bool addPassengerToStop(int stopNodeID, const Passenger& passenger);
@@ -192,88 +175,40 @@ public:
     BusStopQueue* getStopQueue(int stopNodeID) const;
     void processBusArrival(Bus* bus, int stopNodeID);
     
-    // ==================== SIMULATION ====================
-    
-    /**
-     * Run one simulation step for ALL transport systems.
-     * Each call moves all vehicles one stop forward on their routes.
-     * When a vehicle reaches the end of its route, it loops back to start.
-     */
     void runSimulationStep();
-    
-    /**
-     * Run single step (alias for runSimulationStep)
-     */
+   
     void runSimulation() { runSimulationStep(); }
-    
-    /**
-     * Run multiple simulation steps
-     */
+ 
     void runSimulationSteps(int steps);
     
-    /**
-     * Run multiple simulation steps (overloaded)
-     */
+
     void runSimulation(int steps) { runSimulationSteps(steps); }
     
-    /**
-     * Get current simulation step count
-     */
+ 
     int getSimulationStep() const { return simulationStep; }
-    
-    /**
-     * Get simulation tick (alias for getSimulationStep)
-     */
+  
     int getSimulationTick() const { return simulationStep; }
-    
-    /**
-     * Reset simulation to initial state
-     */
+   
     void resetSimulation();
-    
-    /**
-     * Start continuous simulation (sets running flag)
-     */
+  
     void startSimulation() { simulationRunning = true; }
     
-    /**
-     * Stop continuous simulation (clears running flag)
-     */
+  
     void stopSimulation() { simulationRunning = false; }
     
-    /**
-     * Check if simulation is currently running
-     */
+   
     bool isSimulationRunning() const { return simulationRunning; }
-    
-    /**
-     * Simulate one step for all public buses.
-     */
+
     void simulateBusStep();
-    
-    /**
-     * Simulate one step for all school buses.
-     */
+
     void simulateSchoolBusStep();
-    
-    /**
-     * Simulate one step for all ambulances.
-     */
+
     void simulateAmbulanceStep();
-    
-    /**
-     * Process school bus arrival at pickup point
-     */
+  
     void processSchoolBusPickup(SchoolBus* sb, int pickupNodeID);
-    
-    /**
-     * Process school bus arrival at school
-     */
+
     void processSchoolBusSchoolArrival(SchoolBus* sb, const string& schoolID, int schoolNodeID);
-    
-    /**
-     * Get the current transport statistics.
-     */
+   
     TransportStats getStats() const;
     
     // ==================== CSV LOADING ====================
@@ -282,7 +217,6 @@ public:
     bool loadAmbulancesFromCSV(const string& filename, bool hasHeader = true);
     bool loadSchoolBusesFromCSV(const string& filename, bool hasHeader = true);
     
-    // ==================== SECTOR ADJACENCY ====================
     
     static Vector<string> getAdjacentSectors(const string& sector);
     static bool areSectorsAdjacent(const string& sector1, const string& sector2);
@@ -291,13 +225,9 @@ private:
     string trim(const string& s) const;
     Vector<string> parseRoute(const string& routeStr) const;
     
-    // Simulation running flag
     bool simulationRunning;
 };
 
-// ============================================================================
-// IMPLEMENTATION
-// ============================================================================
 
 inline TransportManager::TransportManager() 
     : cityGraph(nullptr), buses(), busLookup(101), companyLookup(53),
@@ -315,7 +245,6 @@ inline TransportManager::~TransportManager() {
     for (int i = 0; i < ambulances.getSize(); ++i) delete ambulances[i];
 }
 
-// ==================== SECTOR ADJACENCY ====================
 
 inline Vector<string> TransportManager::getAdjacentSectors(const string& sector) {
     Vector<string> adjacent;
@@ -330,13 +259,12 @@ inline Vector<string> TransportManager::getAdjacentSectors(const string& sector)
         numStr += sector[i];
     }
     
-    // Safe integer parsing
     try {
         if (!numStr.empty()) {
             number = std::stoi(numStr);
         }
     } catch (...) {
-        return adjacent; // Return empty if parsing fails
+        return adjacent;
     }
     
     if (number > 6) {
@@ -505,7 +433,6 @@ inline Vector<SchoolBus*> TransportManager::getAvailableSchoolBuses() const {
 
 inline SchoolBus* TransportManager::findSchoolBusForRoute(const string& fromSector, 
                                                           const string& toSector) const {
-    // Priority 1: Bus from source sector
     Vector<SchoolBus*> fromBuses = getSchoolBusesBySector(fromSector);
     for (int i = 0; i < fromBuses.getSize(); ++i) {
         if (fromBuses[i]->isAvailable() && fromBuses[i]->isSectorInPriority(toSector)) {
@@ -513,7 +440,6 @@ inline SchoolBus* TransportManager::findSchoolBusForRoute(const string& fromSect
         }
     }
     
-    // Priority 2: Bus from destination sector
     Vector<SchoolBus*> toBuses = getSchoolBusesBySector(toSector);
     for (int i = 0; i < toBuses.getSize(); ++i) {
         if (toBuses[i]->isAvailable() && toBuses[i]->isSectorInPriority(fromSector)) {
@@ -521,7 +447,6 @@ inline SchoolBus* TransportManager::findSchoolBusForRoute(const string& fromSect
         }
     }
     
-    // Priority 3: Any available bus that covers both sectors
     for (int i = 0; i < schoolBuses.getSize(); ++i) {
         if (schoolBuses[i]->isAvailable() &&
             schoolBuses[i]->isSectorInPriority(fromSector) &&
@@ -538,7 +463,7 @@ inline SchoolBus* TransportManager::getSchoolBus(int index) const {
     return nullptr;
 }
 
-// ==================== SCHOOL BUS PICKUP POINT MANAGEMENT ====================
+// ==================== SCHOOL BUS MANAGEMENT ====================
 
 inline void TransportManager::createPickupPoint(int nodeID, const string& sector, 
                                                  const string& locationName, bool isResidential) {
@@ -653,7 +578,6 @@ inline Vector<Ambulance*> TransportManager::getAvailableAmbulances() const {
 
 inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourceSector,
                                                               const string& destSector) const {
-    // Priority 1: Ambulance from source sector
     Vector<Ambulance*> sourceAmbs = getAmbulancesBySector(sourceSector);
     for (int i = 0; i < sourceAmbs.getSize(); ++i) {
         if (sourceAmbs[i]->isAvailable() && sourceAmbs[i]->isSectorInPriority(destSector)) {
@@ -661,7 +585,6 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 2: Ambulance from destination sector
     Vector<Ambulance*> destAmbs = getAmbulancesBySector(destSector);
     for (int i = 0; i < destAmbs.getSize(); ++i) {
         if (destAmbs[i]->isAvailable() && destAmbs[i]->isSectorInPriority(sourceSector)) {
@@ -669,7 +592,6 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 3: Adjacent sectors
     Vector<string> adjacentToSource = getAdjacentSectors(sourceSector);
     for (int i = 0; i < adjacentToSource.getSize(); ++i) {
         Vector<Ambulance*> adjAmbs = getAmbulancesBySector(adjacentToSource[i]);
@@ -680,7 +602,6 @@ inline Ambulance* TransportManager::findAmbulanceForTransfer(const string& sourc
         }
     }
     
-    // Priority 4: Any available
     Vector<Ambulance*> available = getAvailableAmbulances();
     return available.getSize() > 0 ? available[0] : nullptr;
 }
@@ -770,10 +691,8 @@ inline BusStopQueue* TransportManager::getStopQueue(int stopNodeID) const {
 inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
     if (!bus) return;
     
-    // Alight passengers at destination
     bus->alightPassengers();
     
-    // Board waiting passengers
     BusStopQueue* queue = getStopQueue(stopNodeID);
     if (queue) {
         while (!queue->waitingPassengers.empty() && !bus->isFull()) {
@@ -786,7 +705,6 @@ inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
                 bus->addWaitingPassenger(p);
                 bus->boardWaitingPassengers();
             } else {
-                // Re-queue if destination is behind
                 queue->waitingPassengers.enqueue(p);
             }
         }
@@ -798,16 +716,12 @@ inline void TransportManager::processBusArrival(Bus* bus, int stopNodeID) {
 inline void TransportManager::runSimulationStep() {
     ++simulationStep;
     
-    // 1. Simulate all public buses
     simulateBusStep();
     
-    // 2. Simulate all school buses
     simulateSchoolBusStep();
     
-    // 3. Simulate all ambulances
     simulateAmbulanceStep();
     
-    // 4. Dispatch pending transfers if ambulances available
     while (getPendingTransferCount() > 0 && getAvailableAmbulances().getSize() > 0) {
         if (!dispatchNextTransfer()) break;
     }
@@ -822,17 +736,14 @@ inline void TransportManager::runSimulationSteps(int steps) {
 inline void TransportManager::resetSimulation() {
     simulationStep = 0;
     
-    // Reset all buses to start of their routes
     for (int i = 0; i < buses.getSize(); ++i) {
         buses[i]->resetToRouteStart();
     }
     
-    // Reset all school buses
     for (int i = 0; i < schoolBuses.getSize(); ++i) {
         schoolBuses[i]->resetToBase();
     }
     
-    // Reset all ambulances
     for (int i = 0; i < ambulances.getSize(); ++i) {
         ambulances[i]->resetToBase();
     }
@@ -842,10 +753,8 @@ inline void TransportManager::simulateBusStep() {
     for (int i = 0; i < buses.getSize(); ++i) {
         Bus* bus = buses[i];
         
-        // Process current stop (alight passengers, board waiting passengers)
         processBusArrival(bus, bus->getCurrentNodeID());
         
-        // Move to next stop (loops back to start if at end of route)
         bus->moveToNextStop();
     }
 }
@@ -856,7 +765,6 @@ inline void TransportManager::simulateSchoolBusStep() {
         string status = sb->getSchoolBusStatus();
         
         if (status == SchoolBusStatus::AVAILABLE) {
-            // Check if there are students waiting in the sector
             Vector<int> pickups = getPickupPointsInSector(sb->getHomeSector());
             bool hasWaiting = false;
             for (int j = 0; j < pickups.getSize(); ++j) {
@@ -927,7 +835,6 @@ inline void TransportManager::simulateAmbulanceStep() {
         string status = amb->getAmbulanceStatus();
         
         if (status == AmbulanceStatus::AVAILABLE) {
-            // Ready for dispatch - handled by dispatchNextTransfer()
         }
         else if (status == AmbulanceStatus::DISPATCHED) {
             if (!amb->moveToNextStop()) {
@@ -1086,13 +993,12 @@ inline bool TransportManager::loadAmbulancesFromCSV(const string& filename, bool
         int hospitalNode = 0;
         string sector = fields[3];
         
-        // Safe integer parsing with try-catch
         try {
             if (!fields[2].empty()) {
                 hospitalNode = std::stoi(fields[2]);
             }
         } catch (...) {
-            hospitalNode = 0; // Default to 0 if parsing fails
+            hospitalNode = 0; 
         }
         
         if (!ambID.empty() && !hospitalID.empty() && !sector.empty()) {
@@ -1134,13 +1040,12 @@ inline bool TransportManager::loadSchoolBusesFromCSV(const string& filename, boo
         int schoolNode = 0;
         string sector = fields[3];
         
-        // Safe integer parsing with try-catch
         try {
             if (!fields[2].empty()) {
                 schoolNode = std::stoi(fields[2]);
             }
         } catch (...) {
-            schoolNode = 0; // Default to 0 if parsing fails
+            schoolNode = 0;
         }
         
         if (!busID.empty() && !schoolID.empty() && !sector.empty()) {

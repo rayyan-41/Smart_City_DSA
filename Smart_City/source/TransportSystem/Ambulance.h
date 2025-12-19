@@ -1,20 +1,4 @@
-/*
- * ============================================================================
- * AMBULANCE - Hospital-to-Hospital Emergency Transport Vehicle
- * ============================================================================
- * 
- * Extends Vehicle base class for emergency medical transport.
- * Features:
- *   - Hospital-to-hospital routing (not random locations)
- *   - Priority-based dispatch using graph pathfinding
- *   - Patient transport with severity tracking
- *   - Priority for own sector and adjacent sector hospitals
- * 
- * Rubric:
- *   - Transport Module with emergency services (5 marks)
- *   - Graph usage in modules for emergency routing (4 marks)
- * ============================================================================
- */
+
 
 #pragma once
 #include "Vehicle.h"
@@ -54,7 +38,6 @@ namespace AmbulanceStatus {
 }
 
 
-// Patient Transfer Request Structure
 struct PatientTransfer {
     string requestID;            
     string patientCNIC;            
@@ -89,7 +72,6 @@ struct PatientTransfer {
           destHospitalID(dstHosp), destHospitalNodeID(dstNode), destSector(dstSec),
           priority(prio), condition(cond), timestamp(""), isActive(true) {}
     
-    // priority queue comparison
     bool operator<(const PatientTransfer& other) const {
         return EmergencyPriority::getValue(priority) > EmergencyPriority::getValue(other.priority);
     }
@@ -137,7 +119,7 @@ public:
           hasALS(true), hasDefibrillator(true), hasOxygen(true), hasVentilator(false),
           totalTransfersCompleted(0), criticalTransfersHandled(0), 
           totalTransferDistance(0.0) {
-        speed = 60.0;  // Ambulances fast
+        speed = 60.0; 
     }
     
     Ambulance(const string& id, const string& hospitalID, int hospitalNodeID, const string& sector)
@@ -226,7 +208,6 @@ public:
             number = std::stoi(numStr);
         }
         
-        // Adjacent in same series
         if (number > 6) {
             prioritySectors.push_back(string(1, series) + "-" + std::to_string(number - 1));
         }
@@ -234,7 +215,6 @@ public:
             prioritySectors.push_back(string(1, series) + "-" + std::to_string(number + 1));
         }
         
-        // Adjacent series
         if (series > 'E') {
             prioritySectors.push_back(string(1, series - 1) + "-" + std::to_string(number));
         }
@@ -250,7 +230,6 @@ public:
         return false;
     }
     
-    // checki if amb should do transfer
     bool shouldHandleTransfer(const PatientTransfer& transfer) const {
         
 		return isSectorInPriority(transfer.sourceSector) || 
@@ -259,7 +238,6 @@ public:
     
     // ==================== TRANSFER OPERATIONS ====================
     
-    // Reset ambulance 
     void resetToBase() {
         currentNodeID = baseHospitalNodeID;
         currentSector = homeSector;

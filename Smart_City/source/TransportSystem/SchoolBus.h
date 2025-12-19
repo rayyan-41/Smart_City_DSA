@@ -1,22 +1,4 @@
-/*
- * ============================================================================
- * SCHOOL BUS - School-to-School & Home-to-School Transport Vehicle
- * ============================================================================
- * 
- * Extends Vehicle base class for school bus transport.
- * Features:
- *   - Routes between schools in same/adjacent sectors
- *   - Home pickup routes - picks up students from residential areas
- *   - Student pickup and dropoff management
- *   - School schedule integration
- *   - Priority for own sector and adjacent sectors
- *   - Fills up at homes until capacity, then goes to schools
- * 
- * Rubric:
- *   - Transport Module with school routes (5 marks)
- *   - Graph usage for route calculation (4 marks)
- * ============================================================================
- */
+
 
 #pragma once
 #include "Vehicle.h"
@@ -29,10 +11,10 @@ struct StudentPassenger {
     string studentCNIC;
     string studentName;
     string pickupLocation;      
-    string dropoffSchoolID;     // Destination school
+    string dropoffSchoolID;     
     int pickupNodeID;
     int dropoffNodeID;
-    bool isHomePickup;          // True if picking up from home, false if from school
+    bool isHomePickup;        
     
     StudentPassenger() 
         : studentCNIC(""), studentName(""), pickupLocation(""), dropoffSchoolID(""),
@@ -51,14 +33,11 @@ struct StudentPassenger {
     }
 };
 
-// ============================================================================
-// PICKUP POINT - A location where students wait to be picked up
-// ============================================================================
 struct PickupPoint {
-    int nodeID;                 // Graph node ID
-    string sector;              // Sector name
-    string locationName;        // Human-readable name
-    bool isResidential;         // True for home pickup, false for school
+    int nodeID;                 
+    string sector;              
+    string locationName;        
+    bool isResidential;
     CircularQueue<StudentPassenger> waitingStudents;
     
     PickupPoint() 
@@ -68,66 +47,54 @@ struct PickupPoint {
         : nodeID(node), sector(sec), locationName(name), isResidential(residential), waitingStudents(50) {}
 };
 
-// ============================================================================
-// SCHOOL BUS STATUS - String constants
-// ============================================================================
+
 namespace SchoolBusStatus {
     const string AVAILABLE = "AVAILABLE";
-    const string EN_ROUTE_HOME_PICKUP = "EN_ROUTE_HOME_PICKUP";   // Going to homes
-    const string AT_PICKUP_POINT = "AT_PICKUP_POINT";             // At a home/stop
-    const string LOADING_STUDENTS = "LOADING_STUDENTS";           // Loading students
-    const string EN_ROUTE_TO_SCHOOL = "EN_ROUTE_TO_SCHOOL";       // Going to school
+    const string EN_ROUTE_HOME_PICKUP = "EN_ROUTE_HOME_PICKUP";   
+    const string AT_PICKUP_POINT = "AT_PICKUP_POINT";            
+    const string LOADING_STUDENTS = "LOADING_STUDENTS";           
+    const string EN_ROUTE_TO_SCHOOL = "EN_ROUTE_TO_SCHOOL";       
     const string AT_SCHOOL = "AT_SCHOOL";
     const string UNLOADING = "UNLOADING";
-    const string EN_ROUTE_SCHOOL_TO_SCHOOL = "EN_ROUTE_SCHOOL_TO_SCHOOL";  // Inter-school
+    const string EN_ROUTE_SCHOOL_TO_SCHOOL = "EN_ROUTE_SCHOOL_TO_SCHOOL"; 
     const string RETURNING = "RETURNING";
     const string OUT_OF_SERVICE = "OUT_OF_SERVICE";
 }
 
-// ============================================================================
-// SCHOOL BUS CLASS
-// ============================================================================
+
 class SchoolBus : public Vehicle {
 private:
-    // School bus specific attributes
-    string busID;                   // e.g., "SB-01"
-    string assignedSchoolID;        // Primary school this bus serves
-    int assignedSchoolNodeID;       // Graph node of assigned school
-    string schoolBusStatus;         // Detailed status
+    string busID;                   
+    string assignedSchoolID;        
+    int assignedSchoolNodeID;       
+    string schoolBusStatus;         
     
-    // Route information
-    Vector<string> schoolStops;     // List of school IDs on route
-    Vector<int> pickupPointNodes;   // List of pickup point node IDs (homes/stops)
-    string currentSchoolID;         // Current school (if at one)
-    int currentPickupPointIndex;    // Current index in pickup route
+    Vector<string> schoolStops;     
+    Vector<int> pickupPointNodes;   
+    string currentSchoolID;        
+    int currentPickupPointIndex;   
     
-    // Passenger management
     CircularQueue<StudentPassenger> waitingStudents;
     Vector<StudentPassenger> onboardStudents;
     
-    // Schedule
-    string morningPickupTime;       // e.g., "07:30"
-    string afternoonDropoffTime;    // e.g., "14:00"
+    string morningPickupTime;       
+    string afternoonDropoffTime;   
     
-    // Statistics
     int totalStudentsTransported;
     int tripsCompleted;
     double totalDistanceCovered;
     int homePickupsCompleted;
     int schoolPickupsCompleted;
     
-    // Sector priority
-    Vector<string> prioritySectors; // Own sector + adjacent sectors
+    Vector<string> prioritySectors;
     
-    // Destination schools for current route
     Vector<string> destinationSchools;
     Vector<int> destinationSchoolNodes;
 
 public:
-    // ==================== LIFECYCLE ====================
     
     SchoolBus()
-        : Vehicle("", VehicleType::SCHOOL_BUS, 40),  // 40 student capacity
+        : Vehicle("", VehicleType::SCHOOL_BUS, 40),  
           busID(""), assignedSchoolID(""), assignedSchoolNodeID(-1),
           schoolBusStatus(SchoolBusStatus::AVAILABLE),
           currentPickupPointIndex(0),
@@ -135,7 +102,7 @@ public:
           morningPickupTime("07:30"), afternoonDropoffTime("14:00"),
           totalStudentsTransported(0), tripsCompleted(0), totalDistanceCovered(0.0),
           homePickupsCompleted(0), schoolPickupsCompleted(0) {
-        speed = 35.0;  // School buses are slower for safety
+        speed = 35.0; 
     }
     
     SchoolBus(const string& id, const string& schoolID, int schoolNodeID, const string& sector)
@@ -152,17 +119,15 @@ public:
         homeNodeID = schoolNodeID;
         speed = 35.0;
         
-        // Set priority sectors (own + adjacent)
         setPrioritySectors(sector);
         
-        // Add assigned school as default destination
         destinationSchools.push_back(schoolID);
         destinationSchoolNodes.push_back(schoolNodeID);
     }
     
     ~SchoolBus() override = default;
     
-    // ==================== ACCESSORS ====================
+    // ==================== Getter ====================
     
     string getBusID() const { return busID; }
     string getAssignedSchoolID() const { return assignedSchoolID; }
@@ -195,7 +160,6 @@ public:
     
     void setSchoolBusStatus(const string& s) { 
         schoolBusStatus = s;
-        // Map to base vehicle status
         if (s == SchoolBusStatus::AVAILABLE) {
             status = VehicleStatus::IDLE;
         } else if (s == SchoolBusStatus::EN_ROUTE_HOME_PICKUP || 
@@ -240,7 +204,6 @@ public:
             number = std::stoi(numStr);
         }
         
-        // Add same series, adjacent numbers
         if (number > 6) {
             prioritySectors.push_back(string(1, series) + "-" + std::to_string(number - 1));
         }
@@ -248,7 +211,6 @@ public:
             prioritySectors.push_back(string(1, series) + "-" + std::to_string(number + 1));
         }
         
-        // Add adjacent series, same number
         if (series > 'E') {
             prioritySectors.push_back(string(1, series - 1) + "-" + std::to_string(number));
         }
@@ -266,18 +228,15 @@ public:
     
     // ==================== PICKUP ROUTE MANAGEMENT ====================
     
-    // Add a pickup point (home/residential stop) to the route
     void addPickupPoint(int nodeID) {
         pickupPointNodes.push_back(nodeID);
     }
     
-    // Clear all pickup points
     void clearPickupPoints() {
         pickupPointNodes.clear();
         currentPickupPointIndex = 0;
     }
     
-    // Set pickup route from vector of node IDs
     void setPickupRoute(const Vector<int>& pickupNodes) {
         pickupPointNodes.clear();
         for (int i = 0; i < pickupNodes.getSize(); ++i) {
@@ -286,19 +245,16 @@ public:
         currentPickupPointIndex = 0;
     }
     
-    // Add a destination school
     void addDestinationSchool(const string& schoolID, int nodeID) {
         destinationSchools.push_back(schoolID);
         destinationSchoolNodes.push_back(nodeID);
     }
     
-    // Clear destination schools
     void clearDestinationSchools() {
         destinationSchools.clear();
         destinationSchoolNodes.clear();
     }
     
-    // Get next pickup point node ID
     int getNextPickupPointNode() const {
         if (currentPickupPointIndex < pickupPointNodes.getSize()) {
             return pickupPointNodes[currentPickupPointIndex];
@@ -306,12 +262,10 @@ public:
         return -1;
     }
     
-    // Move to next pickup point
     void advanceToNextPickupPoint() {
         ++currentPickupPointIndex;
     }
     
-    // Check if all pickup points have been visited
     bool allPickupsComplete() const {
         return currentPickupPointIndex >= pickupPointNodes.getSize();
     }
@@ -336,12 +290,10 @@ public:
     
     // ==================== STUDENT OPERATIONS ====================
     
-    // Add student to waiting queue
     bool addWaitingStudent(const StudentPassenger& student) {
         return waitingStudents.enqueue(student);
     }
     
-    // Board a single student (if capacity allows)
     bool boardStudent(const StudentPassenger& student) {
         if (isFull()) return false;
         onboardStudents.push_back(student);
@@ -349,7 +301,6 @@ public:
         return true;
     }
     
-    // Board students from waiting queue at current location
     int boardStudentsAtLocation(int locationNodeID) {
         int boarded = 0;
         setSchoolBusStatus(SchoolBusStatus::LOADING_STUDENTS);
@@ -357,7 +308,6 @@ public:
         while (!waitingStudents.empty() && !isFull()) {
             StudentPassenger student = waitingStudents.dequeue();
             
-            // Check if this student should board at this location
             if (student.pickupNodeID == locationNodeID || student.pickupNodeID == -1) {
                 onboardStudents.push_back(student);
                 ++currentOccupancy;
@@ -374,7 +324,6 @@ public:
         return boarded;
     }
     
-    // Board students at current school
     int boardStudents() {
         if (schoolBusStatus != SchoolBusStatus::LOADING_STUDENTS &&
             schoolBusStatus != SchoolBusStatus::AT_SCHOOL &&
@@ -388,7 +337,6 @@ public:
         while (!waitingStudents.empty() && !isFull()) {
             StudentPassenger student = waitingStudents.dequeue();
             
-            // Check if destination is on route
             if (isOnRoute(student.dropoffNodeID)) {
                 onboardStudents.push_back(student);
                 ++currentOccupancy;
@@ -399,7 +347,6 @@ public:
         return boarded;
     }
     
-    // Drop off students at current school
     int dropoffStudents() {
         if (currentSchoolID.empty() && currentNodeID == -1) return 0;
         
@@ -411,11 +358,9 @@ public:
         for (int i = 0; i < onboardStudents.getSize(); ++i) {
             bool shouldDropoff = false;
             
-            // Drop off if at their destination school
             if (!currentSchoolID.empty() && onboardStudents[i].dropoffSchoolID == currentSchoolID) {
                 shouldDropoff = true;
             }
-            // Or if at their destination node
             else if (onboardStudents[i].dropoffNodeID == currentNodeID) {
                 shouldDropoff = true;
             }
@@ -433,7 +378,6 @@ public:
         return dropped;
     }
     
-    // Drop off all students (at destination school)
     int dropoffAllStudents() {
         int dropped = onboardStudents.getSize();
         totalStudentsTransported += dropped;
@@ -442,17 +386,14 @@ public:
         return dropped;
     }
     
-    // Process arrival at a school
     void processSchoolArrival(const string& schoolID) {
         currentSchoolID = schoolID;
         setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
         
-        // First drop off, then pick up
         dropoffStudents();
         boardStudents();
     }
     
-    // Process arrival at a pickup point (home/residential area)
     void processPickupPointArrival(int nodeID) {
         setSchoolBusStatus(SchoolBusStatus::AT_PICKUP_POINT);
         boardStudentsAtLocation(nodeID);
@@ -460,7 +401,6 @@ public:
     
     // ==================== TRIP MANAGEMENT ====================
     
-    // Reset school bus to base (for simulation reset)
     void resetToBase() {
         currentNodeID = assignedSchoolNodeID;
         currentSchoolID = assignedSchoolID;
@@ -471,39 +411,33 @@ public:
         setSchoolBusStatus(SchoolBusStatus::AVAILABLE);
     }
     
-    // Start morning home pickup route
     void startHomePickupRoute() {
         currentPickupPointIndex = 0;
         setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_HOME_PICKUP);
         status = VehicleStatus::EN_ROUTE;
     }
     
-    // Start route to school after pickups
     void startSchoolRoute() {
         setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_TO_SCHOOL);
         status = VehicleStatus::EN_ROUTE;
     }
     
-    // Start inter-school route
     void startInterSchoolRoute() {
         setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_SCHOOL_TO_SCHOOL);
         status = VehicleStatus::EN_ROUTE;
     }
     
-    // Start afternoon dropoff route
     void startAfternoonRoute() {
         setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_TO_SCHOOL);
         status = VehicleStatus::EN_ROUTE;
     }
     
-    // Complete trip and return to base
     void completeTrip() {
         ++tripsCompleted;
         totalDistanceCovered += distanceTraveled;
         setSchoolBusStatus(SchoolBusStatus::RETURNING);
     }
     
-    // Arrive back at base school
     void arriveAtBase() {
         currentNodeID = assignedSchoolNodeID;
         currentSchoolID = assignedSchoolID;
@@ -512,12 +446,10 @@ public:
         setSchoolBusStatus(SchoolBusStatus::AVAILABLE);
     }
     
-    // Take out of service
     void takeOutOfService() {
         setSchoolBusStatus(SchoolBusStatus::OUT_OF_SERVICE);
     }
     
-    // Put back in service
     void putInService() {
         if (schoolBusStatus == SchoolBusStatus::OUT_OF_SERVICE) {
             setSchoolBusStatus(SchoolBusStatus::AVAILABLE);
@@ -526,17 +458,13 @@ public:
     
     // ==================== SIMULATION STEP ====================
     
-    // Process one simulation step
     void simulateStep() {
         switch (schoolBusStatus[0]) {
-            case 'A': // AVAILABLE or AT_*
+            case 'A': 
                 if (schoolBusStatus == SchoolBusStatus::AVAILABLE) {
-                    // Do nothing, waiting for dispatch
                 } else if (schoolBusStatus == SchoolBusStatus::AT_PICKUP_POINT) {
-                    // Board students at pickup point
                     boardStudentsAtLocation(currentNodeID);
                     
-                    // If full or no more pickup points, head to school
                     if (isFull() || allPickupsComplete()) {
                         startSchoolRoute();
                     } else {
@@ -544,21 +472,17 @@ public:
                         setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_HOME_PICKUP);
                     }
                 } else if (schoolBusStatus == SchoolBusStatus::AT_SCHOOL) {
-                    // Drop off students
                     dropoffStudents();
                     
-                    // If empty, either continue to next school or return
                     if (isEmpty()) {
                         completeTrip();
                     }
                 }
                 break;
                 
-            case 'E': // EN_ROUTE_*
+            case 'E':
                 if (moveToNextStop()) {
-                    // Still moving
                 } else {
-                    // Arrived at destination
                     if (schoolBusStatus == SchoolBusStatus::EN_ROUTE_HOME_PICKUP) {
                         setSchoolBusStatus(SchoolBusStatus::AT_PICKUP_POINT);
                     } else if (schoolBusStatus == SchoolBusStatus::EN_ROUTE_TO_SCHOOL) {
@@ -569,40 +493,34 @@ public:
                 }
                 break;
                 
-            case 'L': // LOADING_STUDENTS
-                // Continue loading
+            case 'L': 
                 boardStudents();
                 break;
                 
-            case 'U': // UNLOADING
-                // Finish unloading
+            case 'U': 
                 dropoffStudents();
                 if (isEmpty()) {
                     completeTrip();
                 }
                 break;
                 
-            case 'R': // RETURNING
+            case 'R': 
                 if (moveToNextStop()) {
-                    // Still returning
                 } else {
                     arriveAtBase();
                 }
                 break;
                 
-            case 'O': // OUT_OF_SERVICE
-                // Do nothing
+            case 'O': 
                 break;
         }
     }
     
-    // Override moveToNextStop
     bool moveToNextStop() override {
         if (Vehicle::moveToNextStop()) {
             return true;
         }
         
-        // End of route
         return false;
     }
 };
