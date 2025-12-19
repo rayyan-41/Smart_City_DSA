@@ -1,7 +1,6 @@
 #pragma once
 #include "CityUtils.h"
  
-
 class CityGraph {
 private:
     CityNode* nodes[MAX_NODES];
