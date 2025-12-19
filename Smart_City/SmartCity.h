@@ -1,6 +1,6 @@
 /*
  * ============================================================================
- * SMART CITY MANAGEMENT SYSTEM - Core Wrapper Class
+ * SMART CITY MANAGEMENT SYSTEM 
  * ============================================================================
  *
  * This class serves as the central hub connecting all city subsystems:
@@ -67,7 +67,6 @@ private:
     bool cityInitialized;
 
 public:
-    // ========== LIFECYCLE ==========
     SmartCity();
     ~SmartCity();
 
@@ -134,7 +133,6 @@ public:
     bool dispatchSchoolBusForPickups(const string& busID);
     int getStudentsWaitingAtPickup(int nodeID);
     
-    // Auto-generate pickup points for a sector based on residential areas
     void generatePickupPointsForSector(const string& sector);
 
     // ========== AMBULANCE/PATIENT TRANSFER APIs ==========
@@ -304,7 +302,6 @@ inline bool SmartCity::initialize() {
     populationManager->loadPopulation(populationCSV);
 
     
-    // Auto-generate pickup points for each sector based on corners/stops
     for (int i = 0; i < SECTOR_COUNT; i++) {
         generatePickupPointsForSector(SECTOR_GRID[i].name);
     }
@@ -536,11 +533,9 @@ inline int SmartCity::getStudentsWaitingAtPickup(int nodeID) {
 inline void SmartCity::generatePickupPointsForSector(const string& sector) {
     if (!cityInitialized) return;
     
-    // Create pickup points at corner nodes and stops in the sector
     for (int i = 0; i < cityGraph->getNodeCount(); i++) {
         CityNode* node = cityGraph->getNode(i);
         if (node && node->sector == sector) {
-            // Create pickup points at corners and stops
             if (node->type == "CORNER" || node->type == "STOP") {
                 transportManager->createPickupPoint(node->id, sector, node->name, true);
             }

@@ -3011,7 +3011,7 @@ inline void CitySimulator::runManagementMenu() {
                 else if (item.type == "MALL") {}
 
                 if (deleted) {
-                    refreshList(); // Update list
+                    refreshList(); // Update list~
                 }
                 else {
                     showPlaceholder("DELETE FAILED", "Could not delete object (Type not supported or dependency)");

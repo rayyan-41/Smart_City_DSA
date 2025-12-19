@@ -55,8 +55,7 @@ public:
 
     void loadStopsCSV(const string& filename);
     void loadBuildingsCSV(const string& filename, const string& type);
-    void loadPublicFacilitiesCSV(const string& filename);
-    void loadResidentialAreas(const string& filename);  // NEW: Load houses from population.csv
+
 
     string generateStopID(const string& type);
 };
