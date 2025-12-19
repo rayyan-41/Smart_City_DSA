@@ -282,16 +282,7 @@ inline bool SmartCity::initialize() {
     cityGraph->loadStopsCSV(stopsCSV);
 
     schoolManager->loadFromCSV(schoolsCSV);
-    for (int i = 0; i < schoolManager->schools.getSize(); i++) {
-        School* school = schoolManager->schools[i];
-        int graphID = cityGraph->addLocation(
-            school->id, "", school->name, "SCHOOL",
-            school->location.coord.x, school->location.coord.y
-        );
-        if (graphID != -1) {
-            school->graphNodeID = std::to_string(graphID);
-        }
-    }
+    cityGraph->loadBuildingsCSV(schoolsCSV, "SCHOOL");
 
     medicalManager->loadHospitals(hospitalsCSV);
     medicalManager->loadPharmacies(pharmaciesCSV);
@@ -311,7 +302,6 @@ inline bool SmartCity::initialize() {
     }
 
     populationManager->loadPopulation(populationCSV);
-	cityGraph->loadResidentialAreas(populationCSV);
 
     
     // Auto-generate pickup points for each sector based on corners/stops
@@ -321,19 +311,7 @@ inline bool SmartCity::initialize() {
     
     commercialManager->loadMalls(mallsCSV);
     commercialManager->loadShops(shopsCSV);
-
-    // Add malls to city graph as nodes
-    for (int i = 0; i < commercialManager->malls.getSize(); i++) {
-        Mall* mall = commercialManager->malls[i];
-        int graphID = cityGraph->addLocation(
-            mall->id, mall->id, mall->name, "MALL",
-            mall->getLatitude(), mall->getLongitude()
-        );
-        if (graphID != -1) {
-            // Store graph node ID in mall if needed
-            // mall->graphNodeID = graphID; // Uncomment if Mall class has this field
-        }
-    }
+	cityGraph->loadBuildingsCSV(mallsCSV, "MALL");
 
     cityInitialized = true;
     return true;

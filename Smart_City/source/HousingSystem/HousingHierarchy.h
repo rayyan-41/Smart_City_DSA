@@ -106,8 +106,6 @@ public:
 class Sector {
 public:
     string name; 
-
-    
     string graphNodeID;
 
     Vector<Street*> streets; 
