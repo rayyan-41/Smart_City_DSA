@@ -1,3 +1,7 @@
+#pragma once
+#ifndef CITY_MANAGEMENT_H
+#define CITY_MANAGEMENT_H
+
 #include <string>
 #include <vector>
 #include <sstream>
@@ -1090,4 +1094,6 @@ inline CityManagement::CityManagementStats CityManagement::getManagementStats() 
 
     return stats;
 }
+
+#endif // CITY_MANAGEMENT_H
 

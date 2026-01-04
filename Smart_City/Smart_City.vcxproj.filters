@@ -186,6 +186,21 @@
     <ClInclude Include="termgl\stb_image.h">
       <Filter>Header Files\Modules\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="source\Simulator\CityGraphView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CityDatabaseView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CityEditorViews.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CitySearchEngineView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CityManagementView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">

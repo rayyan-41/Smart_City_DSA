@@ -166,8 +166,13 @@
     <ClInclude Include="source\SchoolSystem\School.h" />
     <ClInclude Include="source\SchoolSystem\SchoolManager.h" />
     <ClInclude Include="source\SchoolSystem\Student.h" />
+    <ClInclude Include="source\Simulator\CityDatabaseView.h" />
+    <ClInclude Include="source\Simulator\CityEditorViews.h" />
     <ClInclude Include="source\Simulator\CityManagement.h" />
+    <ClInclude Include="source\Simulator\CityManagementView.h" />
+    <ClInclude Include="source\Simulator\CitySearchEngineView.h" />
     <ClInclude Include="source\Simulator\CitySimulator.h" />
+    <ClInclude Include="source\Simulator\CityGraphView.h" />
     <ClInclude Include="source\TransportSystem\Ambulance.h" />
     <ClInclude Include="source\TransportSystem\Bus.h" />
     <ClInclude Include="source\TransportSystem\SchoolBus.h" />
