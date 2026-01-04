@@ -43,6 +43,9 @@
     <Filter Include="Header Files\Modules\TransportSystem">
       <UniqueIdentifier>{c67ffa9b-f981-4764-92f6-4f10958a788a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Modules\Graphics">
+      <UniqueIdentifier>{e2c47095-fe2c-4597-b3d6-25147f530d98}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils\Coordinate.h">
@@ -174,6 +177,15 @@
     <ClInclude Include="SmartCity.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="termgl\Termgl_Defs.h">
+      <Filter>Header Files\Modules\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="termgl\Termgl.h">
+      <Filter>Header Files\Modules\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="termgl\stb_image.h">
+      <Filter>Header Files\Modules\Graphics</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="dataset\buses.csv">
@@ -206,6 +218,9 @@
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="termgl\Termgl_Implementation.cpp">
+      <Filter>Header Files\Modules\Graphics</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

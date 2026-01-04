@@ -10,7 +10,8 @@ private:
     void heapifyUp(int index) {
         while (index > 0) {
             int parent = (index - 1) / 2;
-            if (!(data[parent] < data[index]))
+
+            if (!(data[index] < data[parent]))
                 break;
 
             T temp = data[parent];
@@ -26,21 +27,21 @@ private:
         while (true) {
             int left = 2 * index + 1;
             int right = 2 * index + 2;
-            int largest = index;
+            int smallest = index;
 
-            if (left < n && data[largest] < data[left])
-                largest = left;
-            if (right < n && data[largest] < data[right])
-                largest = right;
+            if (left < n && data[left] < data[smallest])
+                smallest = left;
+            if (right < n && data[right] < data[smallest])
+                smallest = right;
 
-            if (largest == index)
+            if (smallest == index)
                 break;
 
             T temp = data[index];
-            data[index] = data[largest];
-            data[largest] = temp;
+            data[index] = data[smallest];
+            data[smallest] = temp;
 
-            index = largest;
+            index = smallest;
         }
     }
 
@@ -89,6 +90,7 @@ public:
         int lastIndex = data.getSize() - 1;
         data[0] = data[lastIndex];
         data.pop_back();
+
         if (!data.empty())
             heapifyDown(0);
     }
