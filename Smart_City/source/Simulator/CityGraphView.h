@@ -9,6 +9,7 @@
 #include <sstream>
 #include <iomanip>
 #include <fstream>
+#include <iostream> // Added for debug output
 
 #include "../../SmartCity.h"
 #include "../../termgl/Termgl.h"
@@ -74,8 +75,11 @@ struct TrafficVehicle {
     double progress;
     double speed;
     termgl::Color color;
+    bool isBus;
 
-    TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02), color(termgl::Color::Yellow()) {}
+    TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02),
+        color(termgl::Color::Yellow()), isBus(false) {
+    }
 };
 
 namespace GraphRenderConfig {
@@ -148,6 +152,12 @@ public:
     double getZoom() const { return zoom; }
     double getOffsetX() const { return offsetX; }
     double getOffsetY() const { return offsetY; }
+
+    // Culling helper
+    bool isVisible(Point2D p, int margin = 50) const {
+        return (p.x >= -margin && p.x <= canvasWidth + margin &&
+            p.y >= -margin && p.y <= canvasHeight + margin);
+    }
 };
 
 enum class DijkstraMode {
@@ -170,6 +180,17 @@ private:
     Vector<int> nodeIdToIndex;
     Vector<TrafficVehicle> trafficVehicles;
     GraphViewport viewport;
+
+    // Assets
+    termgl::Texture texSchool, texHospital, texPharmacy, texStop, texMall;
+    termgl::Texture texMosque, texPark, texPolice, texFire, texLibrary;
+    termgl::Texture texRestaurant, texHouse, texDefault;
+    termgl::Texture texBus, texCar; // Traffic assets
+
+    termgl::Sprite sprSchool, sprHospital, sprPharmacy, sprStop, sprMall;
+    termgl::Sprite sprMosque, sprPark, sprPolice, sprFire, sprLibrary;
+    termgl::Sprite sprRestaurant, sprHouse, sprDefault;
+    termgl::Sprite sprBus, sprCar;
 
     int mouseX, mouseY;
     int hoveredNodeID;
@@ -224,6 +245,59 @@ public:
         dijkstraStartNode(-1), dijkstraEndNode(-1), dijkstraDistance(0.0),
         dijkstraNodeSelection(0), dijkstraEndNodeSelection(0),
         intersectionCounter(0) {
+    }
+
+    void loadResources() {
+        // Helper lambda to load texture and set sprite
+        // Checks multiple paths to be robust
+        auto loadAsset = [](termgl::Texture& tex, termgl::Sprite& spr, const string& filename) {
+            std::vector<string> paths = {
+                "Simulator/assets/" + filename,
+                "assets/" + filename,
+                "Smart_City/Simulator/assets/" + filename,
+                "source/Simulator/assets/" + filename,
+                "Smart_City/source/Simulator/assets/" + filename,
+                "../assets/" + filename,
+                filename
+            };
+
+            bool loaded = false;
+            for (const auto& path : paths) {
+                std::ifstream f(path.c_str());
+                if (f.good()) {
+                    f.close();
+                    if (tex.loadFromFile(path)) {
+                        spr.setTexture(&tex);
+                        loaded = true;
+                        std::cout << "Loaded asset: " << path << " (" << tex.width << "x" << tex.height << ")" << std::endl;
+                        break;
+                    }
+                }
+            }
+            if (!loaded) {
+                std::cerr << "Failed to load texture: " << filename << std::endl;
+            }
+        };
+
+        loadAsset(texSchool, sprSchool, "school.png");
+        loadAsset(texHospital, sprHospital, "hospital.png");
+        loadAsset(texPharmacy, sprPharmacy, "pharmacy.png");
+        loadAsset(texStop, sprStop, "stop.png");
+        loadAsset(texMall, sprMall, "mall.png");
+
+        // Commented out assets not yet provided to prevent errors if logic depended on them
+        // loadAsset(texMosque, sprMosque, "mosque.png");
+        // loadAsset(texPark, sprPark, "park.png");
+        // loadAsset(texPolice, sprPolice, "police.png");
+        // loadAsset(texFire, sprFire, "fire.png");
+        // loadAsset(texLibrary, sprLibrary, "library.png");
+        // loadAsset(texRestaurant, sprRestaurant, "restaurant.png");
+        // loadAsset(texHouse, sprHouse, "house.png");
+        // loadAsset(texBus, sprBus, "bus.png");
+        // loadAsset(texCar, sprCar, "car.png");
+
+        // Default sprite for other types
+        // loadAsset(texDefault, sprDefault, "default.png");
     }
 
     void buildGraphVisualization() {
@@ -324,6 +398,8 @@ public:
             else if (colorChoice == 2) vehicle.color = termgl::Color::Cyan();
             else vehicle.color = termgl::Color::Red();
 
+            if (rand() % 5 == 0) vehicle.isBus = true; // 20% chance to be a bus
+
             trafficVehicles.push_back(vehicle);
         }
     }
@@ -373,14 +449,25 @@ public:
         hoveredNodeID = -1;
         hoveredSector = "";
 
+        // Check visible nodes only for hover to improve perf?
+        // For now, distance check is fast enough, but iterating all nodes is 0(N)
         double minDist = 15.0;
+
+        // Simple Culling for Hover Logic
         for (int i = 0; i < graphNodes.getSize(); i++) {
             const GraphNode2D& node = graphNodes[i];
+
+            // Basic culling check before expensive math
+            if (!viewport.isVisible(node.pos)) continue;
+
             if (node.isCorner && !showCorners) continue;
             if (node.type == "HOUSE" && !showHouses) continue;
 
             double dx = node.pos.x - mx;
             double dy = node.pos.y - my;
+            // Simple bounding box check first
+            if (std::abs(dx) > 20 || std::abs(dy) > 20) continue;
+
             double dist = std::sqrt(dx * dx + dy * dy);
             if (dist < minDist) {
                 minDist = dist;
@@ -391,8 +478,8 @@ public:
         Point2D p(mx, my);
         for (int i = 0; i < sectorRegions.getSize(); i++) {
             SectorRegion& region = sectorRegions[i];
-            region.isHovered = region.contains(p);
-            if (region.isHovered) {
+            // Only check sectors that might be on screen? 
+            if (region.isHovered = region.contains(p)) {
                 hoveredSector = region.name;
             }
         }
@@ -494,11 +581,59 @@ public:
         }
     }
 
+    // Helper for thick lines
+    void drawThickLine(termgl::Window& window, int x1, int y1, int x2, int y2, int thickness, termgl::Color c) {
+        if (thickness <= 1) {
+            window.drawLine(x1, y1, x2, y2, c);
+            return;
+        }
+
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double len = std::sqrt(dx * dx + dy * dy);
+        if (len == 0) return;
+
+        double nx = -dy / len;
+        double ny = dx / len;
+
+        for (int i = -thickness / 2; i <= thickness / 2; i++) {
+            int ox = (int)(nx * i);
+            int oy = (int)(ny * i);
+            window.drawLine(x1 + ox, y1 + oy, x2 + ox, y2 + oy, c);
+        }
+    }
+
+    // Helper for dashed lines (e.g. center stripes)
+    void drawDashedLine(termgl::Window& window, int x1, int y1, int x2, int y2, termgl::Color c) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double dist = std::sqrt(dx * dx + dy * dy);
+        if (dist == 0) return;
+
+        double nx = dx / dist;
+        double ny = dy / dist;
+
+        double dashLen = 10.0;
+        double gapLen = 10.0;
+
+        double current = 0;
+        while (current < dist) {
+            double end = std::min(current + dashLen, dist);
+            int sx = (int)(x1 + nx * current);
+            int sy = (int)(y1 + ny * current);
+            int ex = (int)(x1 + nx * end);
+            int ey = (int)(y1 + ny * end);
+            window.drawLine(sx, sy, ex, ey, c);
+            current += dashLen + gapLen;
+        }
+    }
+
     void renderGraph(termgl::Window& window) {
         int cw = window.getWidth();
         int ch = window.getHeight();
         viewport.setCanvasSize(cw, ch);
 
+        // Pre-calculate all node positions once per frame
         for (int i = 0; i < graphNodes.getSize(); i++) {
             graphNodes[i].pos = viewport.geoToCanvas(graphNodes[i].lat, graphNodes[i].lon);
         }
@@ -513,9 +648,16 @@ public:
                 (region.topLeft.y + region.bottomRight.y) / 2);
         }
 
+        double zoomLevel = viewport.getZoom();
+        bool highDetail = zoomLevel > 2.0;
+
         if (showSectorBounds) {
             for (int i = 0; i < sectorRegions.getSize(); i++) {
                 const SectorRegion& region = sectorRegions[i];
+
+                // Culling Check for Sectors
+                if (!viewport.isVisible(region.topLeft, 0) && !viewport.isVisible(region.bottomRight, 0)) continue;
+
                 int x1 = (int)region.topLeft.x;
                 int y1 = (int)region.topLeft.y;
                 int w = (int)(region.bottomRight.x - region.topLeft.x);
@@ -542,9 +684,23 @@ public:
                 if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
                     const GraphNode2D& n1 = graphNodes[idx1];
                     const GraphNode2D& n2 = graphNodes[idx2];
-                    window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color(50, 50, 60));
+
+                    // Culling for Edges: if both ends are outside, skip
+                    if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
+
+                    if (highDetail) {
+                        // High detail road: Thick grey with markings
+                        drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 8, termgl::Color(60, 60, 60));
+                        // Dashed center line
+                        drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color(200, 200, 200));
+                    }
+                    else {
+                        // Low detail road
+                        window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color(50, 50, 60));
+                    }
                 }
             }
+            // Highlighted path
             for (int i = 0; i < graphEdges.getSize(); i++) {
                 const GraphEdge2D& edge = graphEdges[i];
                 if (!edge.isOnPath) continue;
@@ -553,8 +709,17 @@ public:
                 if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
                     const GraphNode2D& n1 = graphNodes[idx1];
                     const GraphNode2D& n2 = graphNodes[idx2];
-                    window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color::Green());
-                    window.drawLine((int)n1.pos.x + 1, (int)n1.pos.y + 1, (int)n2.pos.x + 1, (int)n2.pos.y + 1, termgl::Color::Green());
+
+                    if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
+
+                    if (highDetail) {
+                        drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 8, termgl::Color(0, 100, 0));
+                        drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color::Green());
+                    }
+                    else {
+                        window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color::Green());
+                        window.drawLine((int)n1.pos.x + 1, (int)n1.pos.y + 1, (int)n2.pos.x + 1, (int)n2.pos.y + 1, termgl::Color::Green());
+                    }
                 }
             }
         }
@@ -569,7 +734,25 @@ public:
                     const GraphNode2D& n2 = graphNodes[idx2];
                     int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
                     int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
-                    window.fillCircle(vx, vy, 3, vehicle.color);
+
+                    if (!viewport.isVisible(Point2D(vx, vy))) continue;
+
+                    if (highDetail) {
+                        // Draw sprite if available
+                        termgl::Sprite* s = vehicle.isBus ? &sprBus : &sprCar;
+                        if (s && s->texture && s->texture->width > 0) {
+                            float scale = 32.0f / s->texture->width; // Scale to ~32px
+                            s->setPosition(vx - 16, vy - 16);
+                            s->setScale(scale);
+                            window.drawSprite(*s);
+                        }
+                        else {
+                            window.fillCircle(vx, vy, 5, vehicle.color);
+                        }
+                    }
+                    else {
+                        window.fillCircle(vx, vy, 3, vehicle.color);
+                    }
                 }
             }
         }
@@ -578,7 +761,18 @@ public:
             for (int i = 0; i < graphNodes.getSize(); i++) {
                 const GraphNode2D& node = graphNodes[i];
                 if (node.type != "HOUSE") continue;
-                window.drawPixel((int)node.pos.x, (int)node.pos.y, termgl::Color(80, 80, 80));
+
+                if (!viewport.isVisible(node.pos)) continue;
+
+                if (highDetail && sprHouse.texture && sprHouse.texture->width > 0) {
+                    float scale = 16.0f / sprHouse.texture->width; // Scale to ~16px
+                    sprHouse.setPosition((float)node.pos.x - 8, (float)node.pos.y - 8);
+                    sprHouse.setScale(scale);
+                    window.drawSprite(sprHouse);
+                }
+                else {
+                    window.drawPixel((int)node.pos.x, (int)node.pos.y, termgl::Color(80, 80, 80));
+                }
             }
         }
 
@@ -587,34 +781,76 @@ public:
                 const GraphNode2D& node = graphNodes[i];
                 if (!node.isCorner) continue;
                 if (dijkstraPath.getSize() > 0 && !node.isOnPath) continue;
+
+                if (!viewport.isVisible(node.pos)) continue;
+
                 termgl::Color c = node.isOnPath ? termgl::Color::Green() : termgl::Color::Grey();
-                if (dijkstraPath.getSize() > 0 && !node.isOnPath) continue;
                 window.fillCircle((int)node.pos.x, (int)node.pos.y, 2, c);
             }
         }
 
         for (int i = 0; i < graphNodes.getSize(); i++) {
             const GraphNode2D& node = graphNodes[i];
+
+            // Culling for Nodes
+            if (!viewport.isVisible(node.pos)) continue;
+
             if (node.isCorner || node.type == "HOUSE") continue;
             if (dijkstraPath.getSize() > 0 && !node.isOnPath && !node.isStart && !node.isEnd) continue;
 
-            termgl::Color nodeColor = node.color;
-            int radius = 4;
-            if (node.isStart) { nodeColor = termgl::Color::Cyan(); radius = 7; }
-            else if (node.isEnd) { nodeColor = termgl::Color::Yellow(); radius = 7; }
-            else if (node.isOnPath) { nodeColor = termgl::Color::Green(); radius = 5; }
-            else if (node.isVisited && dijkstraPath.getSize() == 0) nodeColor = termgl::Color(255, 165, 0);
+            if (highDetail) {
+                termgl::Sprite* s = nullptr;
+                if (node.type == "SCHOOL") s = &sprSchool;
+                else if (node.type == "HOSPITAL") s = &sprHospital;
+                else if (node.type == "PHARMACY") s = &sprPharmacy;
+                else if (node.type == "STOP") s = &sprStop;
+                else if (node.type == "MALL") s = &sprMall;
+                else if (node.type == "MOSQUE") s = &sprMosque;
+                else if (node.type == "PARK") s = &sprPark;
+                else if (node.type == "POLICE_STATION") s = &sprPolice;
+                else if (node.type == "FIRE_STATION") s = &sprFire;
+                else if (node.type == "LIBRARY") s = &sprLibrary;
+                else if (node.type == "RESTAURANT") s = &sprRestaurant;
+                else s = &sprDefault;
+
+                if (s && s->texture && s->texture->width > 0) { // Check if valid
+                    float targetSize = (node.isStart || node.isEnd) ? 48.0f : 32.0f;
+                    float scale = targetSize / s->texture->width;
+
+                    s->setPosition((float)node.pos.x - (targetSize / 2),
+                        (float)node.pos.y - (targetSize / 2));
+                    s->setScale(scale);
+                    window.drawSprite(*s);
+                }
+                else {
+                    // Fallback if texture not loaded
+                    window.fillCircle((int)node.pos.x, (int)node.pos.y, 6, node.color);
+                }
+            }
+            else {
+                // Low Detail
+                termgl::Color nodeColor = node.color;
+                int radius = 4;
+                if (node.isStart) { nodeColor = termgl::Color::Cyan(); radius = 7; }
+                else if (node.isEnd) { nodeColor = termgl::Color::Yellow(); radius = 7; }
+                else if (node.isOnPath) { nodeColor = termgl::Color::Green(); radius = 5; }
+                else if (node.isVisited && dijkstraPath.getSize() == 0) nodeColor = termgl::Color(255, 165, 0);
+
+                window.fillCircle((int)node.pos.x, (int)node.pos.y, radius, nodeColor);
+            }
 
             if (node.id == hoveredNodeID) {
-                nodeColor = termgl::Color::White();
-                radius += 2;
+                // Always draw name on hover
                 window.drawText((int)node.pos.x + 10, (int)node.pos.y - 10, node.name, termgl::Color::White());
+                if (!highDetail) {
+                    window.drawCircle((int)node.pos.x, (int)node.pos.y, 8, termgl::Color::White());
+                }
             }
-            window.fillCircle((int)node.pos.x, (int)node.pos.y, radius, nodeColor);
         }
     }
 
     void run() {
+        loadResources(); // Load sprites before loop
         buildGraphVisualization();
         buildSelectableNodesList();
 

@@ -734,9 +734,13 @@ namespace termgl {
 
     void Window::drawSprite(const Sprite& sprite) {
         if (!sprite.texture) return;
+        if (sprite.srcRect.w <= 0 || sprite.srcRect.h <= 0) return;  // Safety check
+        
         int destX = (int)sprite.x, destY = (int)sprite.y;
         int destW = (int)(sprite.srcRect.w * sprite.scale);
         int destH = (int)(sprite.srcRect.h * sprite.scale);
+        
+        if (destW <= 0 || destH <= 0) return;  // Safety check for zero/negative dest size
 
         // Simple sprite drawing with drawPixel for clipping support
         for (int y = 0; y < destH; ++y) {
