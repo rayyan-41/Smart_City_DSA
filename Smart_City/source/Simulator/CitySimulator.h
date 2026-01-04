@@ -11,6 +11,7 @@
 #include <sstream>
 #include <cmath>
 #include <algorithm> 
+#include <iomanip>
 
 #include "ftxui/component/component.hpp"
 #include "ftxui/component/screen_interactive.hpp"
@@ -21,6 +22,7 @@
 #include "../../SmartCity.h"
 #include "../../data_structures/Vector.h"
 #include "CityManagement.h"
+#include "../../termgl/Termgl.h"
 
 using namespace ftxui;
 using std::string;
@@ -32,35 +34,35 @@ struct Point2D {
 
 struct GraphNode2D {
     int id;
-    double lat, lon;        
-    Point2D pos;           
+    double lat, lon;
+    Point2D pos;
     string name;
     string type;
     string sector;
-    Color color;
+    termgl::Color color;
     bool isCorner;
-    bool isOnPath;      
-    bool isVisited;    
-    bool isStart;       
-    bool isEnd;        
+    bool isOnPath;
+    bool isVisited;
+    bool isStart;
+    bool isEnd;
 
     GraphNode2D() : id(-1), lat(0), lon(0), pos(), name(""), type(""), sector(""),
-        color(Color::White), isCorner(false), isOnPath(false),
+        color(termgl::Color::White()), isCorner(false), isOnPath(false),
         isVisited(false), isStart(false), isEnd(false) {
     }
 };
 
 struct GraphEdge2D {
     int fromID, toID;
-    bool isOnPath;  
+    bool isOnPath;
 
     GraphEdge2D(int f = -1, int t = -1) : fromID(f), toID(t), isOnPath(false) {}
 };
 
 struct SectorRegion {
     string name;
-    double minLat, maxLat, minLon, maxLon;  
-    Point2D topLeft, bottomRight;           
+    double minLat, maxLat, minLon, maxLon;
+    Point2D topLeft, bottomRight;
     Point2D center;
     bool isHovered;
 
@@ -76,24 +78,24 @@ struct SectorRegion {
 
 struct TrafficVehicle {
     int edgeFromID, edgeToID;
-    double progress;        
-    double speed;           
-    Color color;
+    double progress;
+    double speed;
+    termgl::Color color;
 
-    TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02), color(Color::Yellow) {}
+    TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02), color(termgl::Color::Yellow()) {}
 };
 
 
 namespace GraphRenderConfig {
-    constexpr int ROAD_THICKNESS = 2;         
-    constexpr int PATH_THICKNESS = 3;          
+    constexpr int ROAD_THICKNESS = 2;
+    constexpr int PATH_THICKNESS = 4;
 
-    constexpr int FACILITY_RADIUS = 3;         
-    constexpr int CORNER_RADIUS = 2;        
-    constexpr int PATH_NODE_RADIUS = 4;       
-    constexpr int START_END_RADIUS = 5;       
-    constexpr int HOUSE_RADIUS = 1;        
-    constexpr int TRAFFIC_RADIUS = 2;        
+    constexpr int FACILITY_RADIUS = 5;
+    constexpr int CORNER_RADIUS = 3;
+    constexpr int PATH_NODE_RADIUS = 6;
+    constexpr int START_END_RADIUS = 8;
+    constexpr int HOUSE_RADIUS = 2;
+    constexpr int TRAFFIC_RADIUS = 4;
 }
 
 
@@ -108,7 +110,7 @@ public:
     GraphViewport() :
         minLat(BASE_LAT), maxLat(MAX_LAT),
         minLon(BASE_LON), maxLon(MAX_LON),
-        canvasWidth(160), canvasHeight(80),
+        canvasWidth(1280), canvasHeight(720),
         offsetX(0), offsetY(0), zoom(1.0) {
     }
 
@@ -131,15 +133,15 @@ public:
         normX = (normX - 0.5) * zoom + 0.5 + offsetX;
         normY = (normY - 0.5) * zoom + 0.5 + offsetY;
 
-        double pad = 0.02;
+        double pad = 0.05;
         double canvasX = pad * canvasWidth + normX * canvasWidth * (1.0 - 2 * pad);
         double canvasY = pad * canvasHeight + normY * canvasHeight * (1.0 - 2 * pad);
 
         return Point2D(canvasX, canvasY);
     }
 
-    void zoomIn() { zoom *= 1.2; if (zoom > 5.0) zoom = 5.0; }
-    void zoomOut() { zoom /= 1.2; if (zoom < 0.5) zoom = 0.5; }
+    void zoomIn() { zoom *= 1.1; if (zoom > 10.0) zoom = 10.0; }
+    void zoomOut() { zoom /= 1.1; if (zoom < 0.1) zoom = 0.1; }
     void panLeft() { offsetX -= 0.05 / zoom; }
     void panRight() { offsetX += 0.05 / zoom; }
     void panUp() { offsetY -= 0.05 / zoom; }
@@ -157,7 +159,6 @@ enum class SimulatorState {
     INTRO_PHASE_1, INTRO_PHASE_2, INTRO_PHASE_3,
     WELCOME_ANIMATION, MAIN_MENU, CSV_SELECTION, LOADING,
     GRAPH_VIEW, DATABASE_VIEW, MANAGEMENT_MENU,
-    DIJKSTRA_VIEW,
     SEARCH_VIEW,
     EXIT
 };
@@ -207,7 +208,7 @@ private:
     Vector<GraphEdge2D> graphEdges;
     Vector<SectorRegion> sectorRegions;
     Vector<int> nodeIdToIndex;
-    Vector<TrafficVehicle> trafficVehicles;  
+    Vector<TrafficVehicle> trafficVehicles;
     GraphViewport viewport;
 
     int mouseX, mouseY;
@@ -217,41 +218,41 @@ private:
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
-    bool showHouses;         
-    bool showTraffic;      
-    bool trafficPaused;       
+    bool showHouses;
+    bool showTraffic;
+    bool trafficPaused;
 
     DijkstraMode dijkstraMode;
     int dijkstraStartNode;
     int dijkstraEndNode;
-    string dijkstraTargetType;  
+    string dijkstraTargetType;
     Vector<int> dijkstraPath;
     double dijkstraDistance;
-    int dijkstraNodeSelection;    
-    int dijkstraEndNodeSelection;  
-    Vector<int> selectableNodes; 
+    int dijkstraNodeSelection;
+    int dijkstraEndNodeSelection;
+    Vector<int> selectableNodes;
 
     string stopsCSV, schoolsCSV, hospitalsCSV, pharmaciesCSV;
     string busesCSV, populationCSV, mallsCSV, shopsCSV, ambulancesCSV;
 
     int intersectionCounter;
 
-    Color getNodeColor(const string& type) {
-        if (type == "CORNER") return Color::White;  
-        if (type == "STOP") return Color::GreenLight;
-        if (type == "SCHOOL") return Color::Blue;
-        if (type == "HOSPITAL") return Color::Red;
-        if (type == "PHARMACY") return Color::Magenta;
-        if (type == "MALL") return Color::Yellow;
-        if (type == "MOSQUE") return Color::Cyan;
-        if (type == "PARK") return Color::Green;
-        if (type == "POLICE_STATION") return Color::RedLight;
-        if (type == "FIRE_STATION") return Color::Orange1;
-        if (type == "LIBRARY") return Color::Blue1;
-        if (type == "ATM") return Color::Gold1;
-        if (type == "RESTAURANT") return Color::Orange3;
-        if (type == "HOUSE") return Color::GrayLight;
-        return Color::White;
+    termgl::Color getNodeColor(const string& type) {
+        if (type == "CORNER") return termgl::Color::Grey();
+        if (type == "STOP") return termgl::Color::Green();
+        if (type == "SCHOOL") return termgl::Color::Blue();
+        if (type == "HOSPITAL") return termgl::Color::Red();
+        if (type == "PHARMACY") return termgl::Color(255, 0, 255);
+        if (type == "MALL") return termgl::Color::Yellow();
+        if (type == "MOSQUE") return termgl::Color::Cyan();
+        if (type == "PARK") return termgl::Color(0, 100, 0);
+        if (type == "POLICE_STATION") return termgl::Color(100, 0, 0);
+        if (type == "FIRE_STATION") return termgl::Color(255, 100, 0);
+        if (type == "LIBRARY") return termgl::Color(0, 0, 100);
+        if (type == "ATM") return termgl::Color(200, 200, 0);
+        if (type == "RESTAURANT") return termgl::Color(255, 165, 0);
+        if (type == "HOUSE") return termgl::Color(100, 100, 100);
+        return termgl::Color::White();
     }
 
 public:
@@ -274,29 +275,28 @@ public:
     void runDatabaseView();
     void runSearchView();
     void runManagementMenu();
-    void runDijkstraView();
-    void runEditObjectView(const string& objectID, const string& objectType); 
+    void runEditObjectView(const string& objectID, const string& objectType);
 
     void runAddFacilityForm(const string& sector);
     void runAddOfferingForm(CityNode* node);
 
     void runInputForm(const string& title, const std::vector<string>& labels, std::function<void(std::vector<string>)> onConfirm);
-    void runManagementAddForm(const string& category); 
+    void runManagementAddForm(const string& category);
     Citizen* runPopulationSelector(const string& title);
     void runEditSchoolView(School* school);
     void runEditHospitalView(Hospital* hospital);
-    void runEditPharmacyView(Pharmacy* pharmacy); 
-    void runEditMallView(Mall* mall);             
+    void runEditPharmacyView(Pharmacy* pharmacy);
+    void runEditMallView(Mall* mall);
     void runEditShopView(Shop* shop, Mall* mall);
 
 
-    Canvas renderGraphToCanvas(int width, int height);
+    void renderGraph(termgl::Window& window);
     void updateHoverState(int mx, int my);
     string getHoverInfo();
 
     void clearDijkstraVisualization();
     void runDijkstraAlgorithm();
-    void runDijkstraPointToPoint();  
+    void runDijkstraPointToPoint();
     void buildSelectableNodesList();
 
     void initializeTraffic();
@@ -374,9 +374,9 @@ inline void CitySimulator::buildGraphVisualization() {
 
         GraphNode2D gNode;
         gNode.id = node->id;
-        gNode.lat = node->lat;      
-        gNode.lon = node->lon;      
-        gNode.pos = Point2D(0, 0);  
+        gNode.lat = node->lat;
+        gNode.lon = node->lon;
+        gNode.pos = Point2D(0, 0);
         gNode.type = node->type;
         gNode.sector = node->sector;
         gNode.color = getNodeColor(node->type);
@@ -404,7 +404,7 @@ inline void CitySimulator::buildGraphVisualization() {
 
         const LinkedList<Edge>& roads = node->getRoads();
         for (int j = 0; j < roads.size(); j++) {
-            Edge edge = roads.at(j); 
+            Edge edge = roads.at(j);
             if (node->id < edge.destinationID) {
                 GraphEdge2D gEdge(node->id, edge.destinationID);
                 gEdge.isOnPath = false;
@@ -427,48 +427,10 @@ inline void CitySimulator::buildGraphVisualization() {
     initializeTraffic();
 }
 
-inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
-    Canvas canvas(width * 2, height * 4);
-    viewport.setCanvasSize(width * 2, height * 4);
-
-    int cw = width * 2;
-    int ch = height * 4;
-
-    auto stylize = [](Color c) -> Canvas::Stylizer {
-        return [c](Pixel& p) { p.foreground_color = c; };
-        };
-
-    auto drawThickLine = [&](int x1, int y1, int x2, int y2, int thickness, Color c) {
-        double dx = x2 - x1;
-        double dy = y2 - y1;
-        double len = std::sqrt(dx * dx + dy * dy);
-        if (len < 0.001) return;
-
-        double perpX = -dy / len;
-        double perpY = dx / len;
-
-        int halfThick = thickness / 2;
-        for (int t = -halfThick; t <= halfThick; t++) {
-            int offsetX = (int)(perpX * t);
-            int offsetY = (int)(perpY * t);
-            canvas.DrawBlockLine(x1 + offsetX, y1 + offsetY,
-                x2 + offsetX, y2 + offsetY, stylize(c));
-        }
-        };
-
-    auto drawFilledCircle = [&](int cx, int cy, int radius, Color c) {
-        for (int dy = -radius; dy <= radius; dy++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                if (dx * dx + dy * dy <= radius * radius) {
-                    int px = cx + dx;
-                    int py = cy + dy;
-                    if (px >= 0 && px < cw && py >= 0 && py < ch) {
-                        canvas.DrawBlock(px, py, true, stylize(c));
-                    }
-                }
-            }
-        }
-        };
+inline void CitySimulator::renderGraph(termgl::Window& window) {
+    int cw = window.getWidth();
+    int ch = window.getHeight();
+    viewport.setCanvasSize(cw, ch);
 
     for (int i = 0; i < graphNodes.getSize(); i++) {
         graphNodes[i].pos = viewport.geoToCanvas(graphNodes[i].lat, graphNodes[i].lon);
@@ -489,21 +451,16 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
             const SectorRegion& region = sectorRegions[i];
             int x1 = (int)region.topLeft.x;
             int y1 = (int)region.topLeft.y;
-            int x2 = (int)region.bottomRight.x;
-            int y2 = (int)region.bottomRight.y;
+            int w = (int)(region.bottomRight.x - region.topLeft.x);
+            int h = (int)(region.bottomRight.y - region.topLeft.y);
 
-            x1 = std::max(0, std::min(cw - 1, x1));
-            y1 = std::max(0, std::min(ch - 1, y1));
-            x2 = std::max(0, std::min(cw - 1, x2));
-            y2 = std::max(0, std::min(ch - 1, y2));
+            termgl::Color boundColor = region.isHovered ? termgl::Color::Yellow() : termgl::Color::Grey();
+            if (dijkstraPath.getSize() > 0) boundColor = termgl::Color::Grey();
 
-            Color boundColor = region.isHovered ? Color::Yellow : Color::GrayDark;
-            if (dijkstraMode == DijkstraMode::COMPLETE) boundColor = Color::GrayDark;
-
-            canvas.DrawBlockLine(x1, y1, x2, y1, stylize(boundColor));
-            canvas.DrawBlockLine(x2, y1, x2, y2, stylize(boundColor));
-            canvas.DrawBlockLine(x2, y2, x1, y2, stylize(boundColor));
-            canvas.DrawBlockLine(x1, y2, x1, y1, stylize(boundColor));
+            window.drawRect(x1, y1, w, h, boundColor);
+            if (region.isHovered) {
+                window.drawText(x1 + 5, y1 + 5, region.name, termgl::Color::Yellow());
+            }
         }
     }
 
@@ -512,7 +469,7 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
             const GraphEdge2D& edge = graphEdges[i];
             if (edge.isOnPath) continue;
 
-            if (dijkstraMode == DijkstraMode::COMPLETE) continue; // Skip non-path edges
+            if (dijkstraPath.getSize() > 0 && dijkstraMode == DijkstraMode::COMPLETE) continue;
 
             int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
             int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
@@ -522,12 +479,10 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
                 int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
 
-                // Use DrawPointLine for Braille look
-                canvas.DrawPointLine(x1, y1, x2, y2, stylize(Color::GrayDark));
+                window.drawLine(x1, y1, x2, y2, termgl::Color(50, 50, 60));
             }
         }
 
-        // Second pass: draw path roads on top (green, thicker)
         for (int i = 0; i < graphEdges.getSize(); i++) {
             const GraphEdge2D& edge = graphEdges[i];
             if (!edge.isOnPath) continue;
@@ -540,13 +495,13 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 int x1 = (int)n1.pos.x, y1 = (int)n1.pos.y;
                 int x2 = (int)n2.pos.x, y2 = (int)n2.pos.y;
 
-                drawThickLine(x1, y1, x2, y2, GraphRenderConfig::PATH_THICKNESS, Color::Green);
+                window.drawLine(x1, y1, x2, y2, termgl::Color::Green());
+                window.drawLine(x1 + 1, y1 + 1, x2 + 1, y2 + 1, termgl::Color::Green());
             }
         }
     }
 
-    // Draw traffic vehicles if enabled
-    if (showTraffic && !trafficPaused && dijkstraMode != DijkstraMode::COMPLETE) {
+    if (showTraffic && !trafficPaused && dijkstraPath.getSize() == 0) {
         for (int i = 0; i < trafficVehicles.getSize(); i++) {
             const TrafficVehicle& vehicle = trafficVehicles[i];
             int idx1 = (vehicle.edgeFromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[vehicle.edgeFromID] : -1;
@@ -558,23 +513,18 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
                 int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
                 int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
 
-                if (vx >= 0 && vx < cw && vy >= 0 && vy < ch) {
-                    canvas.DrawPoint(vx, vy, true, stylize(vehicle.color));
-                }
+                window.fillCircle(vx, vy, 3, vehicle.color);
             }
         }
     }
 
-    // Draw houses if enabled
-    if (showHouses && dijkstraMode != DijkstraMode::COMPLETE) {
+    if (showHouses && dijkstraPath.getSize() == 0) {
         for (int i = 0; i < graphNodes.getSize(); i++) {
             const GraphNode2D& node = graphNodes[i];
             if (node.type != "HOUSE") continue;
             int x = (int)node.pos.x;
             int y = (int)node.pos.y;
-            if (x >= 0 && x < cw && y >= 0 && y < ch) {
-                canvas.DrawPoint(x, y, true, stylize(Color::GrayLight));
-            }
+            window.drawPixel(x, y, termgl::Color(80, 80, 80));
         }
     }
 
@@ -583,18 +533,15 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
             const GraphNode2D& node = graphNodes[i];
             if (!node.isCorner) continue;
 
-            if (dijkstraMode == DijkstraMode::COMPLETE && !node.isOnPath) continue;
+            if (dijkstraPath.getSize() > 0 && !node.isOnPath) continue;
 
             int x = (int)node.pos.x;
             int y = (int)node.pos.y;
-            if (x >= 0 && x < cw && y >= 0 && y < ch) {
-                Color c = Color::White;
-                if (node.isOnPath) c = Color::GreenLight;
-                else if (dijkstraMode == DijkstraMode::COMPLETE) continue;
-                else c = Color::GrayDark; 
+            termgl::Color c = termgl::Color::Grey();
+            if (node.isOnPath) c = termgl::Color::Green();
+            else if (dijkstraPath.getSize() > 0) continue;
 
-                canvas.DrawPoint(x, y, true, stylize(c));
-            }
+            window.fillCircle(x, y, 2, c);
         }
     }
 
@@ -602,29 +549,27 @@ inline Canvas CitySimulator::renderGraphToCanvas(int width, int height) {
         const GraphNode2D& node = graphNodes[i];
         if (node.isCorner || node.type == "HOUSE") continue;
 
-        if (dijkstraMode == DijkstraMode::COMPLETE && !node.isOnPath && !node.isStart && !node.isEnd) continue;
+        if (dijkstraPath.getSize() > 0 && !node.isOnPath && !node.isStart && !node.isEnd) continue;
 
         int x = (int)node.pos.x;
         int y = (int)node.pos.y;
-        if (x < 0 || x >= cw || y < 0 || y >= ch) continue;
 
-        Color nodeColor = node.color;
+        termgl::Color nodeColor = node.color;
 
-        if (node.isStart) nodeColor = Color::Cyan;
-        else if (node.isEnd) nodeColor = Color::Yellow;
-        else if (node.isOnPath) nodeColor = Color::GreenLight;
-        else if (node.isVisited && dijkstraMode != DijkstraMode::COMPLETE) nodeColor = Color::Orange1;
+        int radius = 4;
+        if (node.isStart) { nodeColor = termgl::Color::Cyan(); radius = 7; }
+        else if (node.isEnd) { nodeColor = termgl::Color::Yellow(); radius = 7; }
+        else if (node.isOnPath) { nodeColor = termgl::Color::Green(); radius = 5; }
+        else if (node.isVisited && dijkstraPath.getSize() == 0) nodeColor = termgl::Color(255, 165, 0);
 
-        if (node.id == hoveredNodeID) nodeColor = Color::White;
+        if (node.id == hoveredNodeID) {
+            nodeColor = termgl::Color::White();
+            radius += 2;
+            window.drawText(x + 10, y - 10, node.name, termgl::Color::White());
+        }
 
-        canvas.DrawPoint(x, y, true, stylize(nodeColor));
-        canvas.DrawPoint(x + 1, y, true, stylize(nodeColor));
-        canvas.DrawPoint(x - 1, y, true, stylize(nodeColor));
-        canvas.DrawPoint(x, y + 1, true, stylize(nodeColor));
-        canvas.DrawPoint(x, y - 1, true, stylize(nodeColor));
+        window.fillCircle(x, y, radius, nodeColor);
     }
-
-    return canvas;
 }
 
 inline void CitySimulator::updateHoverState(int mx, int my) {
@@ -633,17 +578,14 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
     hoveredNodeID = -1;
     hoveredSector = "";
 
-    int canvasX = (mx - 1) * 2;
-    int canvasY = (my - 2) * 4;
-
-    double minDist = 25.0;  // Increased hover distance
+    double minDist = 15.0;
     for (int i = 0; i < graphNodes.getSize(); i++) {
         const GraphNode2D& node = graphNodes[i];
         if (node.isCorner && !showCorners) continue;
         if (node.type == "HOUSE" && !showHouses) continue;
 
-        double dx = node.pos.x - canvasX;
-        double dy = node.pos.y - canvasY;
+        double dx = node.pos.x - mx;
+        double dy = node.pos.y - my;
         double dist = std::sqrt(dx * dx + dy * dy);
         if (dist < minDist) {
             minDist = dist;
@@ -651,9 +593,10 @@ inline void CitySimulator::updateHoverState(int mx, int my) {
         }
     }
 
+    Point2D p(mx, my);
     for (int i = 0; i < sectorRegions.getSize(); i++) {
         SectorRegion& region = sectorRegions[i];
-        region.isHovered = region.contains(Point2D(canvasX, canvasY));
+        region.isHovered = region.contains(p);
         if (region.isHovered) {
             hoveredSector = region.name;
         }
@@ -667,7 +610,7 @@ inline string CitySimulator::getHoverInfo() {
         int idx = nodeIdToIndex[hoveredNodeID];
         if (idx >= 0 && idx < graphNodes.getSize()) {
             const GraphNode2D& node = graphNodes[idx];
-            ss << node.name.substr(0, 18) << "\n";
+            ss << node.name << "\n";
             ss << "Type: " << node.type << "\n";
             ss << "Sector: " << node.sector;
             return ss.str();
@@ -675,11 +618,11 @@ inline string CitySimulator::getHoverInfo() {
     }
 
     if (!hoveredSector.empty()) {
-        ss << "SECTOR:\n" << hoveredSector;
+        ss << "SECTOR: " << hoveredSector;
         return ss.str();
     }
 
-    ss << "Hover over\nnodes for info";
+    ss << "Hover over nodes";
     return ss.str();
 }
 
@@ -803,7 +746,7 @@ inline void CitySimulator::initializeTraffic() {
 
     if (graphEdges.empty()) return;
 
-    int numVehicles = std::min(20, (int)graphEdges.getSize() / 3);
+    int numVehicles = std::min(50, (int)graphEdges.getSize() / 2);
 
     for (int i = 0; i < numVehicles; i++) {
         TrafficVehicle vehicle;
@@ -811,13 +754,13 @@ inline void CitySimulator::initializeTraffic() {
         vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
         vehicle.edgeToID = graphEdges[edgeIdx].toID;
         vehicle.progress = (rand() % 100) / 100.0;
-        vehicle.speed = 0.01 + (rand() % 30) / 1000.0;  
+        vehicle.speed = 0.005 + (rand() % 20) / 1000.0;
 
         int colorChoice = rand() % 4;
-        if (colorChoice == 0) vehicle.color = Color::Yellow;
-        else if (colorChoice == 1) vehicle.color = Color::Orange1;
-        else if (colorChoice == 2) vehicle.color = Color::Cyan;
-        else vehicle.color = Color::RedLight;
+        if (colorChoice == 0) vehicle.color = termgl::Color::Yellow();
+        else if (colorChoice == 1) vehicle.color = termgl::Color(255, 100, 0);
+        else if (colorChoice == 2) vehicle.color = termgl::Color::Cyan();
+        else vehicle.color = termgl::Color::Red();
 
         trafficVehicles.push_back(vehicle);
     }
@@ -878,8 +821,7 @@ inline void CitySimulator::run() {
         case SimulatorState::GRAPH_VIEW: runGraphView(); break;
         case SimulatorState::DATABASE_VIEW: runDatabaseView(); break;
         case SimulatorState::MANAGEMENT_MENU: runManagementMenu(); break;
-        case SimulatorState::DIJKSTRA_VIEW: runDijkstraView(); break;
-        case SimulatorState::SEARCH_VIEW: runSearchView(); break; // New State
+        case SimulatorState::SEARCH_VIEW: runSearchView(); break;
         case SimulatorState::EXIT: break;
         }
     }
@@ -951,7 +893,7 @@ inline void CitySimulator::runIntroPhase3() {
             lines.push_back(text(ASCIIArt::ISLAMABAD_TITLE[i]) | bold);
         lines.push_back(text(""));
         for (int i = 0; i < ASCIIArt::REDEFINED_TITLE_HEIGHT; i++)
-            lines.push_back(text(ASCIIArt::REDEFINED_TITLE[i]) | color(Color::GrayLight));
+            lines.push_back(text(ASCIIArt::REDEFINED_TITLE[i]) | color(ftxui::Color::GrayLight));
         return vbox({ filler(), vbox(lines) | center, filler(),
                      text(done.load() ? "Press Enter" : "") | center | dim, filler() });
         });
@@ -987,7 +929,7 @@ inline void CitySimulator::runMainMenu() {
     std::vector<string> options;
 
     if (cityInitialized) {
-        options = { "Graph View [1]", "Dijkstra Pathfinding [D]", "Database [2]", "Search Engine [S]", "Management [3]", "Exit" };
+        options = { "Graph View [1]", "Database [2]", "Search Engine [S]", "Management [3]", "Exit" };
     }
     else {
         options = { "Initialize City", "Exit" };
@@ -998,20 +940,20 @@ inline void CitySimulator::runMainMenu() {
         Elements items;
         for (int i = 0; i < (int)options.size(); i++) {
             auto item = text((i == sel ? " > " : "   ") + options[i]);
-            if (i == sel) item = item | bold | color(Color::Green);
+            if (i == sel) item = item | bold | color(ftxui::Color::Green);
             items.push_back(item);
         }
 
         string statusText = cityInitialized ? "CITY LOADED" : "NOT INITIALIZED";
-        Color statusColor = cityInitialized ? Color::Green : Color::Yellow;
+        ftxui::Color statusColor = cityInitialized ? ftxui::Color::Green : ftxui::Color::Yellow;
 
         Elements titleArt;
         for (int i = 0; i < 6; i++) {
-            titleArt.push_back(text(ASCIIArt::ISLAMABAD_TITLE[i]) | color(Color::Green));
+            titleArt.push_back(text(ASCIIArt::ISLAMABAD_TITLE[i]) | color(ftxui::Color::Green));
         }
 
         auto menuBox = vbox({
-            text("MAIN MENU") | bold | center | color(Color::Cyan),
+            text("MAIN MENU") | bold | center | color(ftxui::Color::Cyan),
             separator(),
             text(statusText) | center | color(statusColor),
             separator(),
@@ -1021,7 +963,7 @@ inline void CitySimulator::runMainMenu() {
         return vbox({
             filler(),
             vbox(titleArt) | center,
-            text("R E D E F I N E D") | bold | center | color(Color::GrayLight),
+            text("R E D E F I N E D") | bold | center | color(ftxui::Color::GrayLight),
             text(""),
             hbox({ filler(), menuBox, filler() }),
             filler()
@@ -1037,10 +979,9 @@ inline void CitySimulator::runMainMenu() {
             }
             else {
                 if (sel == 0) currentState = SimulatorState::GRAPH_VIEW;
-                else if (sel == 1) currentState = SimulatorState::DIJKSTRA_VIEW;
-                else if (sel == 2) currentState = SimulatorState::DATABASE_VIEW;
-                else if (sel == 3) currentState = SimulatorState::SEARCH_VIEW;
-                else if (sel == 4) currentState = SimulatorState::MANAGEMENT_MENU;
+                else if (sel == 1) currentState = SimulatorState::DATABASE_VIEW;
+                else if (sel == 2) currentState = SimulatorState::SEARCH_VIEW;
+                else if (sel == 3) currentState = SimulatorState::MANAGEMENT_MENU;
                 else currentState = SimulatorState::EXIT;
             }
             screen.Exit();
@@ -1050,9 +991,6 @@ inline void CitySimulator::runMainMenu() {
             if (e == Event::Character('1')) { currentState = SimulatorState::GRAPH_VIEW; screen.Exit(); return true; }
             if (e == Event::Character('2')) { currentState = SimulatorState::DATABASE_VIEW; screen.Exit(); return true; }
             if (e == Event::Character('3')) { currentState = SimulatorState::MANAGEMENT_MENU; screen.Exit(); return true; }
-            if (e == Event::Character('d') || e == Event::Character('D')) {
-                currentState = SimulatorState::DIJKSTRA_VIEW; screen.Exit(); return true;
-            }
             if (e == Event::Character('s') || e == Event::Character('S')) {
                 currentState = SimulatorState::SEARCH_VIEW; screen.Exit(); return true;
             }
@@ -1071,12 +1009,12 @@ inline void CitySimulator::runCSVSelection() {
 
     auto renderer = Renderer([&] {
         Elements csvList;
-        csvList.push_back(text("DATASET FILES") | bold | color(Color::Cyan));
+        csvList.push_back(text("DATASET FILES") | bold | color(ftxui::Color::Cyan));
         csvList.push_back(separator());
 
         auto fileRow = [&](const string& label, const string& path) {
             bool exists = fileExists(path);
-            Color statusColor = exists ? Color::Green : Color::Red;
+            ftxui::Color statusColor = exists ? ftxui::Color::Green : ftxui::Color::Red;
             string statusIcon = exists ? "[OK]" : "[MISSING]";
             return hbox({
                 text(label + ": ") | bold | size(WIDTH, EQUAL, 14),
@@ -1099,12 +1037,12 @@ inline void CitySimulator::runCSVSelection() {
         std::vector<string> options = { "Begin Initialization", "Back to Menu" };
         for (int i = 0; i < (int)options.size(); i++) {
             auto item = text((i == sel ? " > " : "   ") + options[i]);
-            if (i == sel) item = item | bold | color(Color::Green);
+            if (i == sel) item = item | bold | color(ftxui::Color::Green);
             csvList.push_back(item);
         }
 
         auto box = vbox(csvList) | border | size(WIDTH, EQUAL, 58);
-        return vbox({ filler(), text("CITY INITIALIZATION") | bold | center | color(Color::Green),
+        return vbox({ filler(), text("CITY INITIALIZATION") | bold | center | color(ftxui::Color::Green),
             text(""), hbox({ filler(), box, filler() }), text(""),
             text("Press Enter to select, Esc to go back") | center | dim, filler() });
         });
@@ -1128,7 +1066,7 @@ inline void CitySimulator::runLoadingScreen() {
     auto screen = ScreenInteractive::Fullscreen();
     std::atomic<int> step{ 0 };
     std::atomic<bool> done{ false };
-    std::atomic<int> totalSteps{ 14 };  // Total loading steps
+    std::atomic<int> totalSteps{ 14 };
 
     std::vector<string> loadingStages = {
         "Initializing city graph...",
@@ -1160,12 +1098,12 @@ inline void CitySimulator::runLoadingScreen() {
 
         return vbox({
             filler(),
-            text("LOADING ISLAMABAD") | bold | center | color(Color::Green),
+            text("LOADING ISLAMABAD") | bold | center | color(ftxui::Color::Green),
             text(""),
-            hbox({text("["), text(progressBar) | color(Color::Green), text("]")}) | center,
+            hbox({text("["), text(progressBar) | color(ftxui::Color::Green), text("]")}) | center,
             text(std::to_string((s * 100) / totalSteps.load()) + "%") | center,
             text(""),
-            text(stageDesc) | center | color(Color::Cyan),
+            text(stageDesc) | center | color(ftxui::Color::Cyan),
             text(""),
             text(done.load() ? "Press Enter to continue" : "Please wait...") | center | dim,
             filler()
@@ -1206,383 +1144,273 @@ inline void CitySimulator::runLoadingScreen() {
 }
 
 inline void CitySimulator::runGraphView() {
-    auto screen = ScreenInteractive::Fullscreen();
-    buildGraphVisualization(); 
-
-    std::atomic<bool> running{ true };
-    std::thread trafficThread([&]() {
-        while (running.load()) {
-            if (showTraffic && !trafficPaused) {
-                updateTraffic();
-                screen.PostEvent(Event::Custom);
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-        });
-
-    auto renderer = Renderer([&] {
-        int termW = Terminal::Size().dimx;
-        int termH = Terminal::Size().dimy;
-        int canvasW = termW - 25;
-        int canvasH = termH - 4;
-
-        Canvas c = renderGraphToCanvas(canvasW, canvasH);
-
-        string hoverText = getHoverInfo();
-        Elements hoverLines;
-        std::istringstream iss(hoverText);
-        string line;
-        while (std::getline(iss, line)) hoverLines.push_back(text(line));
-
-        auto infoPanel = vbox({
-            text("LEGEND") | bold | color(Color::Cyan),
-            separator(),
-            hbox({text("■") | color(Color::GreenLight), text(" Stop")}),
-            hbox({text("■") | color(Color::Blue), text(" School")}),
-            hbox({text("■") | color(Color::Red), text(" Hospital")}),
-            hbox({text("■") | color(Color::Magenta), text(" Pharmacy")}),
-            hbox({text("■") | color(Color::Yellow), text(" Mall")}),
-            hbox({text("■") | color(Color::White), text(" Corner")}),
-            separator(),
-            text("INFO") | bold | color(Color::Yellow),
-            vbox(hoverLines),
-            separator(),
-            text("KEYS") | bold | color(Color::Cyan),
-            text("+/-: Zoom"),
-            text("Arrows: Pan"),
-            text("0: Reset view"),
-            text("R: Roads " + string(showRoads ? "[ON]" : "[off]")),
-            text("C: Corners " + string(showCorners ? "[ON]" : "[off]")),
-            text("S: Sectors " + string(showSectorBounds ? "[ON]" : "[off]")),
-            text("H: Houses " + string(showHouses ? "[ON]" : "[off]")),
-            text("T: Traffic " + string(showTraffic ? "[ON]" : "[off]")),
-            text("D: Dijkstra"),
-            separator(),
-            text("Esc: Menu"),
-            }) | border | size(WIDTH, EQUAL, 22);
-
-        return vbox({
-            text("ISLAMABAD MAP") | bold | center | color(Color::Green),
-            hbox({ canvas(c) | border | flex, text(" "), infoPanel }) | flex,
-            });
-        });
-
-    auto comp = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Character('+') || e == Event::Character('=') || e == Event::Character('i')) {
-            viewport.zoomIn();
-            return true;
-        }
-        if (e == Event::Character('-') || e == Event::Character('o')) {
-            viewport.zoomOut();
-            return true;
-        }
-        if (e == Event::ArrowLeft) { viewport.panLeft(); return true; }
-        if (e == Event::ArrowRight) { viewport.panRight(); return true; }
-        if (e == Event::ArrowUp) { viewport.panUp(); return true; }
-        if (e == Event::ArrowDown) { viewport.panDown(); return true; }
-        if (e == Event::Character('0')) { viewport.resetView(); return true; }
-        if (e == Event::Character('r') || e == Event::Character('R')) { showRoads = !showRoads; return true; }
-        if (e == Event::Character('c') || e == Event::Character('C')) { showCorners = !showCorners; return true; }
-        if (e == Event::Character('s') || e == Event::Character('S')) { showSectorBounds = !showSectorBounds; return true; }
-        if (e == Event::Character('h') || e == Event::Character('H')) { showHouses = !showHouses; return true; }
-        if (e == Event::Character('t') || e == Event::Character('T')) { showTraffic = !showTraffic; return true; }
-        if (e == Event::Character('p') || e == Event::Character('P')) { trafficPaused = !trafficPaused; return true; }
-        if (e == Event::Character('d') || e == Event::Character('D')) {
-            running.store(false);
-            currentState = SimulatorState::DIJKSTRA_VIEW;
-            screen.Exit();
-            return true;
-        }
-        if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
-        if (e == Event::Escape) {
-            running.store(false);
-            currentState = SimulatorState::MAIN_MENU;
-            screen.Exit();
-            return true;
-        }
-        return false;
-        });
-    screen.Loop(comp);
-
-    running.store(false);
-    if (trafficThread.joinable()) trafficThread.join();
-}
-
-inline void CitySimulator::runDijkstraView() {
-    auto screen = ScreenInteractive::Fullscreen();
-    if (graphNodes.getSize() == 0) buildGraphVisualization();
-    clearDijkstraVisualization();
+    buildGraphVisualization();
+    // Prepare data structures for Dijkstra selection
     buildSelectableNodesList();
 
-    dijkstraMode = DijkstraMode::SELECT_START;
-    dijkstraNodeSelection = 0;
-    dijkstraEndNodeSelection = 0;
+    termgl::Window window(1600, 900, "Islamabad City Simulator - Interactive Map", true);
+    window.setFramerateLimit(60);
 
+    int width = window.getWidth();
+    int height = window.getHeight();
+
+    // Partition Setup:
+    // Left (70%): Map
+    // Right (30%): Side Panel (Info / Legend / Controls)
+    int mapPartition = window.addPartition(0, 0, (int)(width * 0.75), height, "City Map");
+    int sidePartition = window.addPartition((int)(width * 0.75), 0, (int)(width * 0.25), height, "Control Panel");
+
+    bool running = true;
+    bool inDijkstraMode = false;
+
+    // Dijkstra State Variables
     std::vector<string> targetTypes = {
         "Nearest School",
         "Nearest Hospital",
         "Nearest Pharmacy",
         "Nearest Bus Stop",
-        ">>> Custom Location <<<" // New option for point-to-point
+        "Custom Location"
     };
     int targetSel = 0;
+    int scrollOffset = 0;
 
-    auto renderer = Renderer([&] {
-        int termW = Terminal::Size().dimx;
-        int termH = Terminal::Size().dimy;
-        int canvasW = termW - 35;
-        int canvasH = termH - 4;
+    // Initialize Viewport Size for Hover Logic
+    viewport.setCanvasSize(window.getWidth() * 0.75, window.getHeight());
 
-        Canvas c = renderGraphToCanvas(canvasW, canvasH);
-
-        // Build control panel based on mode
-        Elements controlItems;
-        controlItems.push_back(text("DIJKSTRA PATHFINDING") | bold | color(Color::Cyan));
-        controlItems.push_back(separator());
-
-        if (dijkstraMode == DijkstraMode::SELECT_START) {
-            controlItems.push_back(text("SELECT START POINT") | bold | color(Color::Yellow));
-            controlItems.push_back(separator());
-
-            int startIdx = std::max(0, dijkstraNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
-
-            for (int i = startIdx; i < endIdx; i++) {
-                int nodeId = selectableNodes[i];
-                int idx = nodeIdToIndex[nodeId];
-                if (idx >= 0 && idx < graphNodes.getSize()) {
-                    string nodeName = graphNodes[idx].name;
-                    string nodeType = graphNodes[idx].type;
-                    if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
-                    auto item = text((i == dijkstraNodeSelection ? "> " : "  ") + nodeName);
-                    if (i == dijkstraNodeSelection) item = item | bold | color(Color::Green);
-                    controlItems.push_back(item);
-                }
-            }
-            controlItems.push_back(separator());
-            controlItems.push_back(text("Up/Down: Select") | dim);
-            controlItems.push_back(text("Enter: Confirm") | dim);
-        }
-        else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
-            controlItems.push_back(text("SELECT DESTINATION") | bold | color(Color::Yellow));
-            controlItems.push_back(separator());
-
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
-                int idx = nodeIdToIndex[dijkstraStartNode];
-                if (idx >= 0) {
-                    controlItems.push_back(text("From: ") | bold);
-                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)) | color(Color::Cyan));
-                }
-            }
-            controlItems.push_back(separator());
-
-            for (int i = 0; i < (int)targetTypes.size(); i++) {
-                auto item = text((i == targetSel ? "> " : "  ") + targetTypes[i]);
-                if (i == targetSel) item = item | bold | color(Color::Green);
-                if (i == 4) item = item | color(Color::Yellow); // Highlight custom option
-                controlItems.push_back(item);
-            }
-            controlItems.push_back(separator());
-            controlItems.push_back(text("Up/Down: Select") | dim);
-            controlItems.push_back(text("Enter: Continue") | dim);
-        }
-        else if (dijkstraMode == DijkstraMode::RUNNING) {
-            // This mode is for selecting custom end point
-            controlItems.push_back(text("SELECT END POINT") | bold | color(Color::Yellow));
-            controlItems.push_back(separator());
-
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
-                int idx = nodeIdToIndex[dijkstraStartNode];
-                if (idx >= 0) {
-                    controlItems.push_back(text("From: " + graphNodes[idx].name.substr(0, 15)) | color(Color::Cyan));
-                }
-            }
-            controlItems.push_back(separator());
-
-            int startIdx = std::max(0, dijkstraEndNodeSelection - 5);
-            int endIdx = std::min((int)selectableNodes.getSize(), startIdx + 10);
-
-            for (int i = startIdx; i < endIdx; i++) {
-                int nodeId = selectableNodes[i];
-                int idx = nodeIdToIndex[nodeId];
-                if (idx >= 0 && idx < graphNodes.getSize()) {
-                    string nodeName = graphNodes[idx].name;
-                    if (nodeName.length() > 16) nodeName = nodeName.substr(0, 13) + "...";
-                    auto item = text((i == dijkstraEndNodeSelection ? "> " : "  ") + nodeName);
-                    if (i == dijkstraEndNodeSelection) item = item | bold | color(Color::Green);
-                    controlItems.push_back(item);
-                }
-            }
-            controlItems.push_back(separator());
-            controlItems.push_back(text("Up/Down: Select") | dim);
-            controlItems.push_back(text("Enter: Find Path") | dim);
-        }
-        else if (dijkstraMode == DijkstraMode::COMPLETE) {
-            if (dijkstraPath.getSize() > 0) {
-                controlItems.push_back(text("PATH FOUND!") | bold | color(Color::Green));
-            }
-            else {
-                controlItems.push_back(text("NO PATH FOUND") | bold | color(Color::Red));
-            }
-            controlItems.push_back(separator());
-
-            if (dijkstraStartNode >= 0 && dijkstraStartNode < nodeIdToIndex.getSize()) {
-                int idx = nodeIdToIndex[dijkstraStartNode];
-                if (idx >= 0) {
-                    controlItems.push_back(text("From:") | bold);
-                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)));
-                }
-            }
-            if (dijkstraEndNode >= 0 && dijkstraEndNode < nodeIdToIndex.getSize()) {
-                int idx = nodeIdToIndex[dijkstraEndNode];
-                if (idx >= 0) {
-                    controlItems.push_back(text("To:") | bold);
-                    controlItems.push_back(text(" " + graphNodes[idx].name.substr(0, 18)));
-                }
-            }
-            controlItems.push_back(separator());
-
-            if (dijkstraPath.getSize() > 0) {
-                std::stringstream distStr;
-                distStr << std::fixed << std::setprecision(2) << dijkstraDistance;
-                controlItems.push_back(text("Distance:") | bold);
-                controlItems.push_back(text(" " + distStr.str() + " km") | color(Color::Yellow));
-                controlItems.push_back(separator());
-
-                controlItems.push_back(text("PATH SEQUENCE:") | bold | color(Color::Cyan));
-
-
-                int limit = 0;
-                for (int i = 0; i < dijkstraPath.getSize(); ++i) {
-                    int nid = dijkstraPath[i];
-                    if (nid < nodeIdToIndex.getSize()) {
-                        int idx = nodeIdToIndex[nid];
-                        if (idx >= 0 && idx < graphNodes.getSize()) {
-                            string name = graphNodes[idx].name;
-                            if (!graphNodes[idx].isCorner || i == 0 || i == dijkstraPath.getSize() - 1) {
-                                if (name.length() > 20) name = name.substr(0, 17) + "...";
-                                controlItems.push_back(text(" " + std::to_string(i + 1) + ". " + name));
-                                limit++;
-                            }
-                        }
-                    }
-                    if (limit > 12) {
-                        controlItems.push_back(text(" ... and " + std::to_string(dijkstraPath.getSize() - i) + " more") | dim);
-                        break;
-                    }
-                }
-            }
-            controlItems.push_back(separator());
-            controlItems.push_back(text("R: New Search") | dim);
-            controlItems.push_back(text("+/-: Zoom") | dim);
-            controlItems.push_back(text("Esc: Back") | dim);
-        }
-
-        // Legend
-        controlItems.push_back(separator());
-        controlItems.push_back(text("LEGEND") | bold);
-        controlItems.push_back(hbox({ text("●") | color(Color::Cyan), text(" Start") }));
-        controlItems.push_back(hbox({ text("●") | color(Color::Yellow), text(" End") }));
-        controlItems.push_back(hbox({ text("●") | color(Color::GreenLight), text(" Path") }));
-        controlItems.push_back(hbox({ text("━") | color(Color::Green), text(" Route") }));
-
-        auto controlPanel = vbox(controlItems) | border | size(WIDTH, EQUAL, 28);
-
-        return vbox({
-            text("DIJKSTRA VISUALIZATION") | bold | center | color(Color::Green),
-            hbox({ canvas(c) | border | flex, text(" "), controlPanel }) | flex,
-            });
-        });
-
-    auto comp = CatchEvent(renderer, [&](Event e) {
-        if (dijkstraMode == DijkstraMode::SELECT_START) {
-            if (e == Event::ArrowUp && dijkstraNodeSelection > 0) {
-                dijkstraNodeSelection--;
-                return true;
-            }
-            if (e == Event::ArrowDown && dijkstraNodeSelection < selectableNodes.getSize() - 1) {
-                dijkstraNodeSelection++;
-                return true;
-            }
-            if (e == Event::Return && !selectableNodes.empty()) {
-                dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
-                int idx = nodeIdToIndex[dijkstraStartNode];
-                if (idx >= 0) graphNodes[idx].isStart = true;
-                dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
-                return true;
-            }
-        }
-        else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
-            if (e == Event::ArrowUp && targetSel > 0) {
-                targetSel--;
-                return true;
-            }
-            if (e == Event::ArrowDown && targetSel < (int)targetTypes.size() - 1) {
-                targetSel++;
-                return true;
-            }
-            if (e == Event::Return) {
-                if (targetSel == 4) {
-                    // Custom location - go to end point selection
-                    dijkstraTargetType = "CUSTOM";
-                    dijkstraMode = DijkstraMode::RUNNING;
-                }
-                else {
-                    // Nearest facility
-                    if (targetSel == 0) dijkstraTargetType = "SCHOOL";
-                    else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
-                    else if (targetSel == 2) dijkstraTargetType = "PHARMACY";
-                    else dijkstraTargetType = "STOP";
-
-                    runDijkstraAlgorithm();
-                    dijkstraMode = DijkstraMode::COMPLETE;
-                }
-                return true;
-            }
-        }
-        else if (dijkstraMode == DijkstraMode::RUNNING) {
-            // Custom end point selection
-            if (e == Event::ArrowUp && dijkstraEndNodeSelection > 0) {
-                dijkstraEndNodeSelection--;
-                return true;
-            }
-            if (e == Event::ArrowDown && dijkstraEndNodeSelection < selectableNodes.getSize() - 1) {
-                dijkstraEndNodeSelection++;
-                return true;
-            }
-            if (e == Event::Return && !selectableNodes.empty()) {
-                dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
-                runDijkstraPointToPoint();
-                dijkstraMode = DijkstraMode::COMPLETE;
-                return true;
-            }
-        }
-        else if (dijkstraMode == DijkstraMode::COMPLETE) {
-            if (e == Event::Character('r') || e == Event::Character('R')) {
+    while (running && window.processEvents()) {
+        // --- GLOBAL INPUTS ---
+        if (window.isKeyPressed(VK_ESCAPE)) {
+            if (inDijkstraMode) {
+                // Exit Dijkstra Mode
+                inDijkstraMode = false;
                 clearDijkstraVisualization();
                 dijkstraMode = DijkstraMode::SELECT_START;
                 dijkstraNodeSelection = 0;
                 dijkstraEndNodeSelection = 0;
-                return true;
+                targetSel = 0;
+                scrollOffset = 0;
+            }
+            else {
+                // Exit Graph View
+                running = false;
+                currentState = SimulatorState::MAIN_MENU;
             }
         }
 
-        // Common controls - zoom without rebuild
-        if (e == Event::Character('+') || e == Event::Character('=')) { viewport.zoomIn(); return true; }
-        if (e == Event::Character('-')) { viewport.zoomOut(); return true; }
-        if (e == Event::Character('0')) { viewport.resetView(); return true; }
-        if (e == Event::ArrowLeft && dijkstraMode == DijkstraMode::COMPLETE) { viewport.panLeft(); return true; }
-        if (e == Event::ArrowRight && dijkstraMode == DijkstraMode::COMPLETE) { viewport.panRight(); return true; }
-        if (e.is_mouse()) { updateHoverState(e.mouse().x, e.mouse().y); return true; }
-        if (e == Event::Escape) {
+        if (window.isKeyPressed('D') && !inDijkstraMode) {
+            inDijkstraMode = true;
+            dijkstraMode = DijkstraMode::SELECT_START;
+            dijkstraNodeSelection = 0;
+            scrollOffset = 0;
             clearDijkstraVisualization();
-            currentState = SimulatorState::GRAPH_VIEW;
-            screen.Exit();
-            return true;
         }
-        return false;
-        });
-    screen.Loop(comp);
+
+        // --- NAVIGATION INPUTS (Always Active) ---
+        if (window.isKeyDown(VK_UP) && (!inDijkstraMode || dijkstraMode == DijkstraMode::COMPLETE)) viewport.panUp();
+        if (window.isKeyDown(VK_DOWN) && (!inDijkstraMode || dijkstraMode == DijkstraMode::COMPLETE)) viewport.panDown();
+        if (window.isKeyDown(VK_LEFT)) viewport.panLeft();
+        if (window.isKeyDown(VK_RIGHT)) viewport.panRight();
+        if (window.isKeyDown('W')) viewport.panUp();
+        if (window.isKeyDown('S')) viewport.panDown();
+        if (window.isKeyDown('A')) viewport.panLeft();
+        if (window.isKeyDown('D') && window.isKeyDown(VK_CONTROL)) viewport.panRight(); // Avoid conflict with 'D' toggle, require Ctrl+D or just use Arrow Right
+        if (window.isKeyPressed(VK_ADD) || window.isKeyPressed('=')) viewport.zoomIn();
+        if (window.isKeyPressed(VK_SUBTRACT) || window.isKeyPressed('-')) viewport.zoomOut();
+
+        // --- VIEW TOGGLES ---
+        if (window.isKeyPressed('R') && !inDijkstraMode) showRoads = !showRoads;
+        if (window.isKeyPressed('C')) showCorners = !showCorners;
+        if (window.isKeyPressed('S')) showSectorBounds = !showSectorBounds;
+        if (window.isKeyPressed('H')) showHouses = !showHouses;
+        if (window.isKeyPressed('T')) showTraffic = !showTraffic;
+        if (window.isKeyPressed('P')) trafficPaused = !trafficPaused;
+
+        // --- DIJKSTRA LOGIC INPUTS ---
+        if (inDijkstraMode) {
+            if (dijkstraMode == DijkstraMode::SELECT_START) {
+                if (window.isKeyPressed(VK_UP) && dijkstraNodeSelection > 0) { dijkstraNodeSelection--; scrollOffset = dijkstraNodeSelection * 20; }
+                if (window.isKeyPressed(VK_DOWN) && dijkstraNodeSelection < selectableNodes.getSize() - 1) { dijkstraNodeSelection++; scrollOffset = dijkstraNodeSelection * 20; }
+                if (window.isKeyPressed(VK_RETURN) && !selectableNodes.empty()) {
+                    dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
+                    int idx = nodeIdToIndex[dijkstraStartNode];
+                    if (idx >= 0) graphNodes[idx].isStart = true;
+                    dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
+                if (window.isKeyPressed(VK_UP) && targetSel > 0) targetSel--;
+                if (window.isKeyPressed(VK_DOWN) && targetSel < targetTypes.size() - 1) targetSel++;
+                if (window.isKeyPressed(VK_RETURN)) {
+                    if (targetSel == 4) {
+                        dijkstraTargetType = "CUSTOM";
+                        dijkstraMode = DijkstraMode::RUNNING;
+                        dijkstraEndNodeSelection = 0;
+                        scrollOffset = 0;
+                    }
+                    else {
+                        if (targetSel == 0) dijkstraTargetType = "SCHOOL";
+                        else if (targetSel == 1) dijkstraTargetType = "HOSPITAL";
+                        else if (targetSel == 2) dijkstraTargetType = "PHARMACY";
+                        else dijkstraTargetType = "STOP";
+                        runDijkstraAlgorithm();
+                        dijkstraMode = DijkstraMode::COMPLETE;
+                    }
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::RUNNING) {
+                if (window.isKeyPressed(VK_UP) && dijkstraEndNodeSelection > 0) { dijkstraEndNodeSelection--; scrollOffset = dijkstraEndNodeSelection * 20; }
+                if (window.isKeyPressed(VK_DOWN) && dijkstraEndNodeSelection < selectableNodes.getSize() - 1) { dijkstraEndNodeSelection++; scrollOffset = dijkstraEndNodeSelection * 20; }
+                if (window.isKeyPressed(VK_RETURN) && !selectableNodes.empty()) {
+                    dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
+                    runDijkstraPointToPoint();
+                    dijkstraMode = DijkstraMode::COMPLETE;
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::COMPLETE) {
+                if (window.isKeyPressed('R')) {
+                    clearDijkstraVisualization();
+                    dijkstraMode = DijkstraMode::SELECT_START;
+                    dijkstraNodeSelection = 0;
+                    targetSel = 0;
+                }
+            }
+        }
+
+        // --- UPDATE LOGIC ---
+        if (showTraffic && !trafficPaused) updateTraffic();
+
+        // --- RENDER PASS ---
+        window.setActivePartition(-1);
+        window.clear(termgl::Color(10, 10, 15));
+        window.drawPartitionFrames();
+
+        // 1. Render Map
+        window.setActivePartition(mapPartition);
+        window.clear(termgl::Color(20, 20, 30));
+
+        // Critical: Update viewport size for drawing AND hover logic
+        // renderGraph uses window.getWidth()/getHeight() which respects the active partition
+        renderGraph(window);
+
+        // 2. Update Hover (Post-Render to ensure positions are fresh)
+        // Mouse pos relative to active partition (Map)
+        termgl::Vec2 mousePos = window.getMousePos();
+        updateHoverState(mousePos.x, mousePos.y);
+
+        // 3. Render Side Panel
+        window.setActivePartition(sidePartition);
+        window.clear(termgl::Color(30, 30, 40));
+
+        int cy = 10; // cursor y
+
+        if (!inDijkstraMode) {
+            // === NORMAL MODE SIDEBAR ===
+            window.drawText(10, cy, "INFO PANEL", termgl::Color::Cyan()); cy += 30;
+
+            // Hover Info
+            window.drawRect(5, cy, window.getWidth() - 10, 120, termgl::Color(60, 60, 70));
+            window.drawText(10, cy + 10, "SELECTION:", termgl::Color::Yellow());
+            string info = getHoverInfo();
+            window.drawText(10, cy + 30, info, termgl::Color::White());
+            cy += 140;
+
+            // Legend
+            window.drawText(10, cy, "LEGEND:", termgl::Color::Cyan()); cy += 25;
+            auto drawLegendItem = [&](termgl::Color c, string label) {
+                window.fillCircle(20, cy + 5, 4, c);
+                window.drawText(40, cy, label, termgl::Color::White());
+                cy += 20;
+                };
+            drawLegendItem(termgl::Color::Green(), "Stop");
+            drawLegendItem(termgl::Color::Blue(), "School");
+            drawLegendItem(termgl::Color::Red(), "Hospital");
+            drawLegendItem(termgl::Color(255, 0, 255), "Pharmacy");
+            drawLegendItem(termgl::Color::Yellow(), "Mall");
+            cy += 10;
+
+            // Controls
+            window.drawText(10, cy, "CONTROLS:", termgl::Color::Cyan()); cy += 25;
+            window.drawText(10, cy, "Arrows/WASD: Pan", termgl::Color::Grey()); cy += 20;
+            window.drawText(10, cy, "+/-: Zoom", termgl::Color::Grey()); cy += 20;
+            window.drawText(10, cy, "R: Toggle Roads", termgl::Color::Grey()); cy += 20;
+            window.drawText(10, cy, "T: Toggle Traffic", termgl::Color::Grey()); cy += 20;
+            window.drawText(10, cy, "D: Dijkstra Mode", termgl::Color::Green()); cy += 20;
+            window.drawText(10, cy, "Esc: Menu", termgl::Color::Grey());
+        }
+        else {
+            // === DIJKSTRA MODE SIDEBAR ===
+            window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
+
+            if (dijkstraMode == DijkstraMode::SELECT_START) {
+                window.drawText(10, cy, "SELECT START:", termgl::Color::Yellow()); cy += 30;
+                std::vector<string> items;
+                for (int i = 0; i < selectableNodes.getSize(); i++) {
+                    int idx = nodeIdToIndex[selectableNodes[i]];
+                    items.push_back(graphNodes[idx].name);
+                }
+                // List drawing logic
+                int listH = window.getHeight() - cy - 50;
+                int dummyScroll = dijkstraNodeSelection * 20 - (listH / 2); // Center selection
+                int clicked = window.drawList(10, cy, window.getWidth() - 20, listH, items, dummyScroll);
+
+                // Highlight selection manually since we control via keyboard
+                window.drawRect(12, cy + (dijkstraNodeSelection * 20) - dummyScroll, window.getWidth() - 24, 20, termgl::Color::Green());
+
+                // Mouse Click Support in List
+                if (clicked != -1) {
+                    dijkstraNodeSelection = clicked;
+                    dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
+                    int idx = nodeIdToIndex[dijkstraStartNode];
+                    if (idx >= 0) graphNodes[idx].isStart = true;
+                    dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
+                window.drawText(10, cy, "DESTINATION:", termgl::Color::Yellow()); cy += 30;
+                for (size_t i = 0; i < targetTypes.size(); i++) {
+                    termgl::Color c = (i == targetSel) ? termgl::Color::Green() : termgl::Color::White();
+                    string prefix = (i == targetSel) ? "> " : "  ";
+                    window.drawText(10, cy, prefix + targetTypes[i], c);
+                    cy += 25;
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::RUNNING) {
+                window.drawText(10, cy, "SELECT END:", termgl::Color::Yellow()); cy += 30;
+                std::vector<string> items;
+                for (int i = 0; i < selectableNodes.getSize(); i++) {
+                    int idx = nodeIdToIndex[selectableNodes[i]];
+                    items.push_back(graphNodes[idx].name);
+                }
+                int listH = window.getHeight() - cy - 50;
+                int dummyScroll = dijkstraEndNodeSelection * 20 - (listH / 2);
+                int clicked = window.drawList(10, cy, window.getWidth() - 20, listH, items, dummyScroll);
+
+                window.drawRect(12, cy + (dijkstraEndNodeSelection * 20) - dummyScroll, window.getWidth() - 24, 20, termgl::Color::Green());
+
+                if (clicked != -1) {
+                    dijkstraEndNodeSelection = clicked;
+                    dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
+                    runDijkstraPointToPoint();
+                    dijkstraMode = DijkstraMode::COMPLETE;
+                }
+            }
+            else if (dijkstraMode == DijkstraMode::COMPLETE) {
+                if (dijkstraPath.getSize() > 0) {
+                    window.drawText(10, cy, "RESULT: SUCCESS", termgl::Color::Green()); cy += 30;
+                    window.drawText(10, cy, "Dist: " + std::to_string(dijkstraDistance).substr(0, 5) + " km", termgl::Color::White()); cy += 30;
+                    window.drawText(10, cy, "Stops: " + std::to_string(dijkstraPath.getSize()), termgl::Color::White()); cy += 30;
+                }
+                else {
+                    window.drawText(10, cy, "RESULT: FAILED", termgl::Color::Red()); cy += 30;
+                    window.drawText(10, cy, "No path found.", termgl::Color::Grey()); cy += 30;
+                }
+                window.drawText(10, cy, "[R] New Search", termgl::Color::Yellow()); cy += 20;
+                window.drawText(10, cy, "[Esc] Exit Mode", termgl::Color::Grey());
+            }
+        }
+
+        window.display();
+    }
 }
 
 // ============================================================================
@@ -1618,13 +1446,13 @@ inline void CitySimulator::runAddFacilityForm(const string& sector) {
 
     auto renderer = Renderer(component, [&] {
         return vbox({
-            text("ADD NEW FACILITY") | bold | center | color(Color::Green),
+            text("ADD NEW FACILITY") | bold | center | color(ftxui::Color::Green),
             separator(),
             text("Sector: " + sector) | center,
             hbox({text("Name: "), input_name->Render() | border}),
             hbox({text("Type: "), toggle_type->Render() | border}),
             hbox({btn_add->Render(), text("  "), btn_cancel->Render()}) | center,
-            text(message) | color(Color::Red) | center
+            text(message) | color(ftxui::Color::Red) | center
             }) | border | size(WIDTH, EQUAL, 60) | center;
         });
     screen.Loop(renderer);
@@ -1654,13 +1482,13 @@ inline void CitySimulator::runAddOfferingForm(CityNode* node) {
         auto component = Container::Vertical({ input_name, input_formula, input_price, btn_add, Button("Cancel", screen.ExitLoopClosure()) });
         auto renderer = Renderer(component, [&] {
             return vbox({
-                text("ADD MEDICINE TO " + node->name) | bold | center | color(Color::Magenta),
+                text("ADD MEDICINE TO " + node->name) | bold | center | color(ftxui::Color::Magenta),
                 separator(),
                 hbox({text("Name: "), input_name->Render() | border}),
                 hbox({text("Formula: "), input_formula->Render() | border}),
                 hbox({text("Price: "), input_price->Render() | border}),
                 btn_add->Render() | center,
-                text(message) | color(Color::Red) | center
+                text(message) | color(ftxui::Color::Red) | center
                 }) | border | size(WIDTH, EQUAL, 50) | center;
             });
         screen.Loop(renderer);
@@ -1763,13 +1591,13 @@ inline void CitySimulator::runDatabaseView() {
     auto renderer = Renderer([&] {
         // --- SECTOR PANEL ---
         Elements sectorItems;
-        sectorItems.push_back(text("SECTORS") | bold | color(Color::Cyan));
+        sectorItems.push_back(text("SECTORS") | bold | color(ftxui::Color::Cyan));
         sectorItems.push_back(separator());
         for (int i = 0; i < (int)sectorList.size() && i < 18; i++) {
             int idx = std::max(0, selectedSectorIdx - 8) + i;
             if (idx >= (int)sectorList.size()) break;
             auto item = text((idx == selectedSectorIdx ? "> " : "  ") + sectorList[idx]);
-            if (idx == selectedSectorIdx) item = item | bold | (focusPanel == 0 ? bgcolor(Color::Blue) : color(Color::Green));
+            if (idx == selectedSectorIdx) item = item | bold | (focusPanel == 0 ? bgcolor(ftxui::Color::Blue) : color(ftxui::Color::Green));
             sectorItems.push_back(item);
         }
         auto sectorPanel = vbox(sectorItems) | border | size(WIDTH, EQUAL, 14);
@@ -1777,7 +1605,7 @@ inline void CitySimulator::runDatabaseView() {
 
         // --- ITEM LIST PANEL ---
         Elements itemList;
-        itemList.push_back(text("FACILITIES (" + std::to_string(items.size()) + ")") | bold | color(Color::Yellow));
+        itemList.push_back(text("FACILITIES (" + std::to_string(items.size()) + ")") | bold | color(ftxui::Color::Yellow));
         itemList.push_back(separator());
 
         int totalListItems = items.size() + 1; // +1 for "Add Facility"
@@ -1803,10 +1631,10 @@ inline void CitySimulator::runDatabaseView() {
                 e = text(prefix + icon + " " + displayName);
             }
             else {
-                e = text(prefix + "[+] Add Facility") | color(Color::Yellow);
+                e = text(prefix + "[+] Add Facility") | color(ftxui::Color::Yellow);
             }
 
-            if (isSelected) e = e | bold | (focusPanel == 2 ? bgcolor(Color::Blue) : color(Color::Green));
+            if (isSelected) e = e | bold | (focusPanel == 2 ? bgcolor(ftxui::Color::Blue) : color(ftxui::Color::Green));
             itemList.push_back(e);
         }
         auto itemPanel = vbox(itemList) | border | size(WIDTH, EQUAL, 35);
@@ -1814,21 +1642,21 @@ inline void CitySimulator::runDatabaseView() {
 
         // --- DETAIL PANEL ---
         Elements details;
-        details.push_back(text("DETAILS") | bold | color(Color::Magenta));
+        details.push_back(text("DETAILS") | bold | color(ftxui::Color::Magenta));
         details.push_back(separator());
 
         if (selectedItemIdx < (int)items.size()) {
             DBItem& item = items[selectedItemIdx];
-            details.push_back(hbox({ text("ID:   ") | bold, text(item.id) | color(Color::Yellow) }));
+            details.push_back(hbox({ text("ID:   ") | bold, text(item.id) | color(ftxui::Color::Yellow) }));
             details.push_back(hbox({ text("Name: ") | bold, text(item.name) }));
-            details.push_back(hbox({ text("Type: ") | bold, text(item.type) | color(Color::Cyan) }));
+            details.push_back(hbox({ text("Type: ") | bold, text(item.type) | color(ftxui::Color::Cyan) }));
             details.push_back(separator());
 
             if (item.type == "SCHOOL") {
                 School* s = (School*)item.objPtr;
-                details.push_back(hbox({ text("Rating: "), text(std::to_string(s->rating).substr(0, 3) + "/5.0") | color(Color::Yellow) }));
-                details.push_back(hbox({ text("Students: "), text(std::to_string(s->getTotalEnrolledStudents())) | color(Color::Green) }));
-                details.push_back(hbox({ text("Faculty: "), text(std::to_string(s->getTotalFaculty())) | color(Color::Green) }));
+                details.push_back(hbox({ text("Rating: "), text(std::to_string(s->rating).substr(0, 3) + "/5.0") | color(ftxui::Color::Yellow) }));
+                details.push_back(hbox({ text("Students: "), text(std::to_string(s->getTotalEnrolledStudents())) | color(ftxui::Color::Green) }));
+                details.push_back(hbox({ text("Faculty: "), text(std::to_string(s->getTotalFaculty())) | color(ftxui::Color::Green) }));
                 details.push_back(separator());
                 details.push_back(text("Departments:") | dim);
                 for (int k = 0; k < std::min(5, s->departments.getSize()); k++) {
@@ -1839,7 +1667,7 @@ inline void CitySimulator::runDatabaseView() {
             }
             else if (item.type == "MALL") {
                 Mall* m = (Mall*)item.objPtr;
-                details.push_back(hbox({ text("Total Shops: "), text(std::to_string(m->getShopCount())) | color(Color::Green) }));
+                details.push_back(hbox({ text("Total Shops: "), text(std::to_string(m->getShopCount())) | color(ftxui::Color::Green) }));
                 details.push_back(hbox({ text("Products: "), text(std::to_string(m->getTotalProductCount())) }));
                 details.push_back(separator());
                 details.push_back(text("Shops:") | dim);
@@ -1851,7 +1679,7 @@ inline void CitySimulator::runDatabaseView() {
             }
             else if (item.type == "HOSPITAL") {
                 Hospital* h = (Hospital*)item.objPtr;
-                details.push_back(hbox({ text("Beds: "), text(std::to_string(h->getAvailableBeds()) + "/" + std::to_string(h->totalBeds)) | color(Color::Red) }));
+                details.push_back(hbox({ text("Beds: "), text(std::to_string(h->getAvailableBeds()) + "/" + std::to_string(h->totalBeds)) | color(ftxui::Color::Red) }));
                 details.push_back(hbox({ text("Patients: "), text(std::to_string(h->getOccupiedBeds())) }));
                 details.push_back(separator());
                 details.push_back(text("Specializations:") | dim);
@@ -1875,7 +1703,7 @@ inline void CitySimulator::runDatabaseView() {
                 CityNode* n = (CityNode*)item.objPtr;
                 if (islamabad->getTransportManager()) {
                     int w = islamabad->getTransportManager()->getWaitingCount(n->id);
-                    details.push_back(hbox({ text("Waiting: "), text(std::to_string(w) + " passengers") | color(Color::Yellow) }));
+                    details.push_back(hbox({ text("Waiting: "), text(std::to_string(w) + " passengers") | color(ftxui::Color::Yellow) }));
                 }
             }
 
@@ -1888,7 +1716,7 @@ inline void CitySimulator::runDatabaseView() {
         else {
             // "Add Facility" Selected
             details.push_back(text("Create New Facility") | center);
-            details.push_back(text("in " + sectorList[selectedSectorIdx]) | bold | center | color(Color::Green));
+            details.push_back(text("in " + sectorList[selectedSectorIdx]) | bold | center | color(ftxui::Color::Green));
             details.push_back(text(""));
             details.push_back(text("Press Enter to open") | dim | center);
             details.push_back(text("creation wizard.") | dim | center);
@@ -1900,8 +1728,8 @@ inline void CitySimulator::runDatabaseView() {
         Elements tabs;
         for (int i = 0; i < (int)categories.size(); i++) {
             auto tab = text(" " + categories[i] + " ");
-            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Green) | color(Color::Black);
-            else tab = tab | color(Color::GrayLight);
+            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(ftxui::Color::Green) | color(ftxui::Color::Black);
+            else tab = tab | color(ftxui::Color::GrayLight);
             tabs.push_back(tab);
         }
 
@@ -1913,7 +1741,7 @@ inline void CitySimulator::runDatabaseView() {
             }) | center | dim;
 
         return vbox({
-            text(" DATABASE VIEW ") | bold | center | bgcolor(Color::Green) | color(Color::Black),
+            text(" DATABASE VIEW ") | bold | center | bgcolor(ftxui::Color::Green) | color(ftxui::Color::Black),
             hbox(tabs) | center,
             separator(),
             hbox({sectorPanel, itemPanel, detailPanel}) | flex,
@@ -2077,14 +1905,14 @@ inline void CitySimulator::runSearchView() {
 
     auto renderer = Renderer(container, [&] {
         return vbox({
-            text(" SEARCH ENGINE ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text(" SEARCH ENGINE ") | bold | center | bgcolor(ftxui::Color::Blue) | color(ftxui::Color::White),
             separator(),
             hbox({ text(" FIND: "), input_component->Render() | flex }),
             separator(),
             menu_entries.empty() ? text("Type to search...") | dim | center : menu_component->Render() | flex,
             separator(),
             (message.empty() ? text("Select an item and press Enter to Edit") | dim | center
-                             : text(message) | bold | color(Color::Green) | center),
+                             : text(message) | bold | color(ftxui::Color::Green) | center),
             text("Esc: Back") | dim | center
             }) | border | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 40) | center;
         });
@@ -2127,7 +1955,7 @@ inline void CitySimulator::runInputForm(const string& title, const std::vector<s
         }
 
         return vbox({
-            text(title) | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text(title) | bold | center | bgcolor(ftxui::Color::Blue) | color(ftxui::Color::White),
             separator(),
             vbox(fields) | flex,
             separator(),
@@ -2194,7 +2022,7 @@ inline void CitySimulator::runManagementAddForm(const string& category) {
 
     auto renderer = Renderer(container, [&] {
         return vbox({
-            text("ADD NEW OBJECT (" + category + ")") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text("ADD NEW OBJECT (" + category + ")") | bold | center | bgcolor(ftxui::Color::Blue) | color(ftxui::Color::White),
             separator(),
             hbox({ text("Name:   ") | size(WIDTH, EQUAL, 10), input_name->Render() }),
             hbox({ text("Sector: ") | size(WIDTH, EQUAL, 10), input_sector->Render() }),
@@ -2203,7 +2031,7 @@ inline void CitySimulator::runManagementAddForm(const string& category) {
             toggle_type->Render(),
             separator(),
             hbox({ btn_create->Render(), text("  "), btn_cancel->Render() }) | center,
-            text(message) | color(Color::Red) | center
+            text(message) | color(ftxui::Color::Red) | center
             }) | border | size(WIDTH, EQUAL, 60) | center;
         });
 
@@ -2273,7 +2101,7 @@ inline Citizen* CitySimulator::runPopulationSelector(const string& title) {
 
     auto renderer = Renderer(layout, [&] {
         return vbox({
-            text(" POPULATION REGISTRY - " + title) | bold | center | bgcolor(Color::Green) | color(Color::Black),
+            text(" POPULATION REGISTRY - " + title) | bold | center | bgcolor(ftxui::Color::Green) | color(ftxui::Color::Black),
             separator(),
             hbox({ text(" Filter: "), input->Render() }),
             separator(),
@@ -2415,7 +2243,7 @@ inline void CitySimulator::runEditSchoolView(School* school) {
             Elements list;
             int limit = 0;
             if (school->departments.getSize() > 0) {
-                Department* d = school->departments[0]; 
+                Department* d = school->departments[0];
                 if (d->getClassCount() > 0) {
                     Class* c = d->classes[0];
                     for (int k = 0; k < c->students.getSize(); ++k) {
@@ -2432,13 +2260,13 @@ inline void CitySimulator::runEditSchoolView(School* school) {
         }
 
         return vbox({
-            text(" SCHOOL ADMINISTRATION PORTAL ") | bold | center | bgcolor(Color::Blue) | color(Color::White),
+            text(" SCHOOL ADMINISTRATION PORTAL ") | bold | center | bgcolor(ftxui::Color::Blue) | color(ftxui::Color::White),
             hbox({ stats, separator(), content | flex }),
             separator(),
             c_tabs->Render() | center,
             separator(),
             btn_back->Render() | center,
-            text(message) | bold | color(Color::Red) | center
+            text(message) | bold | color(ftxui::Color::Red) | center
             }) | border | center;
         });
 
@@ -2452,7 +2280,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
     int tab_index = 0;
     std::vector<string> tabs = { "Info", "Doctors", "Patients" };
 
-    
+
     Component btn_add_beds = Button("Add 10 Beds", [&] { hospital->totalBeds += 10; message = "Beds increased."; });
     Component btn_add_spec = Button("Add Specialization", [&] {
         runInputForm("New Specialization", { "Name (e.g., Cardiology)" }, [&](std::vector<string> res) {
@@ -2482,7 +2310,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
             runInputForm("Admission", { "Condition", "Severity (1-10)" }, [&](std::vector<string> res) {
                 int sev = 5; try { sev = std::stoi(res[1]); }
                 catch (...) {}
-                 if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;
+                if (cityMgmt->admitPatient(c->cnic, hospital->id, sev, res[0])) message = "Admitted " + c->name;
                 else message = "Admission Failed (No beds?)";
                 });
         }
@@ -2518,7 +2346,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
         }
 
         return vbox({
-            text(" HOSPITAL ADMIN: " + hospital->name) | bold | center | bgcolor(Color::Red) | color(Color::White),
+            text(" HOSPITAL ADMIN: " + hospital->name) | bold | center | bgcolor(ftxui::Color::Red) | color(ftxui::Color::White),
             hbox({
                 vbox({
                     hbox({text("Beds: "), text(std::to_string(hospital->getOccupiedBeds()) + "/" + std::to_string(hospital->totalBeds))})
@@ -2528,7 +2356,7 @@ inline void CitySimulator::runEditHospitalView(Hospital* hospital) {
             separator(),
             c_tabs->Render() | center,
             btn_back->Render() | center,
-            text(message) | color(Color::Yellow) | center
+            text(message) | color(ftxui::Color::Yellow) | center
             }) | border;
         });
 
@@ -2568,11 +2396,11 @@ inline void CitySimulator::runEditShopView(Shop* shop, Mall* mall) {
         Elements inv;
         for (int i = 0; i < shop->inventory.getSize(); ++i) {
             const Product* p = shop->getProduct(i);
-            inv.push_back(hbox({ text(p->name), filler(), text("Rs " + std::to_string(p->price)) | color(Color::Green) }));
+            inv.push_back(hbox({ text(p->name), filler(), text("Rs " + std::to_string(p->price)) | color(ftxui::Color::Green) }));
         }
 
         return vbox({
-            text(" SHOP INVENTORY: " + shop->name) | bold | center | bgcolor(Color::Yellow) | color(Color::Black),
+            text(" SHOP INVENTORY: " + shop->name) | bold | center | bgcolor(ftxui::Color::Yellow) | color(ftxui::Color::Black),
             separator(),
             hbox({
                 vbox(inv) | flex | border,
@@ -2586,7 +2414,7 @@ inline void CitySimulator::runEditShopView(Shop* shop, Mall* mall) {
                     btn_back->Render()
                 }) | size(WIDTH, EQUAL, 25)
             }) | flex,
-            text(message) | color(Color::Red) | center
+            text(message) | color(ftxui::Color::Red) | center
             }) | border;
         });
 
@@ -2627,11 +2455,11 @@ inline void CitySimulator::runEditPharmacyView(Pharmacy* pharmacy) {
         Elements inv;
         for (int i = 0; i < pharmacy->inventory.getSize(); ++i) {
             const Medicine* m = pharmacy->getMedicine(i);
-            inv.push_back(hbox({ text(m->name), filler(), text(m->formula) | dim, filler(), text("Rs " + std::to_string((int)m->price)) | color(Color::Green) }));
+            inv.push_back(hbox({ text(m->name), filler(), text(m->formula) | dim, filler(), text("Rs " + std::to_string((int)m->price)) | color(ftxui::Color::Green) }));
         }
 
         return vbox({
-            text(" PHARMACY INVENTORY: " + pharmacy->name) | bold | center | bgcolor(Color::Magenta) | color(Color::White),
+            text(" PHARMACY INVENTORY: " + pharmacy->name) | bold | center | bgcolor(ftxui::Color::Magenta) | color(ftxui::Color::White),
             separator(),
             hbox({
                 vbox({
@@ -2650,7 +2478,7 @@ inline void CitySimulator::runEditPharmacyView(Pharmacy* pharmacy) {
                     btn_back->Render()
                 }) | size(WIDTH, EQUAL, 25)
             }) | flex,
-            text(message) | color(Color::Red) | center
+            text(message) | color(ftxui::Color::Red) | center
             }) | border;
         });
 
@@ -2720,7 +2548,7 @@ inline void CitySimulator::runEditMallView(Mall* mall) {
         }
 
         return vbox({
-            text(" MALL MANAGEMENT: " + mall->name) | bold | center | bgcolor(Color::Yellow) | color(Color::Black),
+            text(" MALL MANAGEMENT: " + mall->name) | bold | center | bgcolor(ftxui::Color::Yellow) | color(ftxui::Color::Black),
             separator(),
             hbox({
                 vbox({
@@ -2745,7 +2573,7 @@ inline void CitySimulator::runEditMallView(Mall* mall) {
                     btn_back->Render()
                 }) | size(WIDTH, EQUAL, 25)
             }) | flex,
-            text(message) | color(Color::Red) | center
+            text(message) | color(ftxui::Color::Red) | center
             }) | border;
         });
 
@@ -2898,7 +2726,7 @@ inline void CitySimulator::runManagementMenu() {
         auto pScreen = ScreenInteractive::Fullscreen();
         auto pRenderer = Renderer([&] {
             return vbox({
-                text(title) | bold | center | bgcolor(Color::Red) | color(Color::White),
+                text(title) | bold | center | bgcolor(ftxui::Color::Red) | color(ftxui::Color::White),
                 separator(),
                 text(msg) | center,
                 text(""),
@@ -2923,8 +2751,8 @@ inline void CitySimulator::runManagementMenu() {
         Elements tabs;
         for (int i = 0; i < (int)categories.size(); i++) {
             auto tab = text(" " + categories[i] + " ");
-            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(Color::Cyan) | color(Color::Black);
-            else tab = tab | color(Color::GrayLight);
+            if (i == selectedCategoryIdx) tab = tab | bold | bgcolor(ftxui::Color::Cyan) | color(ftxui::Color::Black);
+            else tab = tab | color(ftxui::Color::GrayLight);
             tabs.push_back(tab);
         }
 
@@ -2939,17 +2767,17 @@ inline void CitySimulator::runManagementMenu() {
             auto row = text(label);
             if (i == selectedItemIdx) {
                 row = row | bold;
-                if (focusPanel == 1) row = row | bgcolor(Color::Blue) | color(Color::White);
-                else row = row | color(Color::Green);
+                if (focusPanel == 1) row = row | bgcolor(ftxui::Color::Blue) | color(ftxui::Color::White);
+                else row = row | color(ftxui::Color::Green);
             }
             listElements.push_back(row);
         }
         auto leftPanel = vbox(listElements) | border | flex;
-        if (focusPanel == 1) leftPanel = leftPanel | color(Color::Cyan);
+        if (focusPanel == 1) leftPanel = leftPanel | color(ftxui::Color::Cyan);
 
         // ===== MIDDLE PANEL (Actions) =====
         auto btnStyle = [&](string label, bool selected) {
-            return text(label) | center | (selected ? (bgcolor(Color::Red) | bold) : dim) | border;
+            return text(label) | center | (selected ? (bgcolor(ftxui::Color::Red) | bold) : dim) | border;
             };
 
         auto midPanel = vbox({
@@ -2965,12 +2793,12 @@ inline void CitySimulator::runManagementMenu() {
         Elements details;
         if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
             const auto& sel = currentItems[selectedItemIdx];
-            details.push_back(text("OBJECT DETAILS") | bold | center | color(Color::Yellow));
+            details.push_back(text("OBJECT DETAILS") | bold | center | color(ftxui::Color::Yellow));
             details.push_back(separator());
-            details.push_back(hbox({ text("ID: ") | bold, text(sel.id) | color(Color::Cyan) }));
-            details.push_back(hbox({ text("Name: ") | bold, text(sel.name) | color(Color::White) }));
-            details.push_back(hbox({ text("Type: ") | bold, text(sel.type) | color(Color::Magenta) }));
-            details.push_back(hbox({ text("Loc/Info: ") | bold, text(sel.extraInfo) | color(Color::Green) }));
+            details.push_back(hbox({ text("ID: ") | bold, text(sel.id) | color(ftxui::Color::Cyan) }));
+            details.push_back(hbox({ text("Name: ") | bold, text(sel.name) | color(ftxui::Color::White) }));
+            details.push_back(hbox({ text("Type: ") | bold, text(sel.type) | color(ftxui::Color::Magenta) }));
+            details.push_back(hbox({ text("Loc/Info: ") | bold, text(sel.extraInfo) | color(ftxui::Color::Green) }));
             details.push_back(separator());
             details.push_back(text("Press 'E' to Edit full details") | dim | center);
         }
@@ -2980,7 +2808,7 @@ inline void CitySimulator::runManagementMenu() {
         auto rightPanel = vbox(details) | border | flex;
 
         return vbox({
-            text(" MANAGEMENT CONSOLE (ADMIN) ") | bold | center | bgcolor(Color::Red) | color(Color::White),
+            text(" MANAGEMENT CONSOLE (ADMIN) ") | bold | center | bgcolor(ftxui::Color::Red) | color(ftxui::Color::White),
             hbox(tabs) | center,
             separator(),
             hbox({ leftPanel, midPanel, rightPanel }) | flex,
@@ -2990,7 +2818,7 @@ inline void CitySimulator::runManagementMenu() {
         });
 
     auto component = CatchEvent(renderer, [&](Event e) {
-        if (e == Event::Tab) { focusPanel = (focusPanel + 1) % 2; return true; } 
+        if (e == Event::Tab) { focusPanel = (focusPanel + 1) % 2; return true; }
         if (e == Event::Escape) { currentState = SimulatorState::MAIN_MENU; screen.Exit(); return true; }
 
 
@@ -3001,7 +2829,7 @@ inline void CitySimulator::runManagementMenu() {
         }
 
         // DELETE
-        if (e == Event::Delete || e == Event::Special({ 127 }) || e == Event::Character('x')) { 
+        if (e == Event::Delete || e == Event::Special({ 127 }) || e == Event::Character('x')) {
             if (!currentItems.empty() && selectedItemIdx < (int)currentItems.size()) {
                 auto& item = currentItems[selectedItemIdx];
                 bool deleted = false;
