@@ -59,6 +59,24 @@ namespace termgl {
     };
 
     // ============================================================================
+    // PARTITION STRUCT
+    // ============================================================================
+    struct Partition {
+        int id;
+        Rect rect; // x, y, width, height relative to window
+        std::string title;
+        bool active;
+        Color borderColor;
+        Color titleColor;
+        Color backgroundColor;
+
+        Partition(int _id, int _x, int _y, int _w, int _h, const std::string& _title)
+            : id(_id), rect(_x, _y, _w, _h), title(_title), active(false),
+            borderColor(100, 100, 100), titleColor(255, 255, 255), backgroundColor(20, 20, 25) {
+        }
+    };
+
+    // ============================================================================
     // WINDOW CLASS
     // ============================================================================
     class Window {
@@ -73,7 +91,14 @@ namespace termgl {
         float getDeltaTime() const;
         void display();
 
-        // Graphics
+        // Partition Management
+        int addPartition(int x, int y, int w, int h, const std::string& title);
+        void setActivePartition(int id); // -1 for global window
+        void drawPartitionFrames(); // Draws borders and titles for all partitions
+        void clearPartition(int id, Color color); // Clears specific partition
+        int getActivePartitionID() const { return activePartitionID; }
+
+        // Graphics (Context-aware: draws to active partition)
         void clear(Color color);
         void drawPixel(int x, int y, Color color);
         void drawLine(int x0, int y0, int x1, int y1, Color color);
@@ -86,22 +111,30 @@ namespace termgl {
         void fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
         void drawText(int x, int y, const std::string& text, Color color);
 
+        // UI Components
+        bool drawButton(int x, int y, int w, int h, const std::string& text);
+        // New: Draw a scrollable list. Returns index of clicked item (-1 if none)
+        // 'scrollOffset' is in pixels. 'itemHeight' is usually ~20.
+        int drawList(int x, int y, int w, int h, const std::vector<std::string>& items, int& scrollOffset, int itemHeight = 20);
+
         // Sprite Drawing
         void drawSprite(const Sprite& sprite);
 
         // Input
         bool isKeyDown(char key) const;
+        bool isKeyPressed(char key) const; // Single press check
         bool isMouseLeftDown() const;
         bool isMouseRightDown() const;
-        Vec2 getMousePos() const;
+        Vec2 getMousePos() const; // Relative to active partition!
+        int getMouseScrollDelta() const; // New: Mouse Wheel support
 
         // UI Helpers
         bool isMouseHovering(int x, int y, int w, int h) const;
         bool isButtonClicked(int x, int y, int w, int h) const;
 
-        // Getters for dimensions
-        int getWidth() const { return width; }
-        int getHeight() const { return height; }
+        // Getters for dimensions (returns partition size if active)
+        int getWidth() const;
+        int getHeight() const;
 
     private:
         // Window Handle & Context
@@ -115,6 +148,15 @@ namespace termgl {
         int height;
         bool running;
 
+        // Partitions
+        std::vector<Partition> partitions;
+        int activePartitionID; // -1 = Global/None
+
+        // Helper to transform coordinates based on active partition
+        void transformCoordinates(int& x, int& y) const;
+        // Helper to check if point is within active partition bounds
+        bool clipCoordinates(int x, int y) const;
+
         // Timing
         int targetFPS;
         float currentDeltaTime;
@@ -123,8 +165,10 @@ namespace termgl {
         // Input State
         int mouseX, mouseY;
         bool mouseLeft, mouseRight;
-        bool mouseLeftPressed; // Added to detect single click frames
+        bool mouseLeftPressed;
+        int mouseScrollDelta; // New: Accumulator for wheel
         bool keys[256];
+        bool prevKeys[256];
 
         // Internal Helpers
         static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

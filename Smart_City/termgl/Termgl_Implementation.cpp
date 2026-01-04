@@ -15,18 +15,11 @@
 namespace termgl {
 
     // ============================================================================
-    // INTERNAL FONT DATA (8x16) - Enhanced for better readability
+    // INTERNAL FONT DATA (8x16)
     // ============================================================================
-    // Format: 16 bytes per character, row by row (top to bottom).
-    // Each byte represents one row of 8 pixels.
-    // 0x00 = empty row
-    // 0xFF = full row
-
     static const unsigned char FONT8x16[128][16] = {
-        {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, // 0-31 Control chars (skipped)
         {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0},
-        // ... (Control chars repeated for brevity, user rarely prints them)
-
+        {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0},
         // 32: SPACE
         {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
         // 33: !
@@ -224,53 +217,17 @@ namespace termgl {
     // ============================================================================
     // TEXTURE IMPLEMENTATION
     // ============================================================================
-
     Texture::Texture() : width(0), height(0) {}
-
-    Texture::Texture(int w, int h) : width(w), height(h) {
-        pixels.resize(w * h, 0);
-    }
-
-    void Texture::setPixel(int x, int y, Color c) {
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            pixels[y * width + x] = c.toInt();
-        }
-    }
-
-    uint32_t Texture::getPixel(int x, int y) const {
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-            return pixels[y * width + x];
-        }
-        return 0;
-    }
-
-    void Texture::fill(Color c) {
-        std::fill(pixels.begin(), pixels.end(), c.toInt());
-    }
-
+    Texture::Texture(int w, int h) : width(w), height(h) { pixels.resize(w * h, 0); }
+    void Texture::setPixel(int x, int y, Color c) { if (x >= 0 && x < width && y >= 0 && y < height) pixels[y * width + x] = c.toInt(); }
+    uint32_t Texture::getPixel(int x, int y) const { if (x >= 0 && x < width && y >= 0 && y < height) return pixels[y * width + x]; return 0; }
+    void Texture::fill(Color c) { std::fill(pixels.begin(), pixels.end(), c.toInt()); }
     bool Texture::loadFromFile(const std::string& filepath) {
-        int w, h, channels;
-        unsigned char* data = stbi_load(filepath.c_str(), &w, &h, &channels, 4);
-
-        if (!data) {
-            throw std::runtime_error("Failed to load texture: " + filepath +
-                " Reason: " + stbi_failure_reason());
-        }
-
-        width = w;
-        height = h;
-        pixels.resize(width * height);
-
-        // Convert raw bytes (RGBA) to our internal pixel format (BGRA / 0xAARRGGBB)
-        for (int i = 0; i < width * height; ++i) {
-            unsigned char r = data[i * 4 + 0];
-            unsigned char g = data[i * 4 + 1];
-            unsigned char b = data[i * 4 + 2];
-            unsigned char a = data[i * 4 + 3];
-
-            pixels[i] = Color(r, g, b, a).toInt();
-        }
-
+        int w, h, c;
+        unsigned char* data = stbi_load(filepath.c_str(), &w, &h, &c, 4);
+        if (!data) return false;
+        width = w; height = h; pixels.resize(w * h);
+        for (int i = 0; i < w * h; ++i) pixels[i] = Color(data[i * 4], data[i * 4 + 1], data[i * 4 + 2], data[i * 4 + 3]).toInt();
         stbi_image_free(data);
         return true;
     }
@@ -278,34 +235,12 @@ namespace termgl {
     // ============================================================================
     // SPRITE IMPLEMENTATION
     // ============================================================================
-
     Sprite::Sprite() : texture(nullptr), x(0), y(0), scale(1.0f) {}
-
-    Sprite::Sprite(Texture* tex) : texture(tex), x(0), y(0), scale(1.0f) {
-        if (tex) {
-            srcRect = Rect(0, 0, tex->width, tex->height);
-        }
-    }
-
-    void Sprite::setTexture(Texture* tex) {
-        texture = tex;
-        if (tex) {
-            srcRect = Rect(0, 0, tex->width, tex->height);
-        }
-    }
-
-    void Sprite::setPosition(float _x, float _y) {
-        x = _x;
-        y = _y;
-    }
-
-    void Sprite::setTextureRect(int rx, int ry, int rw, int rh) {
-        srcRect = Rect(rx, ry, rw, rh);
-    }
-
-    void Sprite::setScale(float s) {
-        scale = s;
-    }
+    Sprite::Sprite(Texture* tex) : texture(tex), x(0), y(0), scale(1.0f) { if (tex) srcRect = Rect(0, 0, tex->width, tex->height); }
+    void Sprite::setTexture(Texture* tex) { texture = tex; if (tex) srcRect = Rect(0, 0, tex->width, tex->height); }
+    void Sprite::setPosition(float _x, float _y) { x = _x; y = _y; }
+    void Sprite::setTextureRect(int rx, int ry, int rw, int rh) { srcRect = Rect(rx, ry, rw, rh); }
+    void Sprite::setScale(float s) { scale = s; }
 
     // ============================================================================
     // WINDOW IMPLEMENTATION
@@ -316,39 +251,16 @@ namespace termgl {
         if (!win) return DefWindowProc(hwnd, uMsg, wParam, lParam);
 
         switch (uMsg) {
-        case WM_CLOSE: // Handle 'X' button
-            win->running = false; // Just stop the loop, don't kill process
-            return 0;
-        case WM_DESTROY:
-            // Do NOT call PostQuitMessage here if we want to return control.
-            // But if we want to support full app exit, usually PostQuitMessage is used.
-            // Since the user wants "return control", we rely on the loop checking 'running'.
-            // However, DefWindowProc might destroy the window before we're done.
-            // For safety, let's keep PostQuitMessage(0) ONLY if we want full termination,
-            // but for "return control", we handle WM_CLOSE.
-            return 0;
-        case WM_KEYDOWN:
-            win->keys[wParam & 0xFF] = true;
-            return 0;
-        case WM_KEYUP:
-            win->keys[wParam & 0xFF] = false;
-            return 0;
-        case WM_MOUSEMOVE:
-            win->mouseX = LOWORD(lParam);
-            win->mouseY = HIWORD(lParam);
-            return 0;
-        case WM_LBUTTONDOWN:
-            win->mouseLeft = true;
-            win->mouseLeftPressed = true; // Mark that a press started
-            return 0;
-        case WM_LBUTTONUP:
-            win->mouseLeft = false;
-            return 0;
-        case WM_RBUTTONDOWN:
-            win->mouseRight = true;
-            return 0;
-        case WM_RBUTTONUP:
-            win->mouseRight = false;
+        case WM_CLOSE: win->running = false; return 0;
+        case WM_KEYDOWN: win->keys[wParam & 0xFF] = true; return 0;
+        case WM_KEYUP: win->keys[wParam & 0xFF] = false; return 0;
+        case WM_MOUSEMOVE: win->mouseX = LOWORD(lParam); win->mouseY = HIWORD(lParam); return 0;
+        case WM_LBUTTONDOWN: win->mouseLeft = true; win->mouseLeftPressed = true; return 0;
+        case WM_LBUTTONUP: win->mouseLeft = false; return 0;
+        case WM_RBUTTONDOWN: win->mouseRight = true; return 0;
+        case WM_RBUTTONUP: win->mouseRight = false; return 0;
+        case WM_MOUSEWHEEL:
+            win->mouseScrollDelta += GET_WHEEL_DELTA_WPARAM(wParam);
             return 0;
         }
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -356,20 +268,12 @@ namespace termgl {
 
     Window::Window(int w, int h, const std::string& title, bool fullscreen)
         : width(w), height(h), running(true), targetFPS(0), currentDeltaTime(0.0f),
-        mouseX(0), mouseY(0), mouseLeft(false), mouseRight(false), mouseLeftPressed(false)
+        mouseX(0), mouseY(0), mouseLeft(false), mouseRight(false), mouseLeftPressed(false), mouseScrollDelta(0), activePartitionID(-1)
     {
-        // --------------------------------------------------------------------------------
-        // FIX: Enable High DPI Awareness
-        // --------------------------------------------------------------------------------
-        // This ensures the application handles physical pixels directly, preventing Windows
-        // from scaling the window content (which causes blurriness and incorrect sizing
-        // on screens with scaling > 100%).
         SetProcessDPIAware();
-
         const wchar_t* className = L"TermGLClass";
         std::wstring wtitle(title.begin(), title.end());
 
-        // Register Class
         WNDCLASSW wc = {};
         wc.lpfnWndProc = WindowProc;
         wc.hInstance = GetModuleHandleW(NULL);
@@ -378,63 +282,35 @@ namespace termgl {
         RegisterClassW(&wc);
 
         DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-        int x = CW_USEDEFAULT;
-        int y = CW_USEDEFAULT;
-        int winW = width;
-        int winH = height;
+        int x = CW_USEDEFAULT, y = CW_USEDEFAULT, winW = width, winH = height;
 
         if (fullscreen) {
-            // Get physical screen dimensions (thanks to SetProcessDPIAware)
             width = GetSystemMetrics(SM_CXSCREEN);
             height = GetSystemMetrics(SM_CYSCREEN);
-
-            // FIX: Use OVERLAPPEDWINDOW to keep title bar/buttons, but MAXIMIZE it.
-            // WS_POPUP removes the title bar (which the user missed).
             style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_MAXIMIZE;
-            x = 0;
-            y = 0;
-            winW = width;
-            winH = height;
+            x = 0; y = 0; winW = width; winH = height;
         }
         else {
-            // Adjust size to include borders for windowed mode
             RECT rect = { 0, 0, width, height };
             AdjustWindowRect(&rect, style, FALSE);
             winW = rect.right - rect.left;
             winH = rect.bottom - rect.top;
-
-            // Center the window
             x = (GetSystemMetrics(SM_CXSCREEN) - winW) / 2;
             y = (GetSystemMetrics(SM_CYSCREEN) - winH) / 2;
         }
 
-        // Create Window
-        hwnd = CreateWindowExW(
-            0, className, wtitle.c_str(),
-            style,
-            x, y,
-            winW, winH,
-            NULL, NULL, GetModuleHandleW(NULL), NULL
-        );
-
+        hwnd = CreateWindowExW(0, className, wtitle.c_str(), style, x, y, winW, winH, NULL, NULL, GetModuleHandleW(NULL), NULL);
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)this);
         hdc = GetDC(hwnd);
 
-        // If fullscreen requested, ensure we are actually maximized and grab new dimensions
         if (fullscreen) {
             ShowWindow(hwnd, SW_MAXIMIZE);
-
-            // Update width/height to actual client area (excluding title bar/borders)
-            RECT clientRect;
-            GetClientRect(hwnd, &clientRect);
+            RECT clientRect; GetClientRect(hwnd, &clientRect);
             width = clientRect.right - clientRect.left;
             height = clientRect.bottom - clientRect.top;
         }
 
-        // Init Buffer (uses width and height, updated if fullscreen)
         buffer = new uint32_t[width * height];
-
-        // Init Bitmap Info
         bitmapInfo = {};
         bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
         bitmapInfo.bmiHeader.biWidth = width;
@@ -443,29 +319,26 @@ namespace termgl {
         bitmapInfo.bmiHeader.biBitCount = 32;
         bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-        // Init Input
-        for (int i = 0; i < 256; i++) {
-            keys[i] = false;
-        }
-
-        // Init Timing
+        for (int i = 0; i < 256; i++) { keys[i] = false; prevKeys[i] = false; }
         lastFrameTime = std::chrono::steady_clock::now();
     }
 
-    Window::~Window() {
-        delete[] buffer;
-        ReleaseDC(hwnd, hdc);
-        DestroyWindow(hwnd);
-    }
+    Window::~Window() { delete[] buffer; ReleaseDC(hwnd, hdc); DestroyWindow(hwnd); }
 
     bool Window::processEvents() {
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<float> diff = now - lastFrameTime;
         currentDeltaTime = diff.count();
         lastFrameTime = now;
-
-        // Reset per-frame button press state
         mouseLeftPressed = false;
+        mouseScrollDelta = 0; // Reset scroll delta per frame after processing? 
+        // NOTE: Actually, we process messages below, so we should clear it *before* the loop, 
+        // but if messages accumulate, we want them. 
+        // Standard practice: Reset at start of frame, loop adds to it.
+        // Wait, PeekMessage loop is below.
+
+        // Update key states
+        for (int i = 0; i < 256; ++i) prevKeys[i] = keys[i];
 
         MSG msg = {};
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -476,28 +349,15 @@ namespace termgl {
         return running;
     }
 
-    void Window::setFramerateLimit(int fps) {
-        targetFPS = fps;
-    }
-
-    float Window::getDeltaTime() const {
-        return currentDeltaTime;
-    }
+    void Window::setFramerateLimit(int fps) { targetFPS = fps; }
+    float Window::getDeltaTime() const { return currentDeltaTime; }
 
     void Window::display() {
-        StretchDIBits(
-            hdc, 0, 0, width, height,
-            0, 0, width, height,
-            buffer, &bitmapInfo,
-            DIB_RGB_COLORS, SRCCOPY
-        );
-
-        // Cap Framerate
+        StretchDIBits(hdc, 0, 0, width, height, 0, 0, width, height, buffer, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
         if (targetFPS > 0) {
             float targetFrameTime = 1.0f / targetFPS;
             auto now = std::chrono::steady_clock::now();
             std::chrono::duration<float> frameDuration = now - lastFrameTime;
-
             if (frameDuration.count() < targetFrameTime) {
                 int ms = (int)((targetFrameTime - frameDuration.count()) * 1000);
                 if (ms > 1) Sleep(ms);
@@ -505,30 +365,114 @@ namespace termgl {
         }
     }
 
-    void Window::clear(Color color) {
-        uint32_t c = color.toInt();
-        for (int i = 0; i < width * height; i++) {
-            buffer[i] = c;
+    // ============================================================================
+    // PARTITION MANAGEMENT
+    // ============================================================================
+
+    int Window::addPartition(int x, int y, int w, int h, const std::string& title) {
+        int id = partitions.size();
+        partitions.emplace_back(id, x, y, w, h, title);
+        return id;
+    }
+
+    void Window::setActivePartition(int id) {
+        if (id >= -1 && id < (int)partitions.size()) {
+            activePartitionID = id;
+            if (id != -1) partitions[id].active = true;
         }
     }
 
+    void Window::drawPartitionFrames() {
+        // Temporarily reset active partition to draw globally
+        int prevID = activePartitionID;
+        activePartitionID = -1;
+
+        for (const auto& p : partitions) {
+            // Draw background
+            fillRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, p.backgroundColor);
+
+            // Draw border
+            Color borderC = (prevID == p.id) ? Color::White() : p.borderColor;
+            drawRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, borderC);
+
+            // Draw header bar
+            fillRect(p.rect.x, p.rect.y, p.rect.w, 20, (prevID == p.id) ? Color(60, 60, 180) : Color(40, 40, 40));
+            drawText(p.rect.x + 5, p.rect.y + 2, p.title, p.titleColor);
+        }
+
+        activePartitionID = prevID;
+    }
+
+    void Window::clearPartition(int id, Color color) {
+        if (id >= 0 && id < (int)partitions.size()) {
+            int prevID = activePartitionID;
+            activePartitionID = -1; // Draw globally to clear specific rect
+            const auto& p = partitions[id];
+            // Clear content area (excluding header)
+            fillRect(p.rect.x + 1, p.rect.y + 21, p.rect.w - 2, p.rect.h - 22, color);
+            activePartitionID = prevID;
+        }
+    }
+
+    void Window::transformCoordinates(int& x, int& y) const {
+        if (activePartitionID != -1) {
+            const auto& p = partitions[activePartitionID];
+            x += p.rect.x;
+            y += p.rect.y + 20; // Offset by header height
+        }
+    }
+
+    bool Window::clipCoordinates(int x, int y) const {
+        if (activePartitionID != -1) {
+            const auto& p = partitions[activePartitionID];
+            // Clip to content area (exclude header and borders)
+            int minX = p.rect.x + 1;
+            int maxX = p.rect.x + p.rect.w - 2;
+            int minY = p.rect.y + 21;
+            int maxY = p.rect.y + p.rect.h - 2;
+            return (x >= minX && x < maxX && y >= minY && y < maxY);
+        }
+        return (x >= 0 && x < width && y >= 0 && y < height);
+    }
+
+    int Window::getWidth() const {
+        if (activePartitionID != -1) return partitions[activePartitionID].rect.w;
+        return width;
+    }
+
+    int Window::getHeight() const {
+        if (activePartitionID != -1) return partitions[activePartitionID].rect.h - 20; // Minus header
+        return height;
+    }
+
     // ============================================================================
-    // DRAWING PRIMITIVES
+    // DRAWING PRIMITIVES (Context Aware)
     // ============================================================================
 
     void Window::drawPixel(int x, int y, Color color) {
-        if (x >= 0 && x < width && y >= 0 && y < height) {
+        transformCoordinates(x, y);
+        if (clipCoordinates(x, y)) {
             buffer[x + y * width] = color.toInt();
         }
     }
 
+    void Window::clear(Color color) {
+        if (activePartitionID == -1) {
+            uint32_t c = color.toInt();
+            for (int i = 0; i < width * height; i++) buffer[i] = c;
+        }
+        else {
+            clearPartition(activePartitionID, color);
+        }
+    }
+
     void Window::drawLine(int x0, int y0, int x1, int y1, Color color) {
+        // Bresenham's
         int dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
         int dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
         int err = dx + dy, e2;
-
         while (true) {
-            drawPixel(x0, y0, color);
+            drawPixel(x0, y0, color); // drawPixel handles transform & clip
             if (x0 == x1 && y0 == y1) break;
             e2 = 2 * err;
             if (e2 >= dy) { err += dy; x0 += sx; }
@@ -537,26 +481,33 @@ namespace termgl {
     }
 
     void Window::drawRect(int x, int y, int w, int h, Color color) {
-        // Horizontal lines
-        for (int i = x; i < x + w; i++) {
-            drawPixel(i, y, color);
-            drawPixel(i, y + h - 1, color);
-        }
-        // Vertical lines
-        for (int j = y; j < y + h; j++) {
-            drawPixel(x, j, color);
-            drawPixel(x + w - 1, j, color);
-        }
+        drawLine(x, y, x + w - 1, y, color);
+        drawLine(x, y + h - 1, x + w - 1, y + h - 1, color);
+        drawLine(x, y, x, y + h - 1, color);
+        drawLine(x + w - 1, y, x + w - 1, y + h - 1, color);
     }
 
     void Window::fillRect(int x, int y, int w, int h, Color color) {
-        int startX = std::max(0, x);
-        int startY = std::max(0, y);
-        int endX = std::min(width, x + w);
-        int endY = std::min(height, y + h);
+        // Optimized fill with clipping
+        int tx = x, ty = y;
+        transformCoordinates(tx, ty);
+
+        // Quick clip check for active partition
+        int minX = 0, maxX = width, minY = 0, maxY = height;
+        if (activePartitionID != -1) {
+            const auto& p = partitions[activePartitionID];
+            minX = p.rect.x + 1; maxX = p.rect.x + p.rect.w - 1;
+            minY = p.rect.y + 21; maxY = p.rect.y + p.rect.h - 1;
+        }
+
+        int startX = std::max(minX, tx);
+        int startY = std::max(minY, ty);
+        int endX = std::min(maxX, tx + w);
+        int endY = std::min(maxY, ty + h);
+
+        if (startX >= endX || startY >= endY) return;
 
         uint32_t c = color.toInt();
-
         for (int j = startY; j < endY; j++) {
             for (int i = startX; i < endX; i++) {
                 buffer[i + j * width] = c;
@@ -565,66 +516,40 @@ namespace termgl {
     }
 
     void Window::fillGradientRect(int x, int y, int w, int h, Color c1, Color c2, bool vertical) {
-        int startX = std::max(0, x);
-        int startY = std::max(0, y);
-        int endX = std::min(width, x + w);
-        int endY = std::min(height, y + h);
-
-        for (int j = startY; j < endY; ++j) {
-            for (int i = startX; i < endX; ++i) {
-                float ratio;
-                if (vertical)
-                    ratio = (float)(j - y) / h;
-                else
-                    ratio = (float)(i - x) / w;
-
-                if (ratio < 0.0f) ratio = 0.0f;
-                if (ratio > 1.0f) ratio = 1.0f;
-
+        // Simple pixel-by-pixel for gradients to reuse drawPixel's clipping
+        for (int j = 0; j < h; ++j) {
+            for (int i = 0; i < w; ++i) {
+                float ratio = vertical ? (float)j / h : (float)i / w;
+                if (ratio < 0) ratio = 0; if (ratio > 1) ratio = 1;
                 uint8_t r = (uint8_t)(c1.r + (c2.r - c1.r) * ratio);
                 uint8_t g = (uint8_t)(c1.g + (c2.g - c1.g) * ratio);
                 uint8_t b = (uint8_t)(c1.b + (c2.b - c1.b) * ratio);
                 uint8_t a = (uint8_t)(c1.a + (c2.a - c1.a) * ratio);
-
-                buffer[i + j * width] = Color(r, g, b, a).toInt();
+                drawPixel(x + i, y + j, Color(r, g, b, a));
             }
         }
     }
 
     void Window::drawCircle(int xc, int yc, int r, Color color) {
-        int x = 0, y = r;
-        int d = 3 - 2 * r;
-
+        int x = 0, y = r, d = 3 - 2 * r;
         auto plot8 = [&](int cx, int cy, int xx, int yy) {
-            drawPixel(cx + xx, cy + yy, color);
-            drawPixel(cx - xx, cy + yy, color);
-            drawPixel(cx + xx, cy - yy, color);
-            drawPixel(cx - xx, cy - yy, color);
-            drawPixel(cx + yy, cy + xx, color);
-            drawPixel(cx - yy, cy + xx, color);
-            drawPixel(cx + yy, cy - xx, color);
-            drawPixel(cx - yy, cy - xx, color);
+            drawPixel(cx + xx, cy + yy, color); drawPixel(cx - xx, cy + yy, color);
+            drawPixel(cx + xx, cy - yy, color); drawPixel(cx - xx, cy - yy, color);
+            drawPixel(cx + yy, cy + xx, color); drawPixel(cx - yy, cy + xx, color);
+            drawPixel(cx + yy, cy - xx, color); drawPixel(cx - yy, cy - xx, color);
             };
-
         while (y >= x) {
             plot8(xc, yc, x, y);
             x++;
-            if (d > 0) {
-                y--;
-                d = d + 4 * (x - y) + 10;
-            }
-            else {
-                d = d + 4 * x + 6;
-            }
+            if (d > 0) { y--; d = d + 4 * (x - y) + 10; }
+            else { d = d + 4 * x + 6; }
         }
     }
 
     void Window::fillCircle(int xc, int yc, int r, Color color) {
         for (int y = -r; y <= r; y++) {
             for (int x = -r; x <= r; x++) {
-                if (x * x + y * y <= r * r) {
-                    drawPixel(xc + x, yc + y, color);
-                }
+                if (x * x + y * y <= r * r) drawPixel(xc + x, yc + y, color);
             }
         }
     }
@@ -636,92 +561,152 @@ namespace termgl {
     }
 
     void Window::fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color) {
-        // Standard scanline triangle filling algorithm
         auto drawScanLine = [&](int y, int xLeft, int xRight) {
             if (xLeft > xRight) std::swap(xLeft, xRight);
-            for (int x = xLeft; x <= xRight; x++) {
-                drawPixel(x, y, color);
-            }
+            for (int x = xLeft; x <= xRight; x++) drawPixel(x, y, color);
             };
-
-        // Sort vertices by Y
         if (y1 > y2) { std::swap(x1, x2); std::swap(y1, y2); }
         if (y1 > y3) { std::swap(x1, x3); std::swap(y1, y3); }
         if (y2 > y3) { std::swap(x2, x3); std::swap(y2, y3); }
-
         int totalHeight = y3 - y1;
         if (totalHeight == 0) return;
-
         for (int i = 0; i < totalHeight; i++) {
             int y = y1 + i;
             bool secondHalf = i > y2 - y1 || y2 == y1;
             int segmentHeight = secondHalf ? y3 - y2 : y2 - y1;
             float alpha = (float)i / totalHeight;
             float beta = (float)(i - (secondHalf ? y2 - y1 : 0)) / segmentHeight;
-
             int A = (int)(x1 + (x3 - x1) * alpha);
             int B = secondHalf ? (int)(x2 + (x3 - x2) * beta) : (int)(x1 + (x2 - x1) * beta);
             drawScanLine(y, A, B);
         }
     }
 
-    // ============================================================================
-    // TEXT RENDERING (Enhanced 8x16 Font)
-    // ============================================================================
-
     void Window::drawText(int x, int y, const std::string& text, Color color) {
         int ox = x;
         for (char c : text) {
-            if (c == '\n') {
-                y += 20; // Increased line height for 16px font
-                x = ox;
-                continue;
-            }
-            // Basic ASCII range check, map unknown to '?' (63)
+            if (c == '\n') { y += 20; x = ox; continue; }
             unsigned char glyphIndex = (unsigned char)c;
             if (glyphIndex < 32 || glyphIndex > 127) glyphIndex = 63;
-
-            // Draw 8x16 Character
             for (int row = 0; row < 16; row++) {
                 unsigned char line = FONT8x16[glyphIndex][row];
                 for (int col = 0; col < 8; col++) {
-                    // Check if bit is set (MSB to LSB)
-                    if ((line >> (7 - col)) & 1) {
-                        drawPixel(x + col, y + row, color);
-                    }
+                    if ((line >> (7 - col)) & 1) drawPixel(x + col, y + row, color);
                 }
             }
-            x += 9; // Advance 8px char width + 1px spacing
+            x += 9;
         }
     }
 
+    bool Window::drawButton(int x, int y, int w, int h, const std::string& text) {
+        bool hovering = isMouseHovering(x, y, w, h);
+        bool clicked = isButtonClicked(x, y, w, h);
+
+        Color c1 = hovering ? Color(100, 100, 200) : Color(50, 50, 100);
+        Color c2 = hovering ? Color(60, 60, 160) : Color(30, 30, 60);
+
+        if (clicked) {
+            c1 = Color(200, 200, 255);
+            c2 = Color(150, 150, 255);
+        }
+
+        fillGradientRect(x, y, w, h, c1, c2, true);
+        drawRect(x, y, w, h, Color::White());
+
+        int textW = text.length() * 9;
+        drawText(x + (w - textW) / 2, y + (h - 16) / 2, text, Color::White());
+
+        return clicked;
+    }
+
     // ============================================================================
-    // SPRITE RENDERING
+    // LIST RENDERING (New)
     // ============================================================================
+    int Window::drawList(int x, int y, int w, int h, const std::vector<std::string>& items, int& scrollOffset, int itemHeight) {
+        int totalHeight = items.size() * itemHeight;
+
+        // Handle Scroll Inputs
+        if (isMouseHovering(x, y, w, h)) {
+            scrollOffset -= mouseScrollDelta; // Wheel scrolling
+        }
+
+        // Clamp Scroll
+        int maxScroll = std::max(0, totalHeight - h);
+        if (scrollOffset < 0) scrollOffset = 0;
+        if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+
+        // Draw List Background
+        fillGradientRect(x, y, w, h, Color(30, 30, 35), Color(20, 20, 25), true);
+        drawRect(x, y, w, h, Color(80, 80, 100));
+
+        // Draw Items with manual clipping
+        // We use a manual clip approach because 'drawText' relies on 'drawPixel' which respects partition clipping,
+        // but we need to clip text specifically to the LIST box, which might be smaller than the partition.
+        // For simplicity in this implementation, we will only draw items that overlap the viewport.
+        // True pixel-perfect text clipping would require a scissor rect stack in the renderer.
+        // As a workaround, we will clear the areas above and below the list after drawing to "clip" it visually 
+        // if it spills out (though drawText won't spill out of the partition).
+        // Best approach here: Only iterate visible items.
+
+        int startIndex = scrollOffset / itemHeight;
+        int endIndex = (scrollOffset + h) / itemHeight + 1;
+        if (endIndex > (int)items.size()) endIndex = items.size();
+
+        int clickedIndex = -1;
+
+        for (int i = startIndex; i < endIndex; ++i) {
+            int itemY = y + (i * itemHeight) - scrollOffset;
+
+            // Interaction
+            bool hovered = isMouseHovering(x, itemY, w - 15, itemHeight); // -15 for scrollbar area
+            if (hovered && itemY >= y && itemY + itemHeight <= y + h) { // Only clickable if fully visible
+                fillRect(x + 1, itemY, w - 17, itemHeight, Color(60, 60, 80));
+                if (isButtonClicked(x, itemY, w - 15, itemHeight)) clickedIndex = i;
+            }
+
+            // Draw Text (Simple clip check for Y)
+            if (itemY + 16 > y && itemY < y + h) {
+                // Determine text Y to keep it inside box
+                int drawY = itemY + (itemHeight - 16) / 2;
+                // If the text is partially cut off at top/bottom, drawText might look weird.
+                // We rely on the partition background redraw to cover mess if strictly needed,
+                // or just accept partial rendering for this lightweight lib.
+                drawText(x + 5, drawY, items[i], Color::White());
+            }
+        }
+
+        // Draw Scrollbar
+        int barTrackH = h - 2;
+        int barH = (totalHeight > 0) ? (h * barTrackH / std::max(h, totalHeight)) : barTrackH;
+        if (barH < 10) barH = 10;
+
+        float scrollRatio = (float)scrollOffset / maxScroll;
+        if (maxScroll == 0) scrollRatio = 0;
+        int barY = y + 1 + (int)(scrollRatio * (barTrackH - barH));
+
+        fillRect(x + w - 12, y, 12, h, Color(40, 40, 50)); // Track
+        fillRect(x + w - 10, barY, 8, barH, Color(100, 100, 120)); // Thumb
+
+        return clickedIndex;
+    }
 
     void Window::drawSprite(const Sprite& sprite) {
         if (!sprite.texture) return;
+        int destX = (int)sprite.x, destY = (int)sprite.y;
+        int destW = (int)(sprite.srcRect.w * sprite.scale);
+        int destH = (int)(sprite.srcRect.h * sprite.scale);
 
-        int destX = static_cast<int>(sprite.x);
-        int destY = static_cast<int>(sprite.y);
-        int destW = static_cast<int>(sprite.srcRect.w * sprite.scale);
-        int destH = static_cast<int>(sprite.srcRect.h * sprite.scale);
-
+        // Simple sprite drawing with drawPixel for clipping support
         for (int y = 0; y < destH; ++y) {
             for (int x = 0; x < destW; ++x) {
                 int srcX = sprite.srcRect.x + (x * sprite.srcRect.w / destW);
                 int srcY = sprite.srcRect.y + (y * sprite.srcRect.h / destH);
-
                 uint32_t pixel = sprite.texture->getPixel(srcX, srcY);
-
-                // Alpha check - skip transparent pixels
                 if ((pixel & 0xFF000000) != 0) {
-                    int drawX = destX + x;
-                    int drawY = destY + y;
-
-                    if (drawX >= 0 && drawX < width && drawY >= 0 && drawY < height) {
-                        buffer[drawX + drawY * width] = pixel;
-                    }
+                    uint8_t r = (pixel >> 16) & 0xFF;
+                    uint8_t g = (pixel >> 8) & 0xFF;
+                    uint8_t b = pixel & 0xFF;
+                    drawPixel(destX + x, destY + y, Color(r, g, b));
                 }
             }
         }
@@ -730,29 +715,29 @@ namespace termgl {
     // ============================================================================
     // INPUT IMPLEMENTATION
     // ============================================================================
+    bool Window::isKeyDown(char key) const { return keys[static_cast<unsigned char>(key)]; }
+    bool Window::isKeyPressed(char key) const { return keys[static_cast<unsigned char>(key)] && !prevKeys[static_cast<unsigned char>(key)]; }
+    bool Window::isMouseLeftDown() const { return mouseLeft; }
+    bool Window::isMouseRightDown() const { return mouseRight; }
 
     Vec2 Window::getMousePos() const {
-        return Vec2(mouseX, mouseY);
+        int x = mouseX, y = mouseY;
+        if (activePartitionID != -1) {
+            const auto& p = partitions[activePartitionID];
+            x -= p.rect.x;
+            y -= (p.rect.y + 20);
+        }
+        return Vec2(x, y);
     }
 
-    bool Window::isMouseLeftDown() const {
-        return mouseLeft;
-    }
-
-    bool Window::isMouseRightDown() const {
-        return mouseRight;
-    }
-
-    bool Window::isKeyDown(char key) const {
-        return keys[static_cast<unsigned char>(key)];
-    }
+    int Window::getMouseScrollDelta() const { return mouseScrollDelta; }
 
     bool Window::isMouseHovering(int x, int y, int w, int h) const {
-        return (mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h);
+        Vec2 mp = getMousePos();
+        return (mp.x >= x && mp.x < x + w && mp.y >= y && mp.y < y + h);
     }
 
     bool Window::isButtonClicked(int x, int y, int w, int h) const {
-        // Return true only if mouse is hovering AND was just pressed this frame
         return isMouseHovering(x, y, w, h) && mouseLeftPressed;
     }
 
