@@ -3,6 +3,11 @@
 #define NOMINMAX
 #endif
 
+// Ensure WM_MOUSEHWHEEL is defined for older SDKs
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+
 #include "Termgl.h"
 #include <cmath>
 #include <algorithm>
@@ -262,13 +267,17 @@ namespace termgl {
         case WM_MOUSEWHEEL:
             win->mouseScrollDelta += GET_WHEEL_DELTA_WPARAM(wParam);
             return 0;
+        case WM_MOUSEHWHEEL: // Horizontal Scroll Support
+            win->mouseHScrollDelta += GET_WHEEL_DELTA_WPARAM(wParam);
+            return 0;
         }
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
 
     Window::Window(int w, int h, const std::string& title, bool fullscreen)
         : width(w), height(h), running(true), targetFPS(0), currentDeltaTime(0.0f),
-        mouseX(0), mouseY(0), mouseLeft(false), mouseRight(false), mouseLeftPressed(false), mouseScrollDelta(0), activePartitionID(-1)
+        mouseX(0), mouseY(0), mouseLeft(false), mouseRight(false), mouseLeftPressed(false),
+        mouseScrollDelta(0), mouseHScrollDelta(0), activePartitionID(-1)
     {
         SetProcessDPIAware();
         const wchar_t* className = L"TermGLClass";
@@ -330,12 +339,12 @@ namespace termgl {
         std::chrono::duration<float> diff = now - lastFrameTime;
         currentDeltaTime = diff.count();
         lastFrameTime = now;
+
         mouseLeftPressed = false;
-        mouseScrollDelta = 0; // Reset scroll delta per frame after processing? 
-        // NOTE: Actually, we process messages below, so we should clear it *before* the loop, 
-        // but if messages accumulate, we want them. 
-        // Standard practice: Reset at start of frame, loop adds to it.
-        // Wait, PeekMessage loop is below.
+
+        // Reset deltas for the new frame
+        mouseScrollDelta = 0;
+        mouseHScrollDelta = 0;
 
         // Update key states
         for (int i = 0; i < 256; ++i) prevKeys[i] = keys[i];
@@ -748,8 +757,14 @@ namespace termgl {
     // ============================================================================
     // INPUT IMPLEMENTATION
     // ============================================================================
-    bool Window::isKeyDown(char key) const { return keys[static_cast<unsigned char>(key)]; }
-    bool Window::isKeyPressed(char key) const { return keys[static_cast<unsigned char>(key)] && !prevKeys[static_cast<unsigned char>(key)]; }
+    bool Window::isKeyDown(int key) const { return keys[key & 0xFF]; }
+    bool Window::isKeyPressed(int key) const { return keys[key & 0xFF] && !prevKeys[key & 0xFF]; }
+
+    // Modifier Key Helpers
+    bool Window::isControlDown() const { return keys[VK_CONTROL] || keys[VK_LCONTROL] || keys[VK_RCONTROL]; }
+    bool Window::isShiftDown() const { return keys[VK_SHIFT] || keys[VK_LSHIFT] || keys[VK_RSHIFT]; }
+    bool Window::isAltDown() const { return keys[VK_MENU] || keys[VK_LMENU] || keys[VK_RMENU]; }
+
     bool Window::isMouseLeftDown() const { return mouseLeft; }
     bool Window::isMouseRightDown() const { return mouseRight; }
 
@@ -764,6 +779,7 @@ namespace termgl {
     }
 
     int Window::getMouseScrollDelta() const { return mouseScrollDelta; }
+    int Window::getMouseHScrollDelta() const { return mouseHScrollDelta; }
 
     bool Window::isMouseHovering(int x, int y, int w, int h) const {
         Vec2 mp = getMousePos();

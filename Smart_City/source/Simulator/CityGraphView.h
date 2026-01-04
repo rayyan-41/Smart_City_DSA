@@ -131,10 +131,18 @@ public:
 
     void zoomIn() { zoom *= 1.1; if (zoom > 10.0) zoom = 10.0; }
     void zoomOut() { zoom /= 1.1; if (zoom < 0.1) zoom = 0.1; }
-    void panLeft() { offsetX -= 0.05 / zoom; }
-    void panRight() { offsetX += 0.05 / zoom; }
-    void panUp() { offsetY -= 0.05 / zoom; }
-    void panDown() { offsetY += 0.05 / zoom; }
+
+    // New Drag Panning logic replacing manual pan methods
+    void drag(double dx, double dy) {
+        // Calculate offset in normalized space
+        // The drawing area width is roughly canvasWidth * 0.9 (due to 0.05 padding on each side)
+        double effectiveW = canvasWidth * 0.9;
+        double effectiveH = canvasHeight * 0.9;
+
+        if (effectiveW > 0) offsetX += dx / effectiveW;
+        if (effectiveH > 0) offsetY += dy / effectiveH;
+    }
+
     void resetView() { zoom = 1.0; offsetX = 0; offsetY = 0; }
 
     double getZoom() const { return zoom; }
@@ -167,6 +175,7 @@ private:
     int hoveredNodeID;
     string hoveredSector;
 
+    // View toggles
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
@@ -174,13 +183,15 @@ private:
     bool showTraffic;
     bool trafficPaused;
 
+    // Dijkstra State
     DijkstraMode dijkstraMode;
+    bool inDijkstraMode; // Main flag for the mode
     int dijkstraStartNode;
     int dijkstraEndNode;
     string dijkstraTargetType;
     Vector<int> dijkstraPath;
     double dijkstraDistance;
-    int dijkstraNodeSelection;
+    int dijkstraNodeSelection; // Used for list scrolling
     int dijkstraEndNodeSelection;
     Vector<int> selectableNodes;
 
@@ -209,8 +220,8 @@ public:
         mouseX(0), mouseY(0), hoveredNodeID(-1), hoveredSector(""),
         showCorners(true), showRoads(true), showSectorBounds(false),
         showHouses(false), showTraffic(false), trafficPaused(false),
-        dijkstraMode(DijkstraMode::SELECT_START), dijkstraStartNode(-1),
-        dijkstraEndNode(-1), dijkstraDistance(0.0),
+        dijkstraMode(DijkstraMode::SELECT_START), inDijkstraMode(false),
+        dijkstraStartNode(-1), dijkstraEndNode(-1), dijkstraDistance(0.0),
         dijkstraNodeSelection(0), dijkstraEndNodeSelection(0),
         intersectionCounter(0) {
     }
@@ -617,13 +628,18 @@ public:
         int sidePartition = window.addPartition((int)(width * 0.75), 0, (int)(width * 0.25), height, "Control Panel");
 
         bool running = true;
-        bool inDijkstraMode = false;
+        inDijkstraMode = false;
 
         std::vector<string> targetTypes = {
             "Nearest School", "Nearest Hospital", "Nearest Pharmacy", "Nearest Bus Stop", "Custom Location"
         };
         int targetSel = 0;
         int scrollOffset = 0;
+
+        // Mouse Drag state
+        bool isDragging = false;
+        int lastMouseX = 0, lastMouseY = 0;
+        int dragStartX = 0, dragStartY = 0;
 
         viewport.setCanvasSize(window.getWidth() * 0.75, window.getHeight());
 
@@ -643,37 +659,163 @@ public:
                 }
             }
 
-            if (window.isKeyPressed('D') && !inDijkstraMode) {
-                inDijkstraMode = true;
-                dijkstraMode = DijkstraMode::SELECT_START;
-                dijkstraNodeSelection = 0;
-                scrollOffset = 0;
-                clearDijkstraVisualization();
+            // ========================================================================
+            // INPUT HANDLING
+            // ========================================================================
+
+            // 1. Mouse Drag Panning (Click & Drag)
+            window.setActivePartition(mapPartition);
+            termgl::Vec2 mousePos = window.getMousePos();
+
+            bool clickDetected = false;
+
+            if (window.isMouseLeftDown()) {
+                if (!isDragging) {
+                    isDragging = true;
+                    lastMouseX = mousePos.x;
+                    lastMouseY = mousePos.y;
+                    dragStartX = mousePos.x;
+                    dragStartY = mousePos.y;
+                }
+                else {
+                    int dx = mousePos.x - lastMouseX;
+                    int dy = mousePos.y - lastMouseY;
+                    viewport.drag(dx, dy);
+                    lastMouseX = mousePos.x;
+                    lastMouseY = mousePos.y;
+                }
+            }
+            else {
+                if (isDragging) {
+                    isDragging = false;
+                    // Check if it was a click (little movement)
+                    if (std::abs(mousePos.x - dragStartX) < 5 && std::abs(mousePos.y - dragStartY) < 5) {
+                        clickDetected = true;
+                    }
+                }
             }
 
-            if (window.isKeyDown(VK_UP) && (!inDijkstraMode || dijkstraMode == DijkstraMode::COMPLETE)) viewport.panUp();
-            if (window.isKeyDown(VK_DOWN) && (!inDijkstraMode || dijkstraMode == DijkstraMode::COMPLETE)) viewport.panDown();
-            if (window.isKeyDown(VK_LEFT)) viewport.panLeft();
-            if (window.isKeyDown(VK_RIGHT)) viewport.panRight();
-            if (window.isKeyDown('W')) viewport.panUp();
-            if (window.isKeyDown('S')) viewport.panDown();
-            if (window.isKeyDown('A')) viewport.panLeft();
-            if (window.isKeyDown('D') && window.isKeyDown(VK_CONTROL)) viewport.panRight();
-            if (window.isKeyPressed(VK_ADD) || window.isKeyPressed('=')) viewport.zoomIn();
-            if (window.isKeyPressed(VK_SUBTRACT) || window.isKeyPressed('-')) viewport.zoomOut();
+            // 2. Zooming (Ctrl + Scroll or Ctrl + +/-)
+            if (window.isControlDown()) {
+                int scroll = window.getMouseScrollDelta();
+                if (scroll > 0) viewport.zoomIn();
+                if (scroll < 0) viewport.zoomOut();
 
-            if (window.isKeyPressed('R') && !inDijkstraMode) showRoads = !showRoads;
-            if (window.isKeyPressed('C')) showCorners = !showCorners;
-            if (window.isKeyPressed('S')) showSectorBounds = !showSectorBounds;
-            if (window.isKeyPressed('H')) showHouses = !showHouses;
-            if (window.isKeyPressed('T')) showTraffic = !showTraffic;
-            if (window.isKeyPressed('P')) trafficPaused = !trafficPaused;
+                if (window.isKeyPressed(VK_ADD) || window.isKeyPressed('=')) viewport.zoomIn();
+                if (window.isKeyPressed(VK_SUBTRACT) || window.isKeyPressed('-')) viewport.zoomOut();
+            }
 
-            if (inDijkstraMode) {
+            // 3. Node Clicking Logic (Dijkstra)
+            updateHoverState(mousePos.x, mousePos.y);
+
+            if (clickDetected && hoveredNodeID != -1) {
+                if (inDijkstraMode) {
+                    if (dijkstraMode == DijkstraMode::SELECT_START) {
+                        dijkstraStartNode = hoveredNodeID;
+                        int idx = nodeIdToIndex[dijkstraStartNode];
+                        if (idx >= 0) graphNodes[idx].isStart = true;
+                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+                        // Auto-select Custom Location logic if clicked again? 
+                        // For now just set start.
+                    }
+                    else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE || dijkstraMode == DijkstraMode::RUNNING) {
+                        dijkstraEndNode = hoveredNodeID;
+                        dijkstraTargetType = "CUSTOM";
+                        runDijkstraPointToPoint();
+                        dijkstraMode = DijkstraMode::COMPLETE;
+                    }
+                }
+            }
+
+            // ========================================================================
+            // RENDERING
+            // ========================================================================
+
+            if (showTraffic && !trafficPaused) updateTraffic();
+
+            window.setActivePartition(-1);
+            window.clear(termgl::Color(0, 0, 0));
+            window.drawPartitionFrames();
+
+            window.setActivePartition(mapPartition);
+            window.clear(termgl::Color(0, 0, 0));
+            renderGraph(window);
+
+            // ========================================================================
+            // SIDE PANEL / CONTROLS
+            // ========================================================================
+            window.setActivePartition(sidePartition);
+            window.clear(termgl::Color(0, 0, 0));
+
+            int cy = 10;
+            int panelW = window.getWidth(); // Partition width
+
+            // --- Toggle Buttons ---
+            window.drawText(10, cy, "VISUALIZATION CONTROLS", termgl::Color::Cyan()); cy += 30;
+
+            auto drawToggleBtn = [&](string label, bool& state, int bx, int by) {
+                string text = (state ? "[ON] " : "[OFF] ") + label;
+                if (window.drawButton(bx, by, (panelW - 30) / 2, 30, text)) {
+                    state = !state;
+                }
+                };
+
+            int col1 = 10;
+            int col2 = 10 + (panelW - 30) / 2 + 10;
+
+            drawToggleBtn("Roads", showRoads, col1, cy);
+            drawToggleBtn("Corners", showCorners, col2, cy); cy += 40;
+
+            drawToggleBtn("Sectors", showSectorBounds, col1, cy);
+            drawToggleBtn("Houses", showHouses, col2, cy); cy += 40;
+
+            drawToggleBtn("Traffic", showTraffic, col1, cy);
+            drawToggleBtn("Pause Tr.", trafficPaused, col2, cy); cy += 50;
+
+            // --- Dijkstra Controls ---
+            window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
+
+            if (!inDijkstraMode) {
+                if (window.drawButton(10, cy, panelW - 20, 35, "Start Navigation Mode")) {
+                    inDijkstraMode = true;
+                    dijkstraMode = DijkstraMode::SELECT_START;
+                    dijkstraNodeSelection = 0;
+                    scrollOffset = 0;
+                    clearDijkstraVisualization();
+                }
+            }
+            else {
+                if (window.drawButton(10, cy, panelW - 20, 35, "Exit Navigation Mode")) {
+                    inDijkstraMode = false;
+                    dijkstraMode = DijkstraMode::SELECT_START;
+                    clearDijkstraVisualization();
+                }
+                cy += 45;
+
+                // Dijkstra State UI
                 if (dijkstraMode == DijkstraMode::SELECT_START) {
-                    if (window.isKeyPressed(VK_UP) && dijkstraNodeSelection > 0) { dijkstraNodeSelection--; scrollOffset = dijkstraNodeSelection * 20; }
-                    if (window.isKeyPressed(VK_DOWN) && dijkstraNodeSelection < selectableNodes.getSize() - 1) { dijkstraNodeSelection++; scrollOffset = dijkstraNodeSelection * 20; }
-                    if (window.isKeyPressed(VK_RETURN) && !selectableNodes.empty()) {
+                    window.drawText(10, cy, "STEP 1: Select Start", termgl::Color::Yellow()); cy += 20;
+                    window.drawText(10, cy, "Click a node on map OR select:", termgl::Color::Grey()); cy += 25;
+
+                    std::vector<string> items;
+                    for (int i = 0; i < selectableNodes.getSize(); i++) {
+                        int idx = nodeIdToIndex[selectableNodes[i]];
+                        items.push_back(graphNodes[idx].name);
+                    }
+                    int listH = 150;
+                    int dummyScroll = dijkstraNodeSelection * 20 - (listH / 2);
+                    int clicked = window.drawList(10, cy, panelW - 20, listH, items, dummyScroll);
+                    if (clicked != -1) {
+                        dijkstraNodeSelection = clicked;
+                        dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
+                        int idx = nodeIdToIndex[dijkstraStartNode];
+                        if (idx >= 0) graphNodes[idx].isStart = true;
+                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+                    }
+                    // Sync list with scroll
+                    if (window.isKeyPressed(VK_UP) && dijkstraNodeSelection > 0) dijkstraNodeSelection--;
+                    if (window.isKeyPressed(VK_DOWN) && dijkstraNodeSelection < selectableNodes.getSize() - 1) dijkstraNodeSelection++;
+                    if (window.isKeyPressed(VK_RETURN)) {
                         dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
                         int idx = nodeIdToIndex[dijkstraStartNode];
                         if (idx >= 0) graphNodes[idx].isStart = true;
@@ -681,6 +823,15 @@ public:
                     }
                 }
                 else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
+                    window.drawText(10, cy, "STEP 2: Select Destination", termgl::Color::Yellow()); cy += 20;
+                    window.drawText(10, cy, "Click node for Custom OR select:", termgl::Color::Grey()); cy += 25;
+
+                    for (size_t i = 0; i < targetTypes.size(); i++) {
+                        termgl::Color c = (i == targetSel) ? termgl::Color::Green() : termgl::Color::White();
+                        string prefix = (i == targetSel) ? "> " : "  ";
+                        window.drawText(10, cy, prefix + targetTypes[i], c);
+                        cy += 25;
+                    }
                     if (window.isKeyPressed(VK_UP) && targetSel > 0) targetSel--;
                     if (window.isKeyPressed(VK_DOWN) && targetSel < targetTypes.size() - 1) targetSel++;
                     if (window.isKeyPressed(VK_RETURN)) {
@@ -688,7 +839,6 @@ public:
                             dijkstraTargetType = "CUSTOM";
                             dijkstraMode = DijkstraMode::RUNNING;
                             dijkstraEndNodeSelection = 0;
-                            scrollOffset = 0;
                         }
                         else {
                             if (targetSel == 0) dijkstraTargetType = "SCHOOL";
@@ -700,136 +850,29 @@ public:
                         }
                     }
                 }
-                else if (dijkstraMode == DijkstraMode::RUNNING) {
-                    if (window.isKeyPressed(VK_UP) && dijkstraEndNodeSelection > 0) { dijkstraEndNodeSelection--; scrollOffset = dijkstraEndNodeSelection * 20; }
-                    if (window.isKeyPressed(VK_DOWN) && dijkstraEndNodeSelection < selectableNodes.getSize() - 1) { dijkstraEndNodeSelection++; scrollOffset = dijkstraEndNodeSelection * 20; }
-                    if (window.isKeyPressed(VK_RETURN) && !selectableNodes.empty()) {
-                        dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
-                        runDijkstraPointToPoint();
-                        dijkstraMode = DijkstraMode::COMPLETE;
-                    }
-                }
-                else if (dijkstraMode == DijkstraMode::COMPLETE) {
-                    if (window.isKeyPressed('R')) {
-                        clearDijkstraVisualization();
-                        dijkstraMode = DijkstraMode::SELECT_START;
-                        dijkstraNodeSelection = 0;
-                        targetSel = 0;
-                    }
-                }
-            }
-
-            if (showTraffic && !trafficPaused) updateTraffic();
-
-            window.setActivePartition(-1);
-            window.clear(termgl::Color(0, 0, 0));  // Pure black background
-            window.drawPartitionFrames();
-
-            window.setActivePartition(mapPartition);
-            window.clear(termgl::Color(0, 0, 0));  // Pure black for map
-            renderGraph(window);
-
-            window.setActivePartition(mapPartition);
-            termgl::Vec2 mousePos = window.getMousePos();
-            updateHoverState(mousePos.x, mousePos.y);
-
-            window.setActivePartition(sidePartition);
-            window.clear(termgl::Color(0, 0, 0));  // Pure black for side panel
-
-            int cy = 10;
-
-            if (!inDijkstraMode) {
-                window.drawText(10, cy, "INFO PANEL", termgl::Color::Cyan()); cy += 30;
-                window.drawRect(5, cy, window.getWidth() - 10, 120, termgl::Color(40, 40, 40));  // Darker grey border
-                window.drawText(10, cy + 10, "SELECTION:", termgl::Color::Yellow());
-                string info = getHoverInfo();
-                window.drawText(10, cy + 30, info, termgl::Color::White());
-                cy += 140;
-
-                window.drawText(10, cy, "LEGEND:", termgl::Color::Cyan()); cy += 25;
-                auto drawLegendItem = [&](termgl::Color c, string label) {
-                    window.fillCircle(20, cy + 5, 4, c);
-                    window.drawText(40, cy, label, termgl::Color::White());
-                    cy += 20;
-                    };
-                drawLegendItem(termgl::Color::Green(), "Stop");
-                drawLegendItem(termgl::Color::Blue(), "School");
-                drawLegendItem(termgl::Color::Red(), "Hospital");
-                drawLegendItem(termgl::Color(255, 0, 255), "Pharmacy");
-                drawLegendItem(termgl::Color::Yellow(), "Mall");
-                cy += 10;
-
-                window.drawText(10, cy, "CONTROLS:", termgl::Color::Cyan()); cy += 25;
-                window.drawText(10, cy, "Arrows/WASD: Pan", termgl::Color::Grey()); cy += 20;
-                window.drawText(10, cy, "+/-: Zoom", termgl::Color::Grey()); cy += 20;
-                window.drawText(10, cy, "R: Toggle Roads", termgl::Color::Grey()); cy += 20;
-                window.drawText(10, cy, "T: Toggle Traffic", termgl::Color::Grey()); cy += 20;
-                window.drawText(10, cy, "D: Dijkstra Mode", termgl::Color::Green()); cy += 20;
-                window.drawText(10, cy, "Esc: Menu", termgl::Color::Grey());
-            }
-            else {
-                window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
-
-                if (dijkstraMode == DijkstraMode::SELECT_START) {
-                    window.drawText(10, cy, "SELECT START:", termgl::Color::Yellow()); cy += 30;
-                    std::vector<string> items;
-                    for (int i = 0; i < selectableNodes.getSize(); i++) {
-                        int idx = nodeIdToIndex[selectableNodes[i]];
-                        items.push_back(graphNodes[idx].name);
-                    }
-                    int listH = window.getHeight() - cy - 50;
-                    int dummyScroll = dijkstraNodeSelection * 20 - (listH / 2);
-                    int clicked = window.drawList(10, cy, window.getWidth() - 20, listH, items, dummyScroll);
-                    window.drawRect(12, cy + (dijkstraNodeSelection * 20) - dummyScroll, window.getWidth() - 24, 20, termgl::Color::Green());
-                    if (clicked != -1) {
-                        dijkstraNodeSelection = clicked;
-                        dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
-                        int idx = nodeIdToIndex[dijkstraStartNode];
-                        if (idx >= 0) graphNodes[idx].isStart = true;
-                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
-                    }
-                }
-                else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
-                    window.drawText(10, cy, "DESTINATION:", termgl::Color::Yellow()); cy += 30;
-                    for (size_t i = 0; i < targetTypes.size(); i++) {
-                        termgl::Color c = (i == targetSel) ? termgl::Color::Green() : termgl::Color::White();
-                        string prefix = (i == targetSel) ? "> " : "  ";
-                        window.drawText(10, cy, prefix + targetTypes[i], c);
-                        cy += 25;
-                    }
-                }
-                else if (dijkstraMode == DijkstraMode::RUNNING) {
-                    window.drawText(10, cy, "SELECT END:", termgl::Color::Yellow()); cy += 30;
-                    std::vector<string> items;
-                    for (int i = 0; i < selectableNodes.getSize(); i++) {
-                        int idx = nodeIdToIndex[selectableNodes[i]];
-                        items.push_back(graphNodes[idx].name);
-                    }
-                    int listH = window.getHeight() - cy - 50;
-                    int dummyScroll = dijkstraEndNodeSelection * 20 - (listH / 2);
-                    int clicked = window.drawList(10, cy, window.getWidth() - 20, listH, items, dummyScroll);
-                    window.drawRect(12, cy + (dijkstraEndNodeSelection * 20) - dummyScroll, window.getWidth() - 24, 20, termgl::Color::Green());
-                    if (clicked != -1) {
-                        dijkstraEndNodeSelection = clicked;
-                        dijkstraEndNode = selectableNodes[dijkstraEndNodeSelection];
-                        runDijkstraPointToPoint();
-                        dijkstraMode = DijkstraMode::COMPLETE;
-                    }
-                }
                 else if (dijkstraMode == DijkstraMode::COMPLETE) {
                     if (dijkstraPath.getSize() > 0) {
-                        window.drawText(10, cy, "RESULT: SUCCESS", termgl::Color::Green()); cy += 30;
-                        window.drawText(10, cy, "Dist: " + std::to_string(dijkstraDistance).substr(0, 5) + " km", termgl::Color::White()); cy += 30;
-                        window.drawText(10, cy, "Stops: " + std::to_string(dijkstraPath.getSize()), termgl::Color::White()); cy += 30;
+                        window.drawText(10, cy, "ROUTE CALCULATED", termgl::Color::Green()); cy += 30;
+                        window.drawText(10, cy, "Distance: " + std::to_string(dijkstraDistance).substr(0, 5) + " km", termgl::Color::White()); cy += 25;
+                        window.drawText(10, cy, "Stops: " + std::to_string(dijkstraPath.getSize()), termgl::Color::White()); cy += 35;
                     }
                     else {
-                        window.drawText(10, cy, "RESULT: FAILED", termgl::Color::Red()); cy += 30;
-                        window.drawText(10, cy, "No path found.", termgl::Color::Grey()); cy += 30;
+                        window.drawText(10, cy, "NO PATH FOUND", termgl::Color::Red()); cy += 35;
                     }
-                    window.drawText(10, cy, "[R] New Search", termgl::Color::Yellow()); cy += 20;
-                    window.drawText(10, cy, "[Esc] Exit Mode", termgl::Color::Grey());
+                    if (window.drawButton(10, cy, panelW - 20, 30, "Reset Path")) {
+                        clearDijkstraVisualization();
+                        dijkstraMode = DijkstraMode::SELECT_START;
+                    }
                 }
             }
+
+            // Info Panel at bottom
+            cy = window.getHeight() - 150;
+            window.drawRect(5, cy, panelW - 10, 140, termgl::Color(40, 40, 40));
+            window.drawText(12, cy + 10, "SELECTION INFO:", termgl::Color::Yellow());
+            string info = getHoverInfo();
+            window.drawText(12, cy + 30, info, termgl::Color::White());
+
             window.display();
         }
     }

@@ -122,12 +122,22 @@ namespace termgl {
         void drawSprite(const Sprite& sprite);
 
         // Input
-        bool isKeyDown(char key) const;
-        bool isKeyPressed(char key) const; // Single press check
+        // Updated: Using 'int' key allows passing VK_ codes (e.g., VK_SHIFT, VK_CONTROL)
+        bool isKeyDown(int key) const;
+        bool isKeyPressed(int key) const; // Single press check
+
+        // Input Helpers for Key Combinations / Modifiers
+        bool isControlDown() const;
+        bool isShiftDown() const;
+        bool isAltDown() const;
+
         bool isMouseLeftDown() const;
         bool isMouseRightDown() const;
         Vec2 getMousePos() const; // Relative to active partition!
-        int getMouseScrollDelta() const; // New: Mouse Wheel support
+
+        // Scrolling Support
+        int getMouseScrollDelta() const;  // Vertical Scroll (Wheel)
+        int getMouseHScrollDelta() const; // Horizontal Scroll (Tilt/Pad)
 
         // UI Helpers
         bool isMouseHovering(int x, int y, int w, int h) const;
@@ -167,7 +177,11 @@ namespace termgl {
         int mouseX, mouseY;
         bool mouseLeft, mouseRight;
         bool mouseLeftPressed;
-        int mouseScrollDelta; // New: Accumulator for wheel
+
+        // Scroll Deltas
+        int mouseScrollDelta;  // Vertical
+        int mouseHScrollDelta; // Horizontal
+
         bool keys[256];
         bool prevKeys[256];
 
