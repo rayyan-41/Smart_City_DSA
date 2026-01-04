@@ -72,7 +72,7 @@ namespace termgl {
 
         Partition(int _id, int _x, int _y, int _w, int _h, const std::string& _title)
             : id(_id), rect(_x, _y, _w, _h), title(_title), active(false),
-            borderColor(100, 100, 100), titleColor(255, 255, 255), backgroundColor(20, 20, 25) {
+            borderColor(60, 60, 60), titleColor(255, 255, 255), backgroundColor(0, 0, 0) {
         }
     };
 
@@ -110,6 +110,7 @@ namespace termgl {
         void drawTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
         void fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
         void drawText(int x, int y, const std::string& text, Color color);
+        void drawBuffer(int x, int y, int w, int h, const uint32_t* data);
 
         // UI Components
         bool drawButton(int x, int y, int w, int h, const std::string& text);

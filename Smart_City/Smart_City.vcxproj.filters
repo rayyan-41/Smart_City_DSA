@@ -46,6 +46,9 @@
     <Filter Include="Header Files\Modules\Graphics">
       <UniqueIdentifier>{e2c47095-fe2c-4597-b3d6-25147f530d98}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Modules\Simulation">
+      <UniqueIdentifier>{002dc65f-bf60-484c-b369-9f40847646d7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils\Coordinate.h">
@@ -162,12 +165,6 @@
     <ClInclude Include="source\TransportSystem\Bus.h">
       <Filter>Header Files\Modules\TransportSystem</Filter>
     </ClInclude>
-    <ClInclude Include="source\Simulator\CitySimulator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Simulator\CityManagement.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\CityGrid\CityGraph.h">
       <Filter>Header Files\City Map</Filter>
     </ClInclude>
@@ -186,20 +183,32 @@
     <ClInclude Include="termgl\stb_image.h">
       <Filter>Header Files\Modules\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="source\Simulator\CityGraphView.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\Simulator\CityDatabaseView.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Modules\Simulation</Filter>
     </ClInclude>
     <ClInclude Include="source\Simulator\CityEditorViews.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Modules\Simulation</Filter>
     </ClInclude>
-    <ClInclude Include="source\Simulator\CitySearchEngineView.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="source\Simulator\CityManagement.h">
+      <Filter>Header Files\Modules\Simulation</Filter>
     </ClInclude>
     <ClInclude Include="source\Simulator\CityManagementView.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Modules\Simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CitySearchEngineView.h">
+      <Filter>Header Files\Modules\Simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CitySimulator.h">
+      <Filter>Header Files\Modules\Simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Simulator\CityGraphView.h">
+      <Filter>Header Files\Modules\Simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="termgl\Termgl_Video.h">
+      <Filter>Header Files\Modules\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="termgl\miniaudio.h">
+      <Filter>Header Files\Modules\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -235,6 +244,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="termgl\Termgl_Implementation.cpp">
+      <Filter>Header Files\Modules\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="termgl\Termgl_Video.cpp">
       <Filter>Header Files\Modules\Graphics</Filter>
     </ClCompile>
   </ItemGroup>

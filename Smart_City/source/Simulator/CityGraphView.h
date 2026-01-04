@@ -722,11 +722,11 @@ public:
             if (showTraffic && !trafficPaused) updateTraffic();
 
             window.setActivePartition(-1);
-            window.clear(termgl::Color(10, 10, 15));
+            window.clear(termgl::Color(0, 0, 0));  // Pure black background
             window.drawPartitionFrames();
 
             window.setActivePartition(mapPartition);
-            window.clear(termgl::Color(20, 20, 30));
+            window.clear(termgl::Color(0, 0, 0));  // Pure black for map
             renderGraph(window);
 
             window.setActivePartition(mapPartition);
@@ -734,13 +734,13 @@ public:
             updateHoverState(mousePos.x, mousePos.y);
 
             window.setActivePartition(sidePartition);
-            window.clear(termgl::Color(30, 30, 40));
+            window.clear(termgl::Color(0, 0, 0));  // Pure black for side panel
 
             int cy = 10;
 
             if (!inDijkstraMode) {
                 window.drawText(10, cy, "INFO PANEL", termgl::Color::Cyan()); cy += 30;
-                window.drawRect(5, cy, window.getWidth() - 10, 120, termgl::Color(60, 60, 70));
+                window.drawRect(5, cy, window.getWidth() - 10, 120, termgl::Color(40, 40, 40));  // Darker grey border
                 window.drawText(10, cy + 10, "SELECTION:", termgl::Color::Yellow());
                 string info = getHoverInfo();
                 window.drawText(10, cy + 30, info, termgl::Color::White());

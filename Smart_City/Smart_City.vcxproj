@@ -132,6 +132,7 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="termgl\Termgl_Implementation.cpp" />
+    <ClCompile Include="termgl\Termgl_Video.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="data_structures\BST.h" />
@@ -178,9 +179,11 @@
     <ClInclude Include="source\TransportSystem\SchoolBus.h" />
     <ClInclude Include="source\TransportSystem\TransportManager.h" />
     <ClInclude Include="source\TransportSystem\Vehicle.h" />
+    <ClInclude Include="termgl\miniaudio.h" />
     <ClInclude Include="termgl\stb_image.h" />
     <ClInclude Include="termgl\Termgl.h" />
     <ClInclude Include="termgl\Termgl_Defs.h" />
+    <ClInclude Include="termgl\Termgl_Video.h" />
     <ClInclude Include="utils\Coordinate.h" />
     <ClInclude Include="utils\ID_Generator.h" />
     <ClInclude Include="utils\Location.h" />

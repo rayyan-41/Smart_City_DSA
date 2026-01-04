@@ -388,15 +388,15 @@ namespace termgl {
         activePartitionID = -1;
 
         for (const auto& p : partitions) {
-            // Draw background
-            fillRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, p.backgroundColor);
+            // Draw background - Pure black for retro vibes
+            fillRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, Color(0, 0, 0));
 
             // Draw border
             Color borderC = (prevID == p.id) ? Color::White() : p.borderColor;
             drawRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, borderC);
 
-            // Draw header bar
-            fillRect(p.rect.x, p.rect.y, p.rect.w, 20, (prevID == p.id) ? Color(60, 60, 180) : Color(40, 40, 40));
+            // Draw header bar - Dark grey for retro look
+            fillRect(p.rect.x, p.rect.y, p.rect.w, 20, (prevID == p.id) ? Color(40, 40, 40) : Color(20, 20, 20));
             drawText(p.rect.x + 5, p.rect.y + 2, p.title, p.titleColor);
         }
 
@@ -465,6 +465,43 @@ namespace termgl {
             clearPartition(activePartitionID, color);
         }
     }
+    void Window::drawBuffer(int x, int y, int w, int h, const uint32_t* data) {
+        // 1. Transform coordinates (Handle Partitions)
+        int tx = x, ty = y;
+        transformCoordinates(tx, ty);
+
+        // 2. Calculate Clipping (Don't draw outside window)
+        int minX = 0, maxX = width, minY = 0, maxY = height;
+        if (activePartitionID != -1) {
+            const auto& p = partitions[activePartitionID];
+            minX = p.rect.x + 1; maxX = p.rect.x + p.rect.w - 1;
+            minY = p.rect.y + 21; maxY = p.rect.y + p.rect.h - 1;
+        }
+
+        int drawX = std::max(minX, tx);
+        int drawY = std::max(minY, ty);
+        int drawW = std::min(maxX, tx + w) - drawX;
+        int drawH = std::min(maxY, ty + h) - drawY;
+
+        if (drawW <= 0 || drawH <= 0) return;
+
+        // 3. Fast Row-by-Row Copy
+        // We skip the parts of the image that are clipped off
+        int srcOffsetX = drawX - tx;
+        int srcOffsetY = drawY - ty;
+
+        for (int row = 0; row < drawH; ++row) {
+            // Destination: Screen Buffer
+            uint32_t* destPtr = &buffer[(drawY + row) * width + drawX];
+
+            // Source: Video Frame Buffer
+            const uint32_t* srcPtr = &data[(srcOffsetY + row) * w + srcOffsetX];
+
+            // The Magic: Copy the whole line in one CPU instruction block
+            memcpy(destPtr, srcPtr, drawW * sizeof(uint32_t));
+        }
+    }
+
 
     void Window::drawLine(int x0, int y0, int x1, int y1, Color color) {
         // Bresenham's
@@ -602,16 +639,17 @@ namespace termgl {
         bool hovering = isMouseHovering(x, y, w, h);
         bool clicked = isButtonClicked(x, y, w, h);
 
-        Color c1 = hovering ? Color(100, 100, 200) : Color(50, 50, 100);
-        Color c2 = hovering ? Color(60, 60, 160) : Color(30, 30, 60);
+        // Black and grey theme for retro vibes
+        Color c1 = hovering ? Color(40, 40, 40) : Color(20, 20, 20);
+        Color c2 = hovering ? Color(30, 30, 30) : Color(10, 10, 10);
 
         if (clicked) {
-            c1 = Color(200, 200, 255);
-            c2 = Color(150, 150, 255);
+            c1 = Color(60, 60, 60);
+            c2 = Color(40, 40, 40);
         }
 
         fillGradientRect(x, y, w, h, c1, c2, true);
-        drawRect(x, y, w, h, Color::White());
+        drawRect(x, y, w, h, Color(80, 80, 80));
 
         int textW = text.length() * 9;
         drawText(x + (w - textW) / 2, y + (h - 16) / 2, text, Color::White());
@@ -635,9 +673,9 @@ namespace termgl {
         if (scrollOffset < 0) scrollOffset = 0;
         if (scrollOffset > maxScroll) scrollOffset = maxScroll;
 
-        // Draw List Background
-        fillGradientRect(x, y, w, h, Color(30, 30, 35), Color(20, 20, 25), true);
-        drawRect(x, y, w, h, Color(80, 80, 100));
+        // Draw List Background - Pure black for retro vibes
+        fillRect(x, y, w, h, Color(0, 0, 0));
+        drawRect(x, y, w, h, Color(60, 60, 60));
 
         // Draw Items with manual clipping
         // We use a manual clip approach because 'drawText' relies on 'drawPixel' which respects partition clipping,
@@ -657,25 +695,20 @@ namespace termgl {
         for (int i = startIndex; i < endIndex; ++i) {
             int itemY = y + (i * itemHeight) - scrollOffset;
 
-            // Interaction
-            bool hovered = isMouseHovering(x, itemY, w - 15, itemHeight); // -15 for scrollbar area
-            if (hovered && itemY >= y && itemY + itemHeight <= y + h) { // Only clickable if fully visible
-                fillRect(x + 1, itemY, w - 17, itemHeight, Color(60, 60, 80));
+            // Interaction - Dark grey highlight for retro look
+            bool hovered = isMouseHovering(x, itemY, w - 15, itemHeight);
+            if (hovered && itemY >= y && itemY + itemHeight <= y + h) {
+                fillRect(x + 1, itemY, w - 17, itemHeight, Color(30, 30, 30));
                 if (isButtonClicked(x, itemY, w - 15, itemHeight)) clickedIndex = i;
             }
 
-            // Draw Text (Simple clip check for Y)
             if (itemY + 16 > y && itemY < y + h) {
-                // Determine text Y to keep it inside box
                 int drawY = itemY + (itemHeight - 16) / 2;
-                // If the text is partially cut off at top/bottom, drawText might look weird.
-                // We rely on the partition background redraw to cover mess if strictly needed,
-                // or just accept partial rendering for this lightweight lib.
                 drawText(x + 5, drawY, items[i], Color::White());
             }
         }
 
-        // Draw Scrollbar
+        // Draw Scrollbar - Dark grey for retro look
         int barTrackH = h - 2;
         int barH = (totalHeight > 0) ? (h * barTrackH / std::max(h, totalHeight)) : barTrackH;
         if (barH < 10) barH = 10;
@@ -684,8 +717,8 @@ namespace termgl {
         if (maxScroll == 0) scrollRatio = 0;
         int barY = y + 1 + (int)(scrollRatio * (barTrackH - barH));
 
-        fillRect(x + w - 12, y, 12, h, Color(40, 40, 50)); // Track
-        fillRect(x + w - 10, barY, 8, barH, Color(100, 100, 120)); // Thumb
+        fillRect(x + w - 12, y, 12, h, Color(15, 15, 15)); // Track - darker
+        fillRect(x + w - 10, barY, 8, barH, Color(60, 60, 60)); // Thumb - grey
 
         return clickedIndex;
     }
