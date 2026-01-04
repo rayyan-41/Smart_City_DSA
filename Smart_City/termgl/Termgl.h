@@ -63,7 +63,8 @@ namespace termgl {
     // ============================================================================
     class Window {
     public:
-        Window(int width, int height, const std::string& title);
+        // Updated constructor to support fullscreen mode
+        Window(int width, int height, const std::string& title, bool fullscreen = false);
         ~Window();
 
         // System
@@ -78,8 +79,11 @@ namespace termgl {
         void drawLine(int x0, int y0, int x1, int y1, Color color);
         void drawRect(int x, int y, int w, int h, Color color);
         void fillRect(int x, int y, int w, int h, Color color);
+        void fillGradientRect(int x, int y, int w, int h, Color c1, Color c2, bool vertical);
         void drawCircle(int xc, int yc, int r, Color color);
         void fillCircle(int xc, int yc, int r, Color color);
+        void drawTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
+        void fillTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Color color);
         void drawText(int x, int y, const std::string& text, Color color);
 
         // Sprite Drawing
@@ -90,6 +94,14 @@ namespace termgl {
         bool isMouseLeftDown() const;
         bool isMouseRightDown() const;
         Vec2 getMousePos() const;
+
+        // UI Helpers
+        bool isMouseHovering(int x, int y, int w, int h) const;
+        bool isButtonClicked(int x, int y, int w, int h) const;
+
+        // Getters for dimensions
+        int getWidth() const { return width; }
+        int getHeight() const { return height; }
 
     private:
         // Window Handle & Context
@@ -111,6 +123,7 @@ namespace termgl {
         // Input State
         int mouseX, mouseY;
         bool mouseLeft, mouseRight;
+        bool mouseLeftPressed; // Added to detect single click frames
         bool keys[256];
 
         // Internal Helpers

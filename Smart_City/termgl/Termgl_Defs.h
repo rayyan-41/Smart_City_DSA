@@ -21,6 +21,7 @@ namespace termgl {
         static Color Blue() { return Color(50, 100, 255); }
         static Color Grey() { return Color(128, 128, 128); }
         static Color Yellow() { return Color(255, 255, 0); }
+		static Color Cyan() { return Color(0, 255, 255); }
 
         uint32_t toInt() const {
             return (static_cast<uint32_t>(a) << 24) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
