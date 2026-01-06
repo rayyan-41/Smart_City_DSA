@@ -166,6 +166,11 @@ const double BASE_LON = 73.00;
 const double MAX_LAT = 33.74;
 const double MAX_LON = 73.18;
 
+// ==================== ROAD CAPACITY CONSTANTS ====================
+constexpr int DEFAULT_ROAD_CAPACITY = 10;      // Internal sector roads
+constexpr int HIGHWAY_ROAD_CAPACITY = 40;      // Sector boundary roads (main highways)
+constexpr int FACILITY_ROAD_CAPACITY = 5;      // Small access roads to facilities
+
 #define COL_LON(col) (73.00 + ((col) - 6) * 0.02)
 #define ROW_E_LAT 33.72
 #define ROW_F_LAT 33.70
@@ -354,10 +359,41 @@ public:
 
 struct Edge {
     int destinationID;
-    double weight;
+    double weight;          // Base distance in km
+    
+    // Traffic simulation fields
+    int capacity;           // Max vehicles on this road segment
+    int currentLoad;        // Current vehicle count
+    double dynamicWeight;   // Used for pathfinding, increases with congestion
 
-    Edge() : destinationID(-1), weight(0.0) {}
-    Edge(int destID, double w) : destinationID(destID), weight(w) {}
+    Edge() : destinationID(-1), weight(0.0), 
+             capacity(DEFAULT_ROAD_CAPACITY), currentLoad(0), dynamicWeight(0.0) {}
+    
+    Edge(int destID, double w) : destinationID(destID), weight(w),
+             capacity(DEFAULT_ROAD_CAPACITY), currentLoad(0), dynamicWeight(w) {}
+    
+    Edge(int destID, double w, int cap) : destinationID(destID), weight(w),
+             capacity(cap), currentLoad(0), dynamicWeight(w) {}
+
+    // Calculate congestion factor (0.0 = empty, 1.0 = full)
+    double getCongestionFactor() const {
+        if (capacity <= 0) return 0.0;
+        return (double)currentLoad / (double)capacity;
+    }
+
+    // Update dynamic weight based on current traffic
+    // Formula: dynamicWeight = length * (1 + (load/capacity)^2)
+    // This makes congested roads exponentially "longer" to pathfinding
+    void updateDynamicWeight() {
+        double congestion = getCongestionFactor();
+        dynamicWeight = weight * (1.0 + congestion * congestion);
+    }
+
+    // Check if road is at capacity
+    bool isFull() const { return currentLoad >= capacity; }
+
+    // Check if road is congested (>80% capacity)
+    bool isCongested() const { return getCongestionFactor() > 0.8; }
 
     bool operator==(const Edge& other) const {
         return destinationID == other.destinationID && weight == other.weight;

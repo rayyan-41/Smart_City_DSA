@@ -97,10 +97,27 @@ struct TrafficVehicle {
     double speed;
     termgl::Color color;
     bool isBus;
+    bool isReal;           // True for actual simulation vehicles
+    bool isStuck;          // Shows ! icon if stuck
+    string vehicleID;      // ID of the vehicle
 
     TrafficVehicle() : edgeFromID(-1), edgeToID(-1), progress(0), speed(0.02),
-        color(termgl::Color::Yellow()), isBus(false) {
+        color(termgl::Color::Yellow()), isBus(false), isReal(false), isStuck(false), vehicleID("") {
     }
+};
+
+// ==================== CITIZEN RENDER DATA ====================
+struct CitizenRenderData {
+    double lat, lon;
+    Point2D pos;
+    string name;
+    string state;
+    string thought;
+    termgl::Color color;
+    bool isSelected;
+    
+    CitizenRenderData() : lat(0), lon(0), pos(), name(""), state(""), thought(""), 
+        color(termgl::Color::White()), isSelected(false) {}
 };
 
 class GraphViewport {
@@ -224,29 +241,40 @@ private:
     Vector<SectorRegion> sectorRegions;
     Vector<int> nodeIdToIndex;
     Vector<TrafficVehicle> trafficVehicles;
+    Vector<CitizenRenderData> citizenRenderList;
     GraphViewport viewport;
 
     // Assets
     termgl::Texture texSchool, texHospital, texPharmacy, texStop, texMall;
     termgl::Texture texMosque, texPark, texPolice, texFire, texLibrary;
     termgl::Texture texRestaurant, texHouse, texDefault;
-    termgl::Texture texBus, texCar;
+    termgl::Texture texBus, texCar, texAmbulance, texRickshaw;
 
     termgl::Sprite sprSchool, sprHospital, sprPharmacy, sprStop, sprMall;
     termgl::Sprite sprMosque, sprPark, sprPolice, sprFire, sprLibrary;
     termgl::Sprite sprRestaurant, sprHouse, sprDefault;
-    termgl::Sprite sprBus, sprCar;
+    termgl::Sprite sprBus, sprCar, sprAmbulance, sprRickshaw;
 
     int mouseX, mouseY;
     int hoveredNodeID;
     string hoveredSector;
 
+    // View toggles
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
     bool showHouses;
     bool showTraffic;
     bool trafficPaused;
+    bool showCongestionHeatmap;    // Phase 5: Heatmap overlay
+    bool showRealVehicles;          // Phase 5: Render simulation vehicles
+    bool showCitizens;              // Phase 5: Render walking citizens
+    bool useAgentSimulation;        // Phase 5: Enable AI simulation
+
+    // God Mode inspection
+    int selectedVehicleIndex;
+    int selectedCitizenIndex;
+    bool godModeEnabled;
 
     DijkstraMode dijkstraMode;
     bool inDijkstraMode;
@@ -267,15 +295,15 @@ private:
         if (type == "SCHOOL") return termgl::Color::Blue();
         if (type == "HOSPITAL") return termgl::Color::Red();
         if (type == "PHARMACY") return termgl::Color(255, 0, 255);
-        if (type == "MALL") return termgl::Color::Yellow();
+        if (type == "MALL" ) return termgl::Color::Yellow();
         if (type == "MOSQUE") return termgl::Color::Cyan();
-        if (type == "PARK") return termgl::Color(0, 100, 0);
+        if (type == "PARK" ) return termgl::Color(0, 100, 0);
         if (type == "POLICE_STATION") return termgl::Color(100, 0, 0);
         if (type == "FIRE_STATION") return termgl::Color(255, 100, 0);
         if (type == "LIBRARY") return termgl::Color(0, 0, 100);
-        if (type == "ATM") return termgl::Color(200, 200, 0);
+        if (type == "ATM" ) return termgl::Color(200, 200, 0);
         if (type == "RESTAURANT") return termgl::Color(255, 165, 0);
-        if (type == "HOUSE") return termgl::Color(100, 100, 100);
+        if (type == "HOUSE" ) return termgl::Color(100, 100, 100);
         return termgl::Color::White();
     }
 
@@ -319,7 +347,10 @@ public:
     CityGraphView(SmartCity* cityPtr) : city(cityPtr),
         mouseX(0), mouseY(0), hoveredNodeID(-1), hoveredSector(""),
         showCorners(true), showRoads(true), showSectorBounds(false),
-        showHouses(false), showTraffic(false), trafficPaused(false),
+        showHouses(true), showTraffic(true), trafficPaused(false),
+        showCongestionHeatmap(false), showRealVehicles(false), showCitizens(false),
+        useAgentSimulation(false), selectedVehicleIndex(-1), selectedCitizenIndex(-1),
+        godModeEnabled(false),
         dijkstraMode(DijkstraMode::SELECT_START), inDijkstraMode(false),
         dijkstraStartNode(-1), dijkstraEndNode(-1), dijkstraDistance(0.0),
         dijkstraNodeSelection(0), dijkstraEndNodeSelection(0),
@@ -366,6 +397,8 @@ public:
         loadAsset(texBus, sprBus, "bus.png");
         loadAsset(texCar, sprCar, "car.png");
         loadAsset(texDefault, sprDefault, "default.png");
+        loadAsset(texAmbulance, sprAmbulance, "ambulance.png");
+        loadAsset(texRickshaw, sprRickshaw, "rickshaw.png");
     }
 
     void buildGraphVisualization() {
@@ -485,7 +518,7 @@ public:
         trafficVehicles.clear();
         if (graphEdges.empty()) return;
 
-        int numVehicles = std::min(50, (int)graphEdges.getSize() / 2);
+        int numVehicles = std::min(80, (int)graphEdges.getSize() / 2);
 
         for (int i = 0; i < numVehicles; i++) {
             TrafficVehicle vehicle;
@@ -493,114 +526,125 @@ public:
             vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
             vehicle.edgeToID = graphEdges[edgeIdx].toID;
             vehicle.progress = (rand() % 100) / 100.0;
-            vehicle.speed = 0.005 + (rand() % 20) / 1000.0;
+            vehicle.speed = 0.008 + (rand() % 15) / 1000.0;
+            vehicle.isReal = false;
 
-            int colorChoice = rand() % 4;
+            int colorChoice = rand() % 5;
             if (colorChoice == 0) vehicle.color = termgl::Color::Yellow();
             else if (colorChoice == 1) vehicle.color = termgl::Color(255, 100, 0);
             else if (colorChoice == 2) vehicle.color = termgl::Color::Cyan();
-            else vehicle.color = termgl::Color::Red();
+            else if (colorChoice == 3) vehicle.color = termgl::Color::Green();
+            else vehicle.color = termgl::Color(200, 200, 200);
 
-            if (rand() % 5 == 0) vehicle.isBus = true;
+            vehicle.isBus = (rand() % 5 == 0);
             trafficVehicles.push_back(vehicle);
         }
     }
 
-    void updateTraffic() {
-        if (trafficPaused || trafficVehicles.empty()) return;
-
-        for (int i = 0; i < trafficVehicles.getSize(); i++) {
-            TrafficVehicle& vehicle = trafficVehicles[i];
-            vehicle.progress += vehicle.speed;
-
-            if (vehicle.progress >= 1.0) {
-                vehicle.progress = 0.0;
-                int currentEndID = vehicle.edgeToID;
-                Vector<int> connectedEdges;
-
-                for (int j = 0; j < graphEdges.getSize(); j++) {
-                    if (graphEdges[j].fromID == currentEndID || graphEdges[j].toID == currentEndID) {
-                        connectedEdges.push_back(j);
-                    }
-                }
-
-                if (connectedEdges.getSize() > 0) {
-                    int nextEdgeIdx = connectedEdges[rand() % connectedEdges.getSize()];
-                    const GraphEdge2D& nextEdge = graphEdges[nextEdgeIdx];
-                    if (nextEdge.fromID == currentEndID) {
-                        vehicle.edgeFromID = nextEdge.fromID;
-                        vehicle.edgeToID = nextEdge.toID;
-                    }
-                    else {
-                        vehicle.edgeFromID = nextEdge.toID;
-                        vehicle.edgeToID = nextEdge.fromID;
-                    }
-                }
-            }
+    // ==================== PHASE 5: REAL VEHICLE SYNC ====================
+    void syncRealVehicles() {
+        if (!city || !showRealVehicles) return;
+        
+        trafficVehicles.clear();
+        TransportManager* tm = city->getTransportManager();
+        if (!tm) return;
+        
+        // Sync buses
+        const Vector<Bus*>& buses = tm->getAllBuses();
+        for (int i = 0; i < buses.getSize(); i++) {
+            Bus* bus = buses[i];
+            if (!bus) continue;
+            
+            TrafficVehicle tv;
+            tv.edgeFromID = bus->getCurrentNodeID();
+            tv.edgeToID = bus->getNextNodeID();
+            tv.progress = bus->getProgressOnEdge();
+            tv.isReal = true;
+            tv.isBus = true;
+            tv.isStuck = bus->getIsStuck();
+            tv.vehicleID = bus->getID();
+            tv.color = bus->getIsStuck() ? termgl::Color::Red() : termgl::Color::Green();
+            
+            trafficVehicles.push_back(tv);
+        }
+        
+        // Sync ambulances
+        const Vector<Ambulance*>& ambulances = tm->getAllAmbulances();
+        for (int i = 0; i < ambulances.getSize(); i++) {
+            Ambulance* amb = ambulances[i];
+            if (!amb || amb->isAvailable()) continue;
+            
+            TrafficVehicle tv;
+            tv.edgeFromID = amb->getCurrentNodeID();
+            tv.edgeToID = amb->getNextNodeID();
+            tv.progress = amb->getProgressOnEdge();
+            tv.isReal = true;
+            tv.isBus = false;
+            tv.isStuck = amb->getIsStuck();
+            tv.vehicleID = amb->getID();
+            tv.color = termgl::Color(255, 0, 0);  // Red for ambulance
+            
+            trafficVehicles.push_back(tv);
+        }
+        
+        // Sync school buses
+        const Vector<SchoolBus*>& schoolBuses = tm->getAllSchoolBuses();
+        for (int i = 0; i < schoolBuses.getSize(); i++) {
+            SchoolBus* sb = schoolBuses[i];
+            if (!sb || sb->isAvailable()) continue;
+            
+            TrafficVehicle tv;
+            tv.edgeFromID = sb->getCurrentNodeID();
+            tv.edgeToID = sb->getNextNodeID();
+            tv.progress = sb->getProgressOnEdge();
+            tv.isReal = true;
+            tv.isBus = true;
+            tv.isStuck = sb->getIsStuck();
+            tv.vehicleID = sb->getID();
+            tv.color = termgl::Color::Yellow();
+            
+            trafficVehicles.push_back(tv);
         }
     }
-
-    void updateHoverState(int mx, int my) {
-        mouseX = mx;
-        mouseY = my;
-        hoveredNodeID = -1;
-        hoveredSector = "";
-
-        double minDist = 15.0 * viewport.getScaleFactor();
-
-        for (int i = 0; i < graphNodes.getSize(); i++) {
-            const GraphNode2D& node = graphNodes[i];
-            if (!viewport.isVisible(node.pos)) continue;
-            if (node.isCorner && !showCorners) continue;
-            if (node.type == "HOUSE" && !showHouses) continue;
-
-            double dx = node.pos.x - mx;
-            double dy = node.pos.y - my;
-            if (std::abs(dx) > 30 || std::abs(dy) > 30) continue;
-
-            double dist = std::sqrt(dx * dx + dy * dy);
-            if (dist < minDist) {
-                minDist = dist;
-                hoveredNodeID = node.id;
+    
+    // ==================== PHASE 5: CITIZEN SYNC ====================
+    void syncCitizens() {
+        citizenRenderList.clear();
+        if (!city || !showCitizens) return;
+        
+        PopulationManager* pm = city->getPopulationManager();
+        if (!pm) return;
+        
+        const Vector<Citizen*>& citizens = pm->masterList;
+        for (int i = 0; i < citizens.getSize(); i++) {
+            Citizen* c = citizens[i];
+            if (!c) continue;
+            
+            // Only render citizens who are moving
+            if (c->state != CitizenState::WALKING && 
+                c->state != CitizenState::WAITING_FOR_BUS &&
+                c->state != CitizenState::WAITING_FOR_RIDE) continue;
+            
+            CitizenRenderData crd;
+            crd.lat = c->lat;
+            crd.lon = c->lon;
+            crd.name = c->name;
+            crd.state = c->getStateString();
+            crd.thought = c->getThought();
+            crd.isSelected = (i == selectedCitizenIndex);
+            
+            // Color based on state
+            if (c->needs.isCriticallyHungry() || c->needs.isCritical()) {
+                crd.color = termgl::Color::Red();
+            } else if (c->state == CitizenState::WALKING) {
+                crd.color = termgl::Color::Blue();
+            } else if (c->state == CitizenState::WAITING_FOR_BUS) {
+                crd.color = termgl::Color::Cyan();
+            } else {
+                crd.color = termgl::Color::Green();
             }
-        }
-
-        Point2D p(mx, my);
-        for (int i = 0; i < sectorRegions.getSize(); i++) {
-            SectorRegion& region = sectorRegions[i];
-            region.isHovered = region.contains(p);
-            if (region.isHovered) {
-                hoveredSector = region.name;
-            }
-        }
-    }
-
-    string getHoverInfo() {
-        std::stringstream ss;
-        if (hoveredNodeID >= 0 && hoveredNodeID < nodeIdToIndex.getSize()) {
-            int idx = nodeIdToIndex[hoveredNodeID];
-            if (idx >= 0 && idx < graphNodes.getSize()) {
-                const GraphNode2D& node = graphNodes[idx];
-                ss << node.name << "\n";
-                ss << "Type: " << node.type << "\n";
-                ss << "Sector: " << node.sector;
-                return ss.str();
-            }
-        }
-        if (!hoveredSector.empty()) {
-            ss << "SECTOR: " << hoveredSector;
-            return ss.str();
-        }
-        ss << "Hover over nodes";
-        return ss.str();
-    }
-
-    void buildSelectableNodesList() {
-        selectableNodes.clear();
-        for (int i = 0; i < graphNodes.getSize(); i++) {
-            if (!graphNodes[i].isCorner) {
-                selectableNodes.push_back(graphNodes[i].id);
-            }
+            
+            citizenRenderList.push_back(crd);
         }
     }
 
@@ -799,7 +843,6 @@ public:
 
         // LAYER 2: Roads (hierarchical, back to front)
         if (showRoads) {
-            // Draw in order: Facility -> SubSubSector -> SubSector -> Boundary
             renderRoadsByType(window, RoadType::FACILITY_ROAD, zoom);
             renderRoadsByType(window, RoadType::SUB_SUB_SECTOR, zoom);
             renderRoadsByType(window, RoadType::SUB_SECTOR, zoom);
@@ -809,9 +852,23 @@ public:
             renderPathHighlight(window, zoom);
         }
 
-        // LAYER 3: Traffic
-        if (showTraffic && !trafficPaused && dijkstraPath.getSize() == 0) {
-            renderTraffic(window, zoom);
+        // LAYER 2.5: Congestion Heatmap (Phase 5)
+        if (showCongestionHeatmap) {
+            renderCongestionHeatmap(window, zoom);
+        }
+
+        // LAYER 3: Traffic - use real or fake based on mode
+        if (showTraffic || showRealVehicles) {
+            if (showRealVehicles) {
+                renderRealTraffic(window, zoom);
+            } else if (!trafficPaused && dijkstraPath.getSize() == 0) {
+                renderTraffic(window, zoom);
+            }
+        }
+
+        // LAYER 3.5: Citizens (Phase 5)
+        if (showCitizens) {
+            renderCitizens(window, zoom);
         }
 
         // LAYER 4: Houses
@@ -1049,6 +1106,238 @@ public:
         }
     }
 
+    // ==================== PHASE 5: CONGESTION HEATMAP ====================
+    termgl::Color getCongestionColor(double congestion) {
+        // Green (0.0) -> Yellow (0.5) -> Red (1.0)
+        if (congestion <= 0.0) return termgl::Color(0, 100, 0);   // Dark green
+        if (congestion >= 1.0) return termgl::Color(200, 0, 0);   // Dark red
+        
+        if (congestion < 0.5) {
+            // Green to Yellow
+            int r = (int)(congestion * 2.0 * 255);
+            return termgl::Color(r, 200, 0);
+        } else {
+            // Yellow to Red
+            int g = (int)((1.0 - congestion) * 2.0 * 200);
+            return termgl::Color(255, g, 0);
+        }
+    }
+    
+    void renderCongestionHeatmap(termgl::Window& window, double zoom) {
+        if (!city || !city->getCityGraph()) return;
+        CityGraph* graph = city->getCityGraph();
+        
+        double scale = viewport.getScaleFactor();
+        
+        for (int i = 0; i < graphEdges.getSize(); i++) {
+            const GraphEdge2D& edge = graphEdges[i];
+            
+            // Only show heatmap on skeleton roads
+            if (edge.roadType == RoadType::FACILITY_ROAD) continue;
+            
+            int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 < 0 || idx2 < 0) continue;
+            
+            const GraphNode2D& n1 = graphNodes[idx1];
+            const GraphNode2D& n2 = graphNodes[idx2];
+            
+            if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
+            
+            // Get congestion for this edge
+            double congestion = graph->getEdgeCongestion(edge.fromID, edge.toID);
+            
+            if (congestion < 0.01) continue;  // Skip non-congested roads
+            
+            termgl::Color heatColor = getCongestionColor(congestion);
+            int thickness = (int)(4 * scale * (0.5 + congestion * 0.5));
+            
+            drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, 
+                          (int)n2.pos.x, (int)n2.pos.y, thickness, heatColor);
+        }
+    }
+
+    void renderRealTraffic(termgl::Window& window, double zoom) {
+        double scale = viewport.getScaleFactor();
+        int vehicleRadius = (int)(5 * scale);
+        
+        for (int i = 0; i < trafficVehicles.getSize(); i++) {
+            const TrafficVehicle& vehicle = trafficVehicles[i];
+            
+            int idx1 = (vehicle.edgeFromID >= 0 && vehicle.edgeFromID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeFromID] : -1;
+            int idx2 = (vehicle.edgeToID >= 0 && vehicle.edgeToID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeToID] : -1;
+            
+            Point2D pos;
+            
+            if (idx1 >= 0 && idx2 >= 0) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                double t = vehicle.progress;
+                if (t > 1.0) t = 1.0;
+                if (t < 0.0) t = 0.0;
+                pos.x = n1.pos.x + (n2.pos.x - n1.pos.x) * t;
+                pos.y = n1.pos.y + (n2.pos.y - n1.pos.y) * t;
+            } else if (idx1 >= 0) {
+                pos = graphNodes[idx1].pos;
+            } else {
+                continue;
+            }
+            
+            if (!viewport.isVisible(pos)) continue;
+            
+            int vx = (int)pos.x;
+            int vy = (int)pos.y;
+            
+            // Draw vehicle body
+            int r = vehicle.isBus ? vehicleRadius + 2 : vehicleRadius;
+            window.fillCircle(vx, vy, r, vehicle.color);
+            
+            // Outline
+            window.drawCircle(vx, vy, r + 1, termgl::Color::White());
+            
+            // Stuck indicator
+            if (vehicle.isStuck) {
+                window.drawText(vx - 3, vy - r - 12, "!", termgl::Color::Red());
+            }
+            
+            // Selection highlight
+            if (i == selectedVehicleIndex) {
+                window.drawCircle(vx, vy, r + 4, termgl::Color::Cyan());
+                window.drawCircle(vx, vy, r + 5, termgl::Color::Cyan());
+            }
+        }
+    }
+
+    void renderCitizens(termgl::Window& window, double zoom) {
+        if (zoom < 2.5) return;  // Only render when zoomed in
+        
+        double scale = viewport.getScaleFactor();
+        int citizenRadius = (int)(3 * scale);
+        
+        for (int i = 0; i < citizenRenderList.getSize(); i++) {
+            CitizenRenderData& crd = citizenRenderList[i];
+            crd.pos = viewport.geoToCanvas(crd.lat, crd.lon);
+            
+            if (!viewport.isVisible(crd.pos)) continue;
+            
+            int cx = (int)crd.pos.x;
+            int cy = (int)crd.pos.y;
+            
+            // Draw citizen dot
+            window.fillCircle(cx, cy, citizenRadius, crd.color);
+            
+            // Selection highlight
+            if (crd.isSelected) {
+                window.drawCircle(cx, cy, citizenRadius + 3, termgl::Color::Yellow());
+                window.drawText(cx + 10, cy - 8, crd.name, termgl::Color::Yellow());
+                window.drawText(cx + 10, cy + 4, crd.thought, termgl::Color::Grey());
+            }
+        }
+    }
+
+    void updateHoverState(int mx, int my) {
+        mouseX = mx;
+        mouseY = my;
+        hoveredNodeID = -1;
+        hoveredSector = "";
+
+        double minDist = 15.0 * viewport.getScaleFactor();
+
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            const GraphNode2D& node = graphNodes[i];
+            if (!viewport.isVisible(node.pos)) continue;
+            if (node.isCorner && !showCorners) continue;
+            if (node.type == "HOUSE" && !showHouses) continue;
+
+            double dx = node.pos.x - mx;
+            double dy = node.pos.y - my;
+            if (std::abs(dx) > 30 || std::abs(dy) > 30) continue;
+
+            double dist = std::sqrt(dx * dx + dy * dy);
+            if (dist < minDist) {
+                minDist = dist;
+                hoveredNodeID = node.id;
+            }
+        }
+
+        Point2D p(mx, my);
+        for (int i = 0; i < sectorRegions.getSize(); i++) {
+            SectorRegion& region = sectorRegions[i];
+            region.isHovered = region.contains(p);
+            if (region.isHovered) {
+                hoveredSector = region.name;
+            }
+        }
+    }
+
+    string getHoverInfo() {
+        std::stringstream ss;
+        if (hoveredNodeID >= 0 && hoveredNodeID < nodeIdToIndex.getSize()) {
+            int idx = nodeIdToIndex[hoveredNodeID];
+            if (idx >= 0 && idx < graphNodes.getSize()) {
+                const GraphNode2D& node = graphNodes[idx];
+                ss << node.name << "\n";
+                ss << "Type: " << node.type << "\n";
+                ss << "Sector: " << node.sector;
+                return ss.str();
+            }
+        }
+        if (!hoveredSector.empty()) {
+            ss << "SECTOR: " << hoveredSector;
+            return ss.str();
+        }
+        ss << "Hover over nodes";
+        return ss.str();
+    }
+
+    void buildSelectableNodesList() {
+        selectableNodes.clear();
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            if (!graphNodes[i].isCorner) {
+                selectableNodes.push_back(graphNodes[i].id);
+            }
+        }
+    }
+
+    void updateTraffic() {
+        if (trafficPaused || trafficVehicles.empty()) return;
+
+        for (int i = 0; i < trafficVehicles.getSize(); i++) {
+            TrafficVehicle& vehicle = trafficVehicles[i];
+            
+            if (vehicle.isReal) continue;  // Skip real vehicles - they're updated by simulation
+            
+            vehicle.progress += vehicle.speed;
+
+            if (vehicle.progress >= 1.0) {
+                vehicle.progress = 0.0;
+                int currentEndID = vehicle.edgeToID;
+                Vector<int> connectedEdges;
+
+                for (int j = 0; j < graphEdges.getSize(); j++) {
+                    if (graphEdges[j].fromID == currentEndID || graphEdges[j].toID == currentEndID) {
+                        connectedEdges.push_back(j);
+                    }
+                }
+
+                if (connectedEdges.getSize() > 0) {
+                    int nextEdgeIdx = connectedEdges[rand() % connectedEdges.getSize()];
+                    const GraphEdge2D& nextEdge = graphEdges[nextEdgeIdx];
+                    if (nextEdge.fromID == currentEndID) {
+                        vehicle.edgeFromID = nextEdge.fromID;
+                        vehicle.edgeToID = nextEdge.toID;
+                    }
+                    else {
+                        vehicle.edgeFromID = nextEdge.toID;
+                        vehicle.edgeToID = nextEdge.fromID;
+                    }
+                }
+            }
+        }
+    }
+
     // ========================================================================
     // MAIN RUN LOOP
     // ========================================================================
@@ -1057,6 +1346,11 @@ public:
         loadResources();
         buildGraphVisualization();
         buildSelectableNodesList();
+        
+        // Initialize with fake traffic if not using simulation
+        if (!showRealVehicles) {
+            initializeTraffic();
+        }
 
         termgl::Window window(1600, 900, "Islamabad City Simulator - Interactive Map", true);
         window.setFramerateLimit(60);
@@ -1081,6 +1375,8 @@ public:
         int dragStartX = 0, dragStartY = 0;
 
         viewport.setCanvasSize((int)(width * 0.75), height);
+        
+        int simulationTick = 0;
 
         while (running && window.processEvents()) {
             if (window.isKeyPressed(VK_ESCAPE)) {
@@ -1159,9 +1455,30 @@ public:
                 }
             }
 
-            // RENDERING
-            if (showTraffic && !trafficPaused) updateTraffic();
+            // ==================== SIMULATION UPDATE ====================
+            if (!trafficPaused) {
+                simulationTick++;
+                
+                // Run transport simulation every few frames
+                if (useAgentSimulation && city && city->getTransportManager()) {
+                    if (simulationTick % 3 == 0) {  // Every 3 frames
+                        city->getTransportManager()->runSimulationStep();
+                        if (city->getCityGraph()) {
+                            city->getCityGraph()->updateTrafficWeights();
+                        }
+                    }
+                }
+                
+                // Sync visualization with simulation
+                if (showRealVehicles) {
+                    syncRealVehicles();
+                    syncCitizens();
+                } else {
+                    updateTraffic();
+                }
+            }
 
+            // RENDERING
             window.setActivePartition(-1);
             window.clear(termgl::Color(0, 0, 0));
             window.drawPartitionFrames();
@@ -1183,6 +1500,14 @@ public:
                 string text = (state ? "[ON] " : "[OFF] ") + label;
                 if (window.drawButton(bx, by, (panelW - 30) / 2, 30, text)) {
                     state = !state;
+                    // Re-initialize traffic when toggling real vehicles
+                    if (&state == &showRealVehicles) {
+                        if (!showRealVehicles) {
+                            initializeTraffic();
+                        } else {
+                            trafficVehicles.clear();
+                        }
+                    }
                 }
             };
 
@@ -1196,12 +1521,25 @@ public:
             drawToggleBtn("Houses", showHouses, col2, cy); cy += 40;
 
             drawToggleBtn("Traffic", showTraffic, col1, cy);
-            drawToggleBtn("Pause", trafficPaused, col2, cy); cy += 50;
+            drawToggleBtn("Pause", trafficPaused, col2, cy); cy += 40;
+
+            drawToggleBtn("Heatmap", showCongestionHeatmap, col1, cy);
+            drawToggleBtn("Sim Vehicles", showRealVehicles, col2, cy); cy += 40;
+
+            drawToggleBtn("Citizens", showCitizens, col1, cy);
+            drawToggleBtn("Agent Sim", useAgentSimulation, col2, cy); cy += 40;
 
             // Zoom info
             std::stringstream zoomSS;
             zoomSS << "Zoom: " << std::fixed << std::setprecision(1) << viewport.getZoom() << "x";
-            window.drawText(10, cy, zoomSS.str(), termgl::Color::Grey()); cy += 30;
+            window.drawText(10, cy, zoomSS.str(), termgl::Color::Grey()); cy += 25;
+            
+            // Traffic stats
+            if (city && city->getCityGraph()) {
+                int vehiclesOnRoads = city->getCityGraph()->getTotalVehiclesOnRoads();
+                window.drawText(10, cy, "Vehicles: " + std::to_string(vehiclesOnRoads), termgl::Color::Grey());
+                cy += 25;
+            }
 
             window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
 

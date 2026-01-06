@@ -1,5 +1,3 @@
-
-
 #pragma once
 #include <string>
 #include <fstream>
@@ -753,9 +751,62 @@ inline void TransportManager::simulateBusStep() {
     for (int i = 0; i < buses.getSize(); ++i) {
         Bus* bus = buses[i];
         
-        processBusArrival(bus, bus->getCurrentNodeID());
+        if (bus->isAtRouteEnd()) {
+            bus->resetRoute();
+            continue;
+        }
         
-        bus->moveToNextStop();
+        int currentNode = bus->getCurrentNodeID();
+        int nextNode = bus->getNextNodeID();
+        
+        if (bus->getIsStuck()) {
+            if (cityGraph && nextNode != -1) {
+                if (cityGraph->tryEnterEdge(currentNode, nextNode)) {
+                    bus->setIsStuck(false);
+                } else {
+                    bus->setIsStuck(true);
+                    continue;
+                }
+            }
+        }
+        
+        double progress = bus->getProgressOnEdge();
+        double baseSpeed = 0.2;
+        if (cityGraph && nextNode != -1) {
+            double congestion = cityGraph->getEdgeCongestion(currentNode, nextNode);
+            double speedMultiplier = 1.0 - 0.7 * congestion * congestion;
+            if (speedMultiplier < 0.1) speedMultiplier = 0.1;
+            progress += baseSpeed * speedMultiplier;
+        } else {
+            progress += baseSpeed;
+        }
+        
+        bus->setProgressOnEdge(progress);
+        
+        if (cityGraph && currentNode >= 0 && nextNode >= 0) {
+            CityNode* currNode = cityGraph->getNode(currentNode);
+            CityNode* nxtNode = cityGraph->getNode(nextNode);
+            if (currNode && nxtNode) {
+                double t = (progress > 1.0) ? 1.0 : progress;
+                bus->setRenderPosition(
+                    currNode->lat + t * (nxtNode->lat - currNode->lat),
+                    currNode->lon + t * (nxtNode->lon - currNode->lon));
+            }
+        }
+        
+        if (progress >= 1.0) {
+            if (cityGraph && nextNode != -1) cityGraph->leaveEdge(currentNode, nextNode);
+            processBusArrival(bus, nextNode);
+            if (bus->moveToNextStop()) {
+                int newCurrent = bus->getCurrentNodeID();
+                int newNext = bus->getNextNodeID();
+                if (cityGraph && newNext != -1) {
+                    if (!cityGraph->tryEnterEdge(newCurrent, newNext)) {
+                        bus->setIsStuck(true);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -763,6 +814,19 @@ inline void TransportManager::simulateSchoolBusStep() {
     for (int i = 0; i < schoolBuses.getSize(); ++i) {
         SchoolBus* sb = schoolBuses[i];
         string status = sb->getSchoolBusStatus();
+        
+        // Handle stuck state
+        if (sb->getIsStuck()) {
+            int currentNode = sb->getCurrentNodeID();
+            int nextNode = sb->getNextNodeID();
+            if (cityGraph && nextNode != -1) {
+                if (cityGraph->tryEnterEdge(currentNode, nextNode)) {
+                    sb->setIsStuck(false);
+                } else {
+                    continue;
+                }
+            }
+        }
         
         if (status == SchoolBusStatus::AVAILABLE) {
             Vector<int> pickups = getPickupPointsInSector(sb->getHomeSector());
@@ -779,11 +843,60 @@ inline void TransportManager::simulateSchoolBusStep() {
                 sb->startHomePickupRoute();
             }
         }
-        else if (status == SchoolBusStatus::EN_ROUTE_HOME_PICKUP) {
-            if (!sb->moveToNextStop()) {
-                int pickupNode = sb->getNextPickupPointNode();
-                if (pickupNode != -1) {
-                    processSchoolBusPickup(sb, pickupNode);
+        else if (status == SchoolBusStatus::EN_ROUTE_HOME_PICKUP ||
+                 status == SchoolBusStatus::EN_ROUTE_TO_SCHOOL ||
+                 status == SchoolBusStatus::EN_ROUTE_SCHOOL_TO_SCHOOL ||
+                 status == SchoolBusStatus::RETURNING) {
+            
+            double progress = sb->getProgressOnEdge();
+            double baseSpeed = 0.15;
+            int currentNode = sb->getCurrentNodeID();
+            int nextNode = sb->getNextNodeID();
+            
+            if (cityGraph && nextNode != -1) {
+                double congestion = cityGraph->getEdgeCongestion(currentNode, nextNode);
+                double speedMultiplier = 1.0 - 0.6 * congestion * congestion;
+                if (speedMultiplier < 0.15) speedMultiplier = 0.15;
+                progress += baseSpeed * speedMultiplier;
+            } else {
+                progress += baseSpeed;
+            }
+            
+            sb->setProgressOnEdge(progress);
+            
+            // Update render position
+            if (cityGraph && currentNode >= 0 && nextNode >= 0) {
+                CityNode* currNode = cityGraph->getNode(currentNode);
+                CityNode* nxtNode = cityGraph->getNode(nextNode);
+                if (currNode && nxtNode) {
+                    double t = (progress > 1.0) ? 1.0 : progress;
+                    sb->setRenderPosition(
+                        currNode->lat + t * (nxtNode->lat - currNode->lat),
+                        currNode->lon + t * (nxtNode->lon - currNode->lon));
+                }
+            }
+            
+            if (progress >= 1.0) {
+                if (cityGraph && nextNode != -1) cityGraph->leaveEdge(currentNode, nextNode);
+                
+                if (!sb->moveToNextStop()) {
+                    if (status == SchoolBusStatus::EN_ROUTE_HOME_PICKUP) {
+                        int pickupNode = sb->getNextPickupPointNode();
+                        if (pickupNode != -1) processSchoolBusPickup(sb, pickupNode);
+                    } else if (status == SchoolBusStatus::EN_ROUTE_TO_SCHOOL ||
+                               status == SchoolBusStatus::EN_ROUTE_SCHOOL_TO_SCHOOL) {
+                        sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
+                    } else if (status == SchoolBusStatus::RETURNING) {
+                        sb->arriveAtBase();
+                    }
+                } else {
+                    int newCurrent = sb->getCurrentNodeID();
+                    int newNext = sb->getNextNodeID();
+                    if (cityGraph && newNext != -1) {
+                        if (!cityGraph->tryEnterEdge(newCurrent, newNext)) {
+                            sb->setIsStuck(true);
+                        }
+                    }
                 }
             }
         }
@@ -806,25 +919,10 @@ inline void TransportManager::simulateSchoolBusStep() {
                 sb->setSchoolBusStatus(SchoolBusStatus::EN_ROUTE_HOME_PICKUP);
             }
         }
-        else if (status == SchoolBusStatus::EN_ROUTE_TO_SCHOOL) {
-            if (!sb->moveToNextStop()) {
-                sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
-            }
-        }
         else if (status == SchoolBusStatus::AT_SCHOOL || 
                  status == SchoolBusStatus::UNLOADING) {
             sb->dropoffAllStudents();
             sb->completeTrip();
-        }
-        else if (status == SchoolBusStatus::EN_ROUTE_SCHOOL_TO_SCHOOL) {
-            if (!sb->moveToNextStop()) {
-                sb->setSchoolBusStatus(SchoolBusStatus::AT_SCHOOL);
-            }
-        }
-        else if (status == SchoolBusStatus::RETURNING) {
-            if (!sb->moveToNextStop()) {
-                sb->arriveAtBase();
-            }
         }
     }
 }
@@ -835,11 +933,79 @@ inline void TransportManager::simulateAmbulanceStep() {
         string status = amb->getAmbulanceStatus();
         
         if (status == AmbulanceStatus::AVAILABLE) {
+            continue;
         }
-        else if (status == AmbulanceStatus::DISPATCHED) {
-            if (!amb->moveToNextStop()) {
-                amb->arriveAtPickup();
-                amb->loadPatient();
+        
+        // Handle stuck state
+        if (amb->getIsStuck()) {
+            int currentNode = amb->getCurrentNodeID();
+            int nextNode = amb->getNextNodeID();
+            if (cityGraph && nextNode != -1) {
+                // Ambulances have priority - always try to enter
+                if (cityGraph->tryEnterEdge(currentNode, nextNode)) {
+                    amb->setIsStuck(false);
+                } else {
+                    continue;
+                }
+            }
+        }
+        
+        // Update progress for moving ambulances
+        if (status == AmbulanceStatus::DISPATCHED || 
+            status == AmbulanceStatus::TRANSPORTING ||
+            status == AmbulanceStatus::RETURNING) {
+            
+            double progress = amb->getProgressOnEdge();
+            double baseSpeed = 0.3;  // Ambulances are faster
+            int currentNode = amb->getCurrentNodeID();
+            int nextNode = amb->getNextNodeID();
+            
+            if (cityGraph && nextNode != -1) {
+                double congestion = cityGraph->getEdgeCongestion(currentNode, nextNode);
+                // Ambulances are less affected by congestion (emergency)
+                double speedMultiplier = 1.0 - 0.3 * congestion * congestion;
+                if (speedMultiplier < 0.3) speedMultiplier = 0.3;
+                progress += baseSpeed * speedMultiplier;
+            } else {
+                progress += baseSpeed;
+            }
+            
+            amb->setProgressOnEdge(progress);
+            
+            // Update render position
+            if (cityGraph && currentNode >= 0 && nextNode >= 0) {
+                CityNode* currNode = cityGraph->getNode(currentNode);
+                CityNode* nxtNode = cityGraph->getNode(nextNode);
+                if (currNode && nxtNode) {
+                    double t = (progress > 1.0) ? 1.0 : progress;
+                    amb->setRenderPosition(
+                        currNode->lat + t * (nxtNode->lat - currNode->lat),
+                        currNode->lon + t * (nxtNode->lon - currNode->lon));
+                }
+            }
+            
+            if (progress >= 1.0) {
+                if (cityGraph && nextNode != -1) cityGraph->leaveEdge(currentNode, nextNode);
+                
+                if (!amb->moveToNextStop()) {
+                    // Reached destination
+                    if (status == AmbulanceStatus::DISPATCHED) {
+                        amb->arriveAtPickup();
+                        amb->loadPatient();
+                    } else if (status == AmbulanceStatus::TRANSPORTING) {
+                        amb->arriveAtDestination();
+                    } else if (status == AmbulanceStatus::RETURNING) {
+                        amb->arriveAtBase();
+                    }
+                } else {
+                    int newCurrent = amb->getCurrentNodeID();
+                    int newNext = amb->getNextNodeID();
+                    if (cityGraph && newNext != -1) {
+                        if (!cityGraph->tryEnterEdge(newCurrent, newNext)) {
+                            amb->setIsStuck(true);
+                        }
+                    }
+                }
             }
         }
         else if (status == AmbulanceStatus::AT_PICKUP || 
@@ -847,20 +1013,10 @@ inline void TransportManager::simulateAmbulanceStep() {
             amb->loadPatient();
             amb->startTransport();
         }
-        else if (status == AmbulanceStatus::TRANSPORTING) {
-            if (!amb->moveToNextStop()) {
-                amb->arriveAtDestination();
-            }
-        }
         else if (status == AmbulanceStatus::AT_DESTINATION || 
                  status == AmbulanceStatus::UNLOADING) {
             amb->unloadPatient();
             amb->completeTransfer();
-        }
-        else if (status == AmbulanceStatus::RETURNING) {
-            if (!amb->moveToNextStop()) {
-                amb->arriveAtBase();
-            }
         }
     }
 }

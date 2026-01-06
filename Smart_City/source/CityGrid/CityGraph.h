@@ -43,11 +43,30 @@ public:
 
     // ==================== ROAD MANAGEMENT ====================
     void addRoad(int id1, int id2);
-    void addFacilityRoad(int id1, int id2);  // Adds road with weight penalty
+    void addRoad(int id1, int id2, int capacity);  // With custom capacity
+    void addFacilityRoad(int id1, int id2);        // Adds road with weight penalty
     void removeRoad(int id1, int id2);
     bool hasRoad(int id1, int id2) const;
+    Edge* getEdge(int fromNode, int toNode);
+    const Edge* getEdge(int fromNode, int toNode) const;
 
+    // ==================== TRAFFIC MANAGEMENT ====================
+    // Try to enter a road segment. Returns true if successful, false if road is full.
+    bool tryEnterEdge(int fromNode, int toNode);
+    
+    // Leave a road segment, decreasing its load
+    void leaveEdge(int fromNode, int toNode);
+    
+    // Update all dynamic weights based on current traffic loads
+    void updateTrafficWeights();
+    
+    // Get traffic statistics
+    double getEdgeCongestion(int fromNode, int toNode) const;
+    int getTotalVehiclesOnRoads() const;
+
+    // ==================== PATHFINDING ====================
     Vector<int> findShortestPath(int startID, int endID, double& totalDistance);
+    Vector<int> findShortestPathDynamic(int startID, int endID, double& totalDistance);  // Uses dynamicWeight
     int findNearestFacility(int fromNodeID, const string& facilityType);
     Vector<int> findAllNearestFacilities(int fromNodeID, const string& facilityType, int maxCount = 5);
     Vector<int> calculateBusRoute(int startNodeID, int endNodeID, double& distance);
@@ -170,6 +189,8 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
 
     // =========================================================
     // 2. CONNECT SKELETON NODES INTERNALLY (ROADS)
+    // Boundary roads (r=0,4 or c=0,4) get highway capacity
+    // Internal roads get default capacity
     // =========================================================
     for (int r = 0; r < 5; r++) {
         for (int c = 0; c < 5; c++) {
@@ -179,12 +200,22 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
             // Connect Horizontal (East)
             if (c < 4) {
                 int right = box.gridCorners[r][c + 1];
-                if (right != -1) addRoad(current, right);
+                if (right != -1) {
+                    // Boundary roads (top or bottom edge) are highways
+                    bool isBoundary = (r == 0 || r == 4);
+                    int capacity = isBoundary ? HIGHWAY_ROAD_CAPACITY : DEFAULT_ROAD_CAPACITY;
+                    addRoad(current, right, capacity);
+                }
             }
             // Connect Vertical (North)
             if (r < 4) {
                 int up = box.gridCorners[r + 1][c];
-                if (up != -1) addRoad(current, up);
+                if (up != -1) {
+                    // Boundary roads (left or right edge) are highways
+                    bool isBoundary = (c == 0 || c == 4);
+                    int capacity = isBoundary ? HIGHWAY_ROAD_CAPACITY : DEFAULT_ROAD_CAPACITY;
+                    addRoad(current, up, capacity);
+                }
             }
         }
     }
@@ -216,7 +247,7 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
     SECTOR_GRID[idx].initialized = true;
 
     // =========================================================
-    // 4. STITCHING: CONNECT TO NEIGHBOR SECTORS [NEW CODE]
+    // 4. STITCHING: CONNECT TO NEIGHBOR SECTORS (HIGHWAY CAPACITY)
     // =========================================================
     Vector<string> neighbors = GeometryUtils::getAdjacentSectors(sectorName);
 
@@ -230,46 +261,37 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
 
         SectorBox& otherBox = SECTOR_GRID[nIdx];
 
-        // --- STITCHING LOGIC ---
-        // We compare the bounds to see where the neighbor is relative to us.
-
-        // CASE 1: Neighbor is to the WEST (Left)
-        // Check if My MinLon is close to Their MaxLon
+        // Inter-sector roads are highways
         if (std::abs(box.minLon - otherBox.maxLon) < 0.001) {
             for (int r = 0; r < 5; r++) {
-                int myNode = box.gridCorners[r][0];         // My Left Edge (Col 0)
-                int otherNode = otherBox.gridCorners[r][4]; // Their Right Edge (Col 4)
-                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+                int myNode = box.gridCorners[r][0];
+                int otherNode = otherBox.gridCorners[r][4];
+                if (myNode != -1 && otherNode != -1) 
+                    addRoad(myNode, otherNode, HIGHWAY_ROAD_CAPACITY);
             }
         }
-
-        // CASE 2: Neighbor is to the EAST (Right)
-        // Check if My MaxLon is close to Their MinLon
         else if (std::abs(box.maxLon - otherBox.minLon) < 0.001) {
             for (int r = 0; r < 5; r++) {
-                int myNode = box.gridCorners[r][4];         // My Right Edge (Col 4)
-                int otherNode = otherBox.gridCorners[r][0]; // Their Left Edge (Col 0)
-                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+                int myNode = box.gridCorners[r][4];
+                int otherNode = otherBox.gridCorners[r][0];
+                if (myNode != -1 && otherNode != -1) 
+                    addRoad(myNode, otherNode, HIGHWAY_ROAD_CAPACITY);
             }
         }
-
-        // CASE 3: Neighbor is to the SOUTH (Below)
-        // Check if My MinLat is close to Their MaxLat
         else if (std::abs(box.minLat - otherBox.maxLat) < 0.001) {
             for (int c = 0; c < 5; c++) {
-                int myNode = box.gridCorners[0][c];         // My Bottom Edge (Row 0)
-                int otherNode = otherBox.gridCorners[4][c]; // Their Top Edge (Row 4)
-                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+                int myNode = box.gridCorners[0][c];
+                int otherNode = otherBox.gridCorners[4][c];
+                if (myNode != -1 && otherNode != -1) 
+                    addRoad(myNode, otherNode, HIGHWAY_ROAD_CAPACITY);
             }
         }
-
-        // CASE 4: Neighbor is to the NORTH (Above)
-        // Check if My MaxLat is close to Their MinLat
         else if (std::abs(box.maxLat - otherBox.minLat) < 0.001) {
             for (int c = 0; c < 5; c++) {
-                int myNode = box.gridCorners[4][c];         // My Top Edge (Row 4)
-                int otherNode = otherBox.gridCorners[0][c]; // Their Bottom Edge (Row 0)
-                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+                int myNode = box.gridCorners[4][c];
+                int otherNode = otherBox.gridCorners[0][c];
+                if (myNode != -1 && otherNode != -1) 
+                    addRoad(myNode, otherNode, HIGHWAY_ROAD_CAPACITY);
             }
         }
     }
@@ -595,17 +617,22 @@ inline void CityGraph::addFacilityRoad(int id1, int id2) {
     
     double penalty;
     if (id1IsCorner || id2IsCorner) {
-        // Facility to corner - moderate penalty
         penalty = FACILITY_ROAD_PENALTY;
     } else {
-        // Facility to facility - lower penalty (local traffic is okay)
         penalty = INTER_FACILITY_PENALTY;
     }
     
     double weightedDist = dist * penalty;
 
-    nodes[id1]->roads.push_back(Edge(id2, weightedDist));
-    nodes[id2]->roads.push_back(Edge(id1, weightedDist));
+    // Facility roads have lower capacity
+    Edge edge1(id2, weightedDist, FACILITY_ROAD_CAPACITY);
+    edge1.dynamicWeight = weightedDist;
+    
+    Edge edge2(id1, weightedDist, FACILITY_ROAD_CAPACITY);
+    edge2.dynamicWeight = weightedDist;
+
+    nodes[id1]->roads.push_back(edge1);
+    nodes[id2]->roads.push_back(edge2);
 }
 
 // ==================== PUBLIC FACILITY ====================
@@ -735,6 +762,10 @@ inline int CityGraph::addPublicToilet(const string& name, const string& sector) 
 // ==================== ROAD MANAGEMENT ====================
 
 inline void CityGraph::addRoad(int id1, int id2) {
+    addRoad(id1, id2, DEFAULT_ROAD_CAPACITY);
+}
+
+inline void CityGraph::addRoad(int id1, int id2, int capacity) {
     if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount || id1 == id2) {
         return;
     }
@@ -747,8 +778,8 @@ inline void CityGraph::addRoad(int id1, int id2) {
         nodes[id2]->lat, nodes[id2]->lon
     );
 
-    nodes[id1]->roads.push_back(Edge(id2, dist));
-    nodes[id2]->roads.push_back(Edge(id1, dist));
+    nodes[id1]->roads.push_back(Edge(id2, dist, capacity));
+    nodes[id2]->roads.push_back(Edge(id1, dist, capacity));
 }
 
 inline void CityGraph::removeRoad(int id1, int id2) {
@@ -787,57 +818,165 @@ inline bool CityGraph::hasRoad(int id1, int id2) const {
     return false;
 }
 
-// ==================== LOOKUP FUNCTIONS ====================
-
-inline int CityGraph::getIDByName(const string& name) {
-    for (int i = 0; i < nodeCount; i++) {
-        if (nodes[i] && nodes[i]->name == name) return i;
-    }
-    return -1;
-}
-
-inline int CityGraph::getIDByDatabaseID(const string& dbID) {
-    for (int i = 0; i < nodeCount; i++) {
-        if (nodes[i] && nodes[i]->databaseID == dbID) return i;
-    }
-    return -1;
-}
-
-inline int CityGraph::getIDByStopID(const string& sID) {
-    for (int i = 0; i < nodeCount; i++) {
-        if (nodes[i] && nodes[i]->stopID == sID) return i;
-    }
-    return -1;
-}
-
-// ==================== QUERY FUNCTIONS ====================
-
-inline Vector<int> CityGraph::getFacilitiesInSector(const string& sector, const string& type) {
-    Vector<int> results;
-    for (int i = 0; i < nodeCount; i++) {
-        if (!nodes[i] || nodes[i]->sector != sector || nodes[i]->type == FacilityType::CORNER) {
-            continue;
-        }
-        if (type.empty() || nodes[i]->type == type) {
-            results.push_back(i);
+inline Edge* CityGraph::getEdge(int fromNode, int toNode) {
+    if (fromNode < 0 || fromNode >= nodeCount || !nodes[fromNode]) return nullptr;
+    
+    LinkedList<Edge>& roads = nodes[fromNode]->roads;
+    for (int i = 0; i < roads.size(); i++) {
+        if (roads[i].destinationID == toNode) {
+            return &roads[i];
         }
     }
-    return results;
+    return nullptr;
 }
 
-inline Vector<int> CityGraph::getAllStopsInSector(const string& sector) {
-    Vector<int> results;
-    for (int i = 0; i < nodeCount; i++) {
-        if (nodes[i] && nodes[i]->sector == sector && nodes[i]->canBeTransportStop()) {
-            results.push_back(i);
+inline const Edge* CityGraph::getEdge(int fromNode, int toNode) const {
+    if (fromNode < 0 || fromNode >= nodeCount || !nodes[fromNode]) return nullptr;
+    
+    const LinkedList<Edge>& roads = nodes[fromNode]->roads;
+    for (int i = 0; i < roads.size(); i++) {
+        if (roads[i].destinationID == toNode) {
+            return &roads[i];
         }
     }
-    return results;
+    return nullptr;
 }
 
-inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon) {
-    GeometryUtils::getIslamabadBounds(minLat, maxLat, minLon, maxLon);
+// ==================== TRAFFIC MANAGEMENT ====================
+
+inline bool CityGraph::tryEnterEdge(int fromNode, int toNode) {
+    Edge* edge = getEdge(fromNode, toNode);
+    if (!edge) return false;
+    
+    if (edge->currentLoad < edge->capacity) {
+        edge->currentLoad++;
+        
+        // Also update the reverse edge (bidirectional roads share load)
+        Edge* reverseEdge = getEdge(toNode, fromNode);
+        if (reverseEdge) {
+            reverseEdge->currentLoad++;
+        }
+        
+        return true;
+    }
+    
+    return false;  // Road is at capacity, vehicle must wait
 }
+
+inline void CityGraph::leaveEdge(int fromNode, int toNode) {
+    Edge* edge = getEdge(fromNode, toNode);
+    if (edge && edge->currentLoad > 0) {
+        edge->currentLoad--;
+    }
+    
+    // Also update the reverse edge
+    Edge* reverseEdge = getEdge(toNode, fromNode);
+    if (reverseEdge && reverseEdge->currentLoad > 0) {
+        reverseEdge->currentLoad--;
+    }
+}
+
+inline void CityGraph::updateTrafficWeights() {
+    for (int i = 0; i < nodeCount; i++) {
+        if (!nodes[i]) continue;
+        
+        LinkedList<Edge>& roads = nodes[i]->roads;
+        for (int j = 0; j < roads.size(); j++) {
+            roads[j].updateDynamicWeight();
+        }
+    }
+}
+
+inline double CityGraph::getEdgeCongestion(int fromNode, int toNode) const {
+    const Edge* edge = getEdge(fromNode, toNode);
+    if (!edge) return 0.0;
+    return edge->getCongestionFactor();
+}
+
+inline int CityGraph::getTotalVehiclesOnRoads() const {
+    int total = 0;
+    for (int i = 0; i < nodeCount; i++) {
+        if (!nodes[i]) continue;
+        
+        const LinkedList<Edge>& roads = nodes[i]->roads;
+        for (int j = 0; j < roads.size(); j++) {
+            total += roads[j].currentLoad;
+        }
+    }
+    // Divide by 2 because roads are bidirectional and we count each edge twice
+    return total / 2;
+}
+
+// ==================== PATHFINDING WITH DYNAMIC WEIGHTS ====================
+
+inline Vector<int> CityGraph::findShortestPathDynamic(int startID, int endID, double& totalDistance) {
+    Vector<int> path;
+    totalDistance = 0.0;
+
+    if (startID < 0 || startID >= nodeCount || endID < 0 || endID >= nodeCount) {
+        return path;
+    }
+
+    double distance[MAX_NODES];
+    int parent[MAX_NODES];
+    bool visited[MAX_NODES];
+
+    for (int i = 0; i < MAX_NODES; i++) {
+        distance[i] = INF;
+        parent[i] = -1;
+        visited[i] = false;
+    }
+
+    PriorityQueue<DijkstraNode> pq;
+    distance[startID] = 0.0;
+    pq.push(DijkstraNode(startID, 0.0));
+
+    while (!pq.empty()) {
+        DijkstraNode current = pq.top();
+        pq.pop();
+
+        int u = current.nodeID;
+        if (visited[u]) continue;
+        visited[u] = true;
+
+        if (u == endID) break;
+
+        if (!nodes[u]) continue;
+
+        const LinkedList<Edge>& roads = nodes[u]->roads;
+        for (int i = 0; i < roads.size(); i++) {
+            int v = roads[i].destinationID;
+            // Use dynamicWeight instead of weight for traffic-aware routing
+            double weight = roads[i].dynamicWeight;
+
+            if (!visited[v] && distance[u] + weight < distance[v]) {
+                distance[v] = distance[u] + weight;
+                parent[v] = u;
+                pq.push(DijkstraNode(v, distance[v]));
+            }
+        }
+    }
+
+    if (parent[endID] != -1 || startID == endID) {
+        int current = endID;
+        while (current != -1) {
+            path.push_back(current);
+            current = parent[current];
+        }
+
+        for (int i = 0; i < path.getSize() / 2; i++) {
+            int temp = path[i];
+            path[i] = path[path.getSize() - 1 - i];
+            path[path.getSize() - 1 - i] = temp;
+        }
+
+        totalDistance = distance[endID];
+    }
+
+    return path;
+}
+
+// ==================== PATHFINDING ====================
 
 inline Vector<int> CityGraph::findShortestPath(int startID, int endID, double& totalDistance) {
     Vector<int> path;
@@ -998,6 +1137,58 @@ inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const str
 
 inline Vector<int> CityGraph::calculateBusRoute(int startNodeID, int endNodeID, double& distance) {
     return findShortestPath(startNodeID, endNodeID, distance);
+}
+
+// ==================== LOOKUP FUNCTIONS ====================
+
+inline int CityGraph::getIDByName(const string& name) {
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->name == name) return i;
+    }
+    return -1;
+}
+
+inline int CityGraph::getIDByDatabaseID(const string& dbID) {
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->databaseID == dbID) return i;
+    }
+    return -1;
+}
+
+inline int CityGraph::getIDByStopID(const string& sID) {
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->stopID == sID) return i;
+    }
+    return -1;
+}
+
+// ==================== QUERY FUNCTIONS ====================
+
+inline Vector<int> CityGraph::getFacilitiesInSector(const string& sector, const string& type) {
+    Vector<int> results;
+    for (int i = 0; i < nodeCount; i++) {
+        if (!nodes[i] || nodes[i]->sector != sector || nodes[i]->type == FacilityType::CORNER) {
+            continue;
+        }
+        if (type.empty() || nodes[i]->type == type) {
+            results.push_back(i);
+        }
+    }
+    return results;
+}
+
+inline Vector<int> CityGraph::getAllStopsInSector(const string& sector) {
+    Vector<int> results;
+    for (int i = 0; i < nodeCount; i++) {
+        if (nodes[i] && nodes[i]->sector == sector && nodes[i]->canBeTransportStop()) {
+            results.push_back(i);
+        }
+    }
+    return results;
+}
+
+inline void CityGraph::getBounds(double& minLat, double& maxLat, double& minLon, double& maxLon) {
+    GeometryUtils::getIslamabadBounds(minLat, maxLat, minLon, maxLon);
 }
 
 // ==================== CSV LOADING ====================

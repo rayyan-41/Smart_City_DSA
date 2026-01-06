@@ -10,6 +10,7 @@
  *   - PopulationManager: Housing system (N-ary Tree: Sector->Street->House->Citizen)
  *   - MedicalManager: Healthcare system (Hospital + Pharmacy with Priority Queue)
  *   - CommercialManager: Commercial system (Mall->Shop->Product with Hash lookup)
+ *   - AIManager: Agent-based simulation brain (Needs, Decisions, Pathfinding)
  *
  * Data Structures Used:
  *   - Graph (Adjacency List) with weighted edges
@@ -34,6 +35,7 @@
 #include "../source/HousingSystem/PopulationManager.h"
 #include "../source/MedicalSystem/MedicalManager.h"
 #include "../source/CommercialSystem/CommercialManager.h"
+#include "../source/Simulator/AIManager.h"
 
 class SmartCity {
 private:
@@ -46,10 +48,12 @@ private:
     PopulationManager* populationManager;
     MedicalManager* medicalManager;
     CommercialManager* commercialManager;
+    AIManager* aiManager;  // Agent-based simulation brain
 
     // ========== SIMULATION DATA STRUCTURES ==========
     Stack<TravelRecord> travelHistory;
     int travelCounter;
+    int simulationTick;
 
     // ========== DATASET PATHS ==========
     string stopsCSV;
@@ -65,6 +69,7 @@ private:
 
     // ========== STATE FLAGS ==========
     bool cityInitialized;
+    bool agentSimulationEnabled;
 
 public:
     SmartCity();
@@ -91,11 +96,23 @@ public:
     PopulationManager* getPopulationManager() const { return populationManager; }
     MedicalManager* getMedicalManager() const { return medicalManager; }
     CommercialManager* getCommercialManager() const { return commercialManager; }
+    AIManager* getAIManager() const { return aiManager; }
+
+    // ========== AGENT SIMULATION CONTROL ==========
+    void enableAgentSimulation(bool enabled) { agentSimulationEnabled = enabled; }
+    bool isAgentSimulationEnabled() const { return agentSimulationEnabled; }
+    void setSimulationTime(int hour, int minute);
+    int getSimulationHour() const;
+    int getSimulationMinute() const;
 
     // ========== STATISTICS & REPORTING ==========
     CityStats getCityStats() const;
     Vector<string> getSectorNames() const;
     TransportStats getTransportStats() const;
+    int getTotalVehiclesOnRoads() const;
+    int getWalkingCitizenCount() const;
+    int getWaitingCitizenCount() const;
+    int getCommutingCitizenCount() const;
 
     // ========== GRAPH/PATHFINDING APIs ==========
     Vector<int> findShortestPath(int startID, int endID, double& outDistance);
@@ -219,8 +236,11 @@ inline SmartCity::SmartCity() {
     populationManager = nullptr;
     medicalManager = nullptr;
     commercialManager = nullptr;
+    aiManager = nullptr;
     cityInitialized = false;
+    agentSimulationEnabled = false;
     travelCounter = 0;
+    simulationTick = 0;
 
     stopsCSV = "dataset/stops.csv";
     schoolsCSV = "dataset/schools.csv";
@@ -235,6 +255,7 @@ inline SmartCity::SmartCity() {
 }
 
 inline SmartCity::~SmartCity() {
+    delete aiManager;
     delete cityGraph;
     delete schoolManager;
     delete transportManager;
@@ -310,8 +331,49 @@ inline bool SmartCity::initialize() {
     commercialManager->loadShops(shopsCSV);
 	cityGraph->loadBuildingsCSV(mallsCSV, "MALL");
 
+    // Initialize AI Manager (The Brain)
+    aiManager = new AIManager(cityGraph, populationManager, transportManager);
+
     cityInitialized = true;
     return true;
+}
+
+// ========== AGENT SIMULATION CONTROL ==========
+
+inline void SmartCity::setSimulationTime(int hour, int minute) {
+    if (aiManager) {
+        aiManager->setTime(hour, minute);
+    }
+}
+
+inline int SmartCity::getSimulationHour() const {
+    if (aiManager) return aiManager->getHour();
+    return 0;
+}
+
+inline int SmartCity::getSimulationMinute() const {
+    if (aiManager) return aiManager->getMinute();
+    return 0;
+}
+
+inline int SmartCity::getTotalVehiclesOnRoads() const {
+    if (!cityInitialized || !cityGraph) return 0;
+    return cityGraph->getTotalVehiclesOnRoads();
+}
+
+inline int SmartCity::getWalkingCitizenCount() const {
+    if (!cityInitialized || !aiManager) return 0;
+    return aiManager->getWalkingCitizenCount();
+}
+
+inline int SmartCity::getWaitingCitizenCount() const {
+    if (!cityInitialized || !aiManager) return 0;
+    return aiManager->getWaitingCitizenCount();
+}
+
+inline int SmartCity::getCommutingCitizenCount() const {
+    if (!cityInitialized || !aiManager) return 0;
+    return aiManager->getCommutingCitizenCount();
 }
 
 // ========== STATISTICS ==========
@@ -737,12 +799,31 @@ inline bool SmartCity::undoLastTravel() {
 
 inline void SmartCity::runSimulation() {
     if (!cityInitialized) return;
+    
+    simulationTick++;
+    
+    // 1. Update traffic weights based on current road loads
+    cityGraph->updateTrafficWeights();
+    
+    // 2. Run agent AI (citizen decisions and movement)
+    if (agentSimulationEnabled && aiManager) {
+        aiManager->updateCitizens(1.0);  // 1 tick of time
+        
+        // Advance simulation time (1 tick = 1 minute)
+        if (simulationTick % 1 == 0) {
+            aiManager->advanceTime(1);
+        }
+    }
+    
+    // 3. Run transport simulation
     transportManager->runSimulation();
 }
 
 inline void SmartCity::runSimulation(int steps) {
     if (!cityInitialized) return;
-    transportManager->runSimulation(steps);
+    for (int i = 0; i < steps; i++) {
+        runSimulation();
+    }
 }
 
 inline void SmartCity::startSimulation() {
@@ -761,8 +842,7 @@ inline bool SmartCity::isSimulationRunning() const {
 }
 
 inline int SmartCity::getSimulationTick() const {
-    if (!cityInitialized) return 0;
-    return transportManager->getSimulationTick();
+    return simulationTick;
 }
 
 // Legacy simulation methods

@@ -167,6 +167,7 @@
     <ClInclude Include="source\SchoolSystem\School.h" />
     <ClInclude Include="source\SchoolSystem\SchoolManager.h" />
     <ClInclude Include="source\SchoolSystem\Student.h" />
+    <ClInclude Include="source\Simulator\AIManager.h" />
     <ClInclude Include="source\Simulator\CityDatabaseView.h" />
     <ClInclude Include="source\Simulator\CityEditorViews.h" />
     <ClInclude Include="source\Simulator\CityManagement.h" />

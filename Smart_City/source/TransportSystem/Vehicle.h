@@ -1,5 +1,3 @@
-
-
 #pragma once
 #include <string>
 #include "../../data_structures/LinkedLists.h"
@@ -16,6 +14,9 @@ namespace VehicleStatus {
     const string MAINTENANCE = "MAINTENANCE";
     const string BOARDING = "BOARDING";
     const string RETURNING = "RETURNING";
+    const string STUCK_IN_TRAFFIC = "STUCK_IN_TRAFFIC";
+    const string PICKING_UP = "PICKING_UP";          // Rickshaw picking up passenger
+    const string DROPPING_OFF = "DROPPING_OFF";      // Rickshaw dropping off passenger
 }
 
 
@@ -23,6 +24,7 @@ namespace VehicleType {
     const string BUS = "BUS";
     const string SCHOOL_BUS = "SCHOOL_BUS";
     const string AMBULANCE = "AMBULANCE";
+    const string RICKSHAW = "RICKSHAW";              // Feeder vehicle
 }
 
 
@@ -71,6 +73,18 @@ protected:
     int maxCapacity;           
     int currentOccupancy;      
 
+    // ==================== SPATIAL AWARENESS (Phase 2) ====================
+    int nextNodeID;             // The node the vehicle is trying to reach
+    double progressOnEdge;      // 0.0 to 1.0, position on current road segment
+    bool isStuck;               // True if road is at capacity, vehicle must wait
+    int waitingTicks;           // How long the vehicle has been stuck
+    
+    // Rendering position (interpolated)
+    double renderLat, renderLon;
+
+    // Passenger tracking for rickshaws
+    Vector<string> passengerCNICs;  // List of passenger CNICs on this vehicle
+
 public:
     
     Vehicle() 
@@ -78,18 +92,81 @@ public:
           currentRouteIndex(0), currentNodeID(-1), currentStopName(""), currentSector(""),
           homeSector(""), homeNodeID(-1),
           totalDistance(0.0), distanceTraveled(0.0), speed(40.0),
-          maxCapacity(0), currentOccupancy(0) {}
+          maxCapacity(0), currentOccupancy(0),
+          nextNodeID(-1), progressOnEdge(0.0), isStuck(false), waitingTicks(0),
+          renderLat(0.0), renderLon(0.0) {}
     
     Vehicle(const string& id, const string& type, int capacity)
         : vehicleID(id), vehicleType(type), status(VehicleStatus::IDLE),
           currentRouteIndex(0), currentNodeID(-1), currentStopName(""), currentSector(""),
           homeSector(""), homeNodeID(-1),
           totalDistance(0.0), distanceTraveled(0.0), speed(40.0),
-          maxCapacity(capacity), currentOccupancy(0) {}
+          maxCapacity(capacity), currentOccupancy(0),
+          nextNodeID(-1), progressOnEdge(0.0), isStuck(false), waitingTicks(0),
+          renderLat(0.0), renderLon(0.0) {}
     
     virtual ~Vehicle() = default;
     
-    // ==================== GETTERS ====================
+    // ==================== SPATIAL GETTERS ====================
+    int getNextNodeID() const { return nextNodeID; }
+    double getProgressOnEdge() const { return progressOnEdge; }
+    bool getIsStuck() const { return isStuck; }
+    int getWaitingTicks() const { return waitingTicks; }
+    double getRenderLat() const { return renderLat; }
+    double getRenderLon() const { return renderLon; }
+    const Vector<string>& getPassengerCNICs() const { return passengerCNICs; }
+    
+    // ==================== SPATIAL SETTERS ====================
+    void setNextNodeID(int nodeID) { nextNodeID = nodeID; }
+    void setProgressOnEdge(double progress) { progressOnEdge = progress; }
+    void setIsStuck(bool stuck) { 
+        isStuck = stuck; 
+        if (stuck) {
+            waitingTicks++;
+            status = VehicleStatus::STUCK_IN_TRAFFIC;
+        } else {
+            waitingTicks = 0;
+            if (status == VehicleStatus::STUCK_IN_TRAFFIC) {
+                status = VehicleStatus::EN_ROUTE;
+            }
+        }
+    }
+    void setRenderPosition(double lat, double lon) { renderLat = lat; renderLon = lon; }
+    
+    // ==================== PASSENGER MANAGEMENT ====================
+    bool addPassenger(const string& cnic) {
+        if (currentOccupancy < maxCapacity) {
+            passengerCNICs.push_back(cnic);
+            currentOccupancy++;
+            return true;
+        }
+        return false;
+    }
+    
+    bool removePassenger(const string& cnic) {
+        for (int i = 0; i < passengerCNICs.getSize(); i++) {
+            if (passengerCNICs[i] == cnic) {
+                passengerCNICs.erase(i);
+                currentOccupancy--;
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    bool hasPassenger(const string& cnic) const {
+        for (int i = 0; i < passengerCNICs.getSize(); i++) {
+            if (passengerCNICs[i] == cnic) return true;
+        }
+        return false;
+    }
+    
+    void clearPassengers() {
+        passengerCNICs.clear();
+        currentOccupancy = 0;
+    }
+    
+    // ==================== ORIGINAL GETTERS ====================
     
     string getID() const { return vehicleID; }
     string getType() const { return vehicleType; }
@@ -142,10 +219,14 @@ public:
         }
         
         currentRouteIndex = 0;
+        progressOnEdge = 0.0;
         if (route.size() > 0) {
             currentNodeID = route.front().graphNodeID;
             currentStopName = route.front().stopName;
             currentSector = route.front().sector;
+            if (route.size() > 1) {
+                nextNodeID = route.at(1).graphNodeID;
+            }
         }
     }
     
@@ -157,8 +238,12 @@ public:
         }
         totalDistance = totalDist;
         currentRouteIndex = 0;
+        progressOnEdge = 0.0;
         if (route.size() > 0) {
             currentNodeID = route.front().graphNodeID;
+            if (route.size() > 1) {
+                nextNodeID = route.at(1).graphNodeID;
+            }
         }
     }
     
@@ -219,6 +304,14 @@ public:
         currentNodeID = next.graphNodeID;
         currentStopName = next.stopName;
         currentSector = next.sector;
+        progressOnEdge = 0.0;
+        
+        // Update next node
+        if (currentRouteIndex + 1 < route.size()) {
+            nextNodeID = route.at(currentRouteIndex + 1).graphNodeID;
+        } else {
+            nextNodeID = -1;
+        }
         
         return true;
     }
@@ -226,10 +319,16 @@ public:
     virtual void resetRoute() {
         currentRouteIndex = 0;
         distanceTraveled = 0.0;
+        progressOnEdge = 0.0;
+        isStuck = false;
+        waitingTicks = 0;
         if (route.size() > 0) {
             currentNodeID = route.front().graphNodeID;
             currentStopName = route.front().stopName;
             currentSector = route.front().sector;
+            if (route.size() > 1) {
+                nextNodeID = route.at(1).graphNodeID;
+            }
         }
     }
     
@@ -237,7 +336,7 @@ public:
         return currentRouteIndex >= route.size() - 1;
     }
     
-    
+    // Legacy occupancy methods
     virtual bool addOccupant() {
         if (currentOccupancy < maxCapacity) {
             ++currentOccupancy;
@@ -254,7 +353,7 @@ public:
         return false;
     }
     
-    void clearOccupancy() { currentOccupancy = 0; }
+    void clearOccupancy() { currentOccupancy = 0; passengerCNICs.clear(); }
     bool isFull() const { return currentOccupancy >= maxCapacity; }
     bool isEmpty() const { return currentOccupancy == 0; }
 };
