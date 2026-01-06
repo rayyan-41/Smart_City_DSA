@@ -1,6 +1,6 @@
 #pragma once
 #include "CityUtils.h"
- 
+
 class CityGraph {
 private:
     CityNode* nodes[MAX_NODES];
@@ -8,7 +8,9 @@ private:
 
     int facilityCounters[14];
 
-    void connectNodeToSectorCorners(int nodeID, const string& sector);
+    // Internal helper to create a node structure without triggering grid logic
+    // Used for creating the skeleton (CORNER) nodes
+    int createNodeRaw(const string& dbID, const string& sID, const string& name, const string& type, double lat, double lon);
 
 public:
     CityGraph();
@@ -79,6 +81,16 @@ inline CityGraph::~CityGraph() {
     }
 }
 
+// ==================== INTERNAL HELPER ====================
+
+inline int CityGraph::createNodeRaw(const string& dbID, const string& sID, const string& name, const string& type, double lat, double lon) {
+    if (nodeCount >= MAX_NODES) return -1;
+    int newID = nodeCount;
+    nodes[newID] = new CityNode(newID, dbID, sID, name, type, lat, lon);
+    nodeCount++;
+    return newID;
+}
+
 // ==================== NODE ACCESS ====================
 
 inline CityNode* CityGraph::getNode(int index) const {
@@ -116,8 +128,7 @@ inline string CityGraph::generateStopID(const string& type) {
     return prefix + "-" + countStr;
 }
 
-// ==================== SECTOR FRAME INITIALIZATION ====================
-
+// ==================== SECTOR FRAME INITIALIZATION (5x5 GRID) ====================
 
 inline void CityGraph::initializeSectorFrame(const string& sectorName) {
     int idx = GeometryUtils::getSectorIndex(sectorName);
@@ -125,75 +136,185 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
 
     SectorBox& box = SECTOR_GRID[idx];
 
-    int cSW = nodeCount;
-    addLocation("C-" + sectorName + "-SW", "", sectorName + " SW", FacilityType::CORNER, box.minLat, box.minLon);
+    // 1. GENERATE 5x5 SKELETON GRID (CORNER NODES)
+    // 5 Rows (Lat) x 5 Cols (Lon)
+    double latStep = box.getHeight() / 4.0;
+    double lonStep = box.getWidth() / 4.0;
 
-    int cNW = nodeCount;
-    addLocation("C-" + sectorName + "-NW", "", sectorName + " NW", FacilityType::CORNER, box.maxLat, box.minLon);
+    for (int r = 0; r < 5; r++) {
+        for (int c = 0; c < 5; c++) {
+            double lat = box.minLat + r * latStep;
+            double lon = box.minLon + c * lonStep;
 
-    int cNE = nodeCount;
-    addLocation("C-" + sectorName + "-NE", "", sectorName + " NE", FacilityType::CORNER, box.maxLat, box.maxLon);
+            // Generate unique ID for corner: "C-F11-R2-C3"
+            string idName = "C-" + sectorName + "-R" + std::to_string(r) + "-C" + std::to_string(c);
 
-    int cSE = nodeCount;
-    addLocation("C-" + sectorName + "-SE", "", sectorName + " SE", FacilityType::CORNER, box.minLat, box.maxLon);
+            // Create the skeleton node
+            int nodeID = createNodeRaw(idName, "", idName, FacilityType::CORNER, lat, lon);
 
-    addRoad(cSW, cNW);
-    addRoad(cNW, cNE);
-    addRoad(cNE, cSE);
-    addRoad(cSE, cSW);
+            // Store in the sector's grid map
+            if (nodeID != -1) {
+                box.gridCorners[r][c] = nodeID;
+            }
+        }
+    }
+
+    // 2. CONNECT SKELETON NODES (ROADS)
+    for (int r = 0; r < 5; r++) {
+        for (int c = 0; c < 5; c++) {
+            int current = box.gridCorners[r][c];
+            if (current == -1) continue;
+
+            // Connect Horizontal (East)
+            if (c < 4) {
+                int right = box.gridCorners[r][c + 1];
+                if (right != -1) addRoad(current, right);
+            }
+            // Connect Vertical (North)
+            if (r < 4) {
+                int up = box.gridCorners[r + 1][c];
+                if (up != -1) addRoad(current, up);
+            }
+        }
+    }
+
+    // 3. INITIALIZE SUB-SECTORS (16 CELLS)
+    // Map the corners to the cells for easy access later
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 4; c++) {
+            int cellIdx = r * 4 + c;
+            SubSubSector& cell = box.cells[cellIdx];
+
+            // Set Bounds
+            cell.minLat = box.minLat + r * latStep;
+            cell.maxLat = box.minLat + (r + 1) * latStep;
+            cell.minLon = box.minLon + c * lonStep;
+            cell.maxLon = box.minLon + (c + 1) * lonStep;
+
+            // Assign the 4 corners surrounding this cell
+            // SW, NW, NE, SE relative to the cell
+            cell.cornerIDs[0] = box.gridCorners[r][c];         // SW
+            cell.cornerIDs[1] = box.gridCorners[r + 1][c];     // NW
+            cell.cornerIDs[2] = box.gridCorners[r + 1][c + 1]; // NE
+            cell.cornerIDs[3] = box.gridCorners[r][c + 1];     // SE
+        }
+    }
 
     SECTOR_GRID[idx].initialized = true;
 }
 
-// ==================== NODE-TO-CORNER CONNECTION ====================
-
-
-inline void CityGraph::connectNodeToSectorCorners(int nodeID, const string& sector) {
-    if (nodeID < 0 || nodeID >= nodeCount) return;
-    if (sector.empty() || sector == "Unknown") return;
-
-    for (int i = 0; i < nodeCount; i++) {
-        if (!nodes[i] || nodes[i]->sector != sector || nodes[i]->type != FacilityType::CORNER) {
-            continue;
-        }
-
-        bool exists = false;
-        const LinkedList<Edge>& roads = nodes[nodeID]->getRoads();
-        for (int j = 0; j < roads.size(); j++) {
-            if (roads[j].destinationID == i) {
-                exists = true;
-                break;
-            }
-        }
-
-        if (!exists) {
-            addRoad(nodeID, i);
-        }
-    }
-}
-
-
+// ==================== ADD LOCATION (CORE LOGIC) ====================
 
 inline int CityGraph::addLocation(const string& databaseID, const string& stopID,
     const string& name, const string& type,
     double lat, double lon) {
+
     if (nodeCount >= MAX_NODES) return -1;
 
     string sector = GeometryUtils::resolveSector(lat, lon);
 
-    if (type != FacilityType::CORNER && sector != "Unknown") {
+    // 1. Initialize Sector if needed
+    if (sector != "Unknown") {
         int sectorIdx = GeometryUtils::getSectorIndex(sector);
         if (sectorIdx != -1 && !SECTOR_GRID[sectorIdx].initialized) {
             initializeSectorFrame(sector);
         }
     }
 
-    int newID = nodeCount;
-    nodes[newID] = new CityNode(newID, databaseID, stopID, name, type, lat, lon);
-    nodeCount++;
+    // 2. Create the Node
+    int newID = createNodeRaw(databaseID, stopID, name, type, lat, lon);
+    if (newID == -1) return -1;
 
-    if (type != FacilityType::CORNER) {
-        connectNodeToSectorCorners(newID, sector);
+    // 3. Logic for Non-Corner Nodes (Connectivity)
+    if (type != FacilityType::CORNER && sector != "Unknown") {
+        int sectorIdx = GeometryUtils::getSectorIndex(sector);
+        if (sectorIdx != -1) {
+            SectorBox& box = SECTOR_GRID[sectorIdx];
+
+            // A. Resolve SubSector
+            int cellIdx = GeometryUtils::getSubSectorIndex(lat, lon, box);
+
+            // B. Spillover Logic (if cell is full)
+            if (cellIdx != -1) {
+                SubSubSector* targetCell = &box.cells[cellIdx];
+
+                // If full, try to find nearest non-full neighbor cell
+                if (targetCell->isFull()) {
+                    double minDist = INF;
+                    SubSubSector* bestBackup = nullptr;
+
+                    for (int i = 0; i < 16; i++) {
+                        if (!box.cells[i].isFull()) {
+                            double d = GeometryUtils::getGridDistance(lat, lon,
+                                box.cells[i].getCenterLat(), box.cells[i].getCenterLon());
+                            if (d < minDist) {
+                                minDist = d;
+                                bestBackup = &box.cells[i];
+                            }
+                        }
+                    }
+                    // If we found a backup, use it. Otherwise we stay with targetCell (and overload it)
+                    if (bestBackup != nullptr) {
+                        targetCell = bestBackup;
+                    }
+                }
+
+                // C. Add to Cell
+                if (targetCell->nodeCount < 4) {
+                    targetCell->nodeIDs[targetCell->nodeCount++] = newID;
+                }
+
+                // D. Connect to NEAREST CORNER of the cell (Skeleton Access)
+                double minCornerDist = INF;
+                int bestCorner = -1;
+
+                for (int i = 0; i < 4; i++) {
+                    int cID = targetCell->cornerIDs[i];
+                    if (cID != -1 && nodes[cID]) {
+                        double d = GeometryUtils::getGridDistance(lat, lon, nodes[cID]->lat, nodes[cID]->lon);
+                        if (d < minCornerDist) {
+                            minCornerDist = d;
+                            bestCorner = cID;
+                        }
+                    }
+                }
+                if (bestCorner != -1) {
+                    addRoad(newID, bestCorner);
+                }
+
+                // E. Connect to 2 CLOSEST NODES inside the cell (Cluster Access)
+                // Collect existing nodes in cell (excluding self)
+                int existingNodes[4];
+                double dists[4];
+                int count = 0;
+
+                for (int i = 0; i < 4; i++) {
+                    int nID = targetCell->nodeIDs[i];
+                    if (nID != -1 && nID != newID && nodes[nID]) {
+                        existingNodes[count] = nID;
+                        dists[count] = GeometryUtils::getGridDistance(lat, lon, nodes[nID]->lat, nodes[nID]->lon);
+                        count++;
+                    }
+                }
+
+                // Sort by distance (Bubble sort for tiny array)
+                for (int i = 0; i < count - 1; i++) {
+                    for (int j = 0; j < count - i - 1; j++) {
+                        if (dists[j] > dists[j + 1]) {
+                            std::swap(dists[j], dists[j + 1]);
+                            std::swap(existingNodes[j], existingNodes[j + 1]);
+                        }
+                    }
+                }
+
+                // Connect to up to 2 closest
+                int links = 0;
+                for (int i = 0; i < count && links < 2; i++) {
+                    addRoad(newID, existingNodes[i]);
+                    links++;
+                }
+            }
+        }
     }
 
     return newID;
@@ -202,8 +323,47 @@ inline int CityGraph::addLocation(const string& databaseID, const string& stopID
 // ==================== PUBLIC FACILITY ====================
 
 inline int CityGraph::addPublicFacility(const string& name, const string& type, const string& sector) {
+    int idx = GeometryUtils::getSectorIndex(sector);
+    if (idx == -1) return -1;
+
+    // Initialize if needed
+    if (!SECTOR_GRID[idx].initialized) {
+        initializeSectorFrame(sector);
+    }
+
+    SectorBox& box = SECTOR_GRID[idx];
+
+    // Find a random subsector that isn't full
+    Vector<int> availableCells;
+    for (int i = 0; i < 16; i++) {
+        if (!box.cells[i].isFull()) {
+            availableCells.push_back(i);
+        }
+    }
+
     double lat, lon;
-    GeometryUtils::generateCoords(sector, lat, lon);
+
+    if (availableCells.getSize() > 0) {
+        // Pick random available cell
+        int randIdx = rand() % availableCells.getSize();
+        int cellID = availableCells[randIdx];
+        SubSubSector& cell = box.cells[cellID];
+
+        // Generate coords INSIDE this cell
+        double marginLat = cell.getHeight() * 0.1;
+        double marginLon = cell.getWidth() * 0.1;
+
+        double r1 = (double)rand() / RAND_MAX;
+        double r2 = (double)rand() / RAND_MAX;
+
+        lat = cell.minLat + marginLat + r1 * (cell.getHeight() - 2 * marginLat);
+        lon = cell.minLon + marginLon + r2 * (cell.getWidth() - 2 * marginLon);
+    }
+    else {
+        // Fallback: Generate generic coords in sector (will trigger spillover logic in addLocation)
+        GeometryUtils::generateCoords(sector, lat, lon);
+    }
+
     string stopID = generateStopID(type);
     return addLocation(stopID, stopID, name, type, lat, lon);
 }

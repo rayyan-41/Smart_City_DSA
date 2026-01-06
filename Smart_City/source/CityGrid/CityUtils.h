@@ -9,7 +9,10 @@ using namespace std;
 
 const int INF = 1e9;
 
-#define MAX_NODES 1000
+// Increased node capacity to support 4x4 sub-grid skeleton (25 corner nodes per sector)
+// 25 corners * 30 sectors = 750 nodes just for infrastructure.
+// Plus 16 subsectors * 4 nodes = 64 nodes capacity per sector.
+#define MAX_NODES 5000
 #define SECTOR_COUNT 30
 #define MAX_ROADS_PER_NODE 10
 #define MAX_SCHOOLS_PER_SECTOR 5
@@ -77,6 +80,35 @@ namespace FacilityType {
     }
 }
 
+// SUB-SECTOR GRID CELL (The Leaf Node of the Spatial Grid)
+// Each sector (2km x 2km) is divided into 4x4 = 16 of these cells.
+struct SubSubSector {
+    int id;               // Local ID 0-15
+    double minLat, maxLat, minLon, maxLon;
+
+    // Node Management
+    int nodeCount;
+    int nodeIDs[4];       // Max 4 nodes per cell
+
+    // Skeleton Connectivity
+    int cornerIDs[4];     // The 4 skeleton corners defining this box (SW, NW, NE, SE) in the main graph
+
+    SubSubSector() : id(-1), minLat(0), maxLat(0), minLon(0), maxLon(0), nodeCount(0) {
+        for (int i = 0; i < 4; i++) {
+            nodeIDs[i] = -1;
+            cornerIDs[i] = -1;
+        }
+    }
+
+    bool isFull() const { return nodeCount >= 4; }
+
+    double getCenterLat() const { return (minLat + maxLat) / 2.0; }
+    double getCenterLon() const { return (minLon + maxLon) / 2.0; }
+
+    double getWidth() const { return maxLon - minLon; }
+    double getHeight() const { return maxLat - minLat; }
+};
+
 // SECTOR BOX
 struct SectorBox {
     string name;
@@ -84,9 +116,34 @@ struct SectorBox {
     double minLon, maxLon;
     bool initialized = false;
 
-    SectorBox() : name(""), minLat(0), maxLat(0), minLon(0), maxLon(0), initialized(false) {}
+    // THE NEW GRID: 4x4 subdivision = 16 cells
+    SubSubSector cells[16];
+
+    // Skeleton: 5x5 grid of node indices representing intersections
+    // [row][col] where row is lat-step, col is lon-step
+    int gridCorners[5][5];
+
+    SectorBox() : name(""), minLat(0), maxLat(0), minLon(0), maxLon(0), initialized(false) {
+        resetGrid();
+    }
+
     SectorBox(const string& n, double minLa, double maxLa, double minLo, double maxLo)
         : name(n), minLat(minLa), maxLat(maxLa), minLon(minLo), maxLon(maxLo), initialized(false) {
+        resetGrid();
+    }
+
+    void resetGrid() {
+        // Reset cells
+        for (int i = 0; i < 16; i++) {
+            cells[i] = SubSubSector();
+            cells[i].id = i;
+        }
+        // Reset corner grid
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                gridCorners[i][j] = -1;
+            }
+        }
     }
 
     double getCenterLat() const { return (minLat + maxLat) / 2.0; }
@@ -193,6 +250,28 @@ public:
             if (SECTOR_GRID[i].name == name) return i;
         }
         return -1;
+    }
+
+    // Maps a coordinate to the specific 4x4 sub-grid cell index (0-15)
+    static int getSubSectorIndex(double lat, double lon, const SectorBox& sector) {
+        if (!sector.containsPoint(lat, lon)) return -1;
+
+        double relativeLat = lat - sector.minLat;
+        double relativeLon = lon - sector.minLon;
+
+        // Grid is 4x4
+        double cellHeight = sector.getHeight() / 4.0;
+        double cellWidth = sector.getWidth() / 4.0;
+
+        int row = (int)(relativeLat / cellHeight);
+        int col = (int)(relativeLon / cellWidth);
+
+        // Clamp to 0-3 to handle boundary cases
+        if (row < 0) row = 0; if (row > 3) row = 3;
+        if (col < 0) col = 0; if (col > 3) col = 3;
+
+        // Return 1D index: row 0 is bottom, row 3 is top
+        return row * 4 + col;
     }
 
     static void generateCoords(const string& sector, double& lat, double& lon) {
@@ -385,4 +464,3 @@ struct CityStats {
     int totalPatientsTransported = 0;
     int totalTravelRecords = 0;
 };
-

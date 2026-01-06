@@ -39,18 +39,39 @@ struct GraphNode2D {
     bool isVisited;
     bool isStart;
     bool isEnd;
+    int gridRow, gridCol;  // Position in sector's 5x5 grid (for corners)
 
     GraphNode2D() : id(-1), lat(0), lon(0), pos(), name(""), type(""), sector(""),
         color(termgl::Color::White()), isCorner(false), isOnPath(false),
-        isVisited(false), isStart(false), isEnd(false) {
+        isVisited(false), isStart(false), isEnd(false), gridRow(-1), gridCol(-1) {
     }
+};
+
+// ============================================================================
+// ROAD HIERARCHY CLASSIFICATION
+// ============================================================================
+// Sector Grid (5x5 corners per sector):
+//   - SECTOR_BOUNDARY: Edges on the perimeter (row 0, row 4, col 0, col 4)
+//   - SUB_SECTOR: Edges at row 2 or col 2 (dividing into 4 quadrants)
+//   - SUB_SUB_SECTOR: All other internal skeleton edges (rows 1,3 or cols 1,3)
+//   - FACILITY_ROAD: Connections involving non-corner nodes
+
+enum class RoadType {
+    SECTOR_BOUNDARY,    // Perimeter roads of sector (thickest)
+    SUB_SECTOR,         // Roads dividing sector into 4 quadrants
+    SUB_SUB_SECTOR,     // Roads dividing quadrants into 4 cells each
+    FACILITY_ROAD       // Connections to/between facilities (thinnest)
 };
 
 struct GraphEdge2D {
     int fromID, toID;
     bool isOnPath;
+    RoadType roadType;
+    string fromSector;
+    string toSector;
 
-    GraphEdge2D(int f = -1, int t = -1) : fromID(f), toID(t), isOnPath(false) {}
+    GraphEdge2D(int f = -1, int t = -1) : fromID(f), toID(t), isOnPath(false), 
+        roadType(RoadType::FACILITY_ROAD), fromSector(""), toSector("") {}
 };
 
 struct SectorRegion {
@@ -81,17 +102,6 @@ struct TrafficVehicle {
         color(termgl::Color::Yellow()), isBus(false) {
     }
 };
-
-namespace GraphRenderConfig {
-    constexpr int ROAD_THICKNESS = 2;
-    constexpr int PATH_THICKNESS = 4;
-    constexpr int FACILITY_RADIUS = 5;
-    constexpr int CORNER_RADIUS = 3;
-    constexpr int PATH_NODE_RADIUS = 6;
-    constexpr int START_END_RADIUS = 8;
-    constexpr int HOUSE_RADIUS = 2;
-    constexpr int TRAFFIC_RADIUS = 4;
-}
 
 class GraphViewport {
 private:
@@ -136,13 +146,9 @@ public:
     void zoomIn() { zoom *= 1.1; if (zoom > 10.0) zoom = 10.0; }
     void zoomOut() { zoom /= 1.1; if (zoom < 0.1) zoom = 0.1; }
 
-    // New Drag Panning logic replacing manual pan methods
     void drag(double dx, double dy) {
-        // Calculate offset in normalized space
-        // The drawing area width is roughly canvasWidth * 0.9 (due to 0.05 padding on each side)
         double effectiveW = canvasWidth * 0.9;
         double effectiveH = canvasHeight * 0.9;
-
         if (effectiveW > 0) offsetX += dx / effectiveW;
         if (effectiveH > 0) offsetY += dy / effectiveH;
     }
@@ -153,7 +159,11 @@ public:
     double getOffsetX() const { return offsetX; }
     double getOffsetY() const { return offsetY; }
 
-    // Culling helper
+    // Get scale factor for rendering (things get bigger as you zoom in)
+    double getScaleFactor() const {
+        return std::max(1.0, zoom * 0.5);
+    }
+
     bool isVisible(Point2D p, int margin = 50) const {
         return (p.x >= -margin && p.x <= canvasWidth + margin &&
             p.y >= -margin && p.y <= canvasHeight + margin);
@@ -185,7 +195,7 @@ private:
     termgl::Texture texSchool, texHospital, texPharmacy, texStop, texMall;
     termgl::Texture texMosque, texPark, texPolice, texFire, texLibrary;
     termgl::Texture texRestaurant, texHouse, texDefault;
-    termgl::Texture texBus, texCar; // Traffic assets
+    termgl::Texture texBus, texCar;
 
     termgl::Sprite sprSchool, sprHospital, sprPharmacy, sprStop, sprMall;
     termgl::Sprite sprMosque, sprPark, sprPolice, sprFire, sprLibrary;
@@ -196,7 +206,6 @@ private:
     int hoveredNodeID;
     string hoveredSector;
 
-    // View toggles
     bool showCorners;
     bool showRoads;
     bool showSectorBounds;
@@ -204,15 +213,14 @@ private:
     bool showTraffic;
     bool trafficPaused;
 
-    // Dijkstra State
     DijkstraMode dijkstraMode;
-    bool inDijkstraMode; // Main flag for the mode
+    bool inDijkstraMode;
     int dijkstraStartNode;
     int dijkstraEndNode;
     string dijkstraTargetType;
     Vector<int> dijkstraPath;
     double dijkstraDistance;
-    int dijkstraNodeSelection; // Used for list scrolling
+    int dijkstraNodeSelection;
     int dijkstraEndNodeSelection;
     Vector<int> selectableNodes;
 
@@ -236,6 +244,42 @@ private:
         return termgl::Color::White();
     }
 
+    // Parse grid position from corner node name (e.g., "C-F7-R2-C3" -> row=2, col=3)
+    void parseCornerGridPosition(const string& name, int& row, int& col) {
+        row = -1; col = -1;
+        size_t rPos = name.find("-R");
+        size_t cPos = name.find("-C", rPos);
+        if (rPos != string::npos && cPos != string::npos) {
+            try {
+                row = std::stoi(name.substr(rPos + 2, cPos - rPos - 2));
+                col = std::stoi(name.substr(cPos + 2));
+            } catch (...) {}
+        }
+    }
+
+    // Classify road based on corner grid positions
+    RoadType classifySkeletonRoad(int row1, int col1, int row2, int col2) {
+        // Check if edge is on sector boundary (perimeter)
+        bool onBoundary1 = (row1 == 0 || row1 == 4 || col1 == 0 || col1 == 4);
+        bool onBoundary2 = (row2 == 0 || row2 == 4 || col2 == 0 || col2 == 4);
+        
+        if (onBoundary1 && onBoundary2) {
+            // Both endpoints on boundary = sector boundary road
+            return RoadType::SECTOR_BOUNDARY;
+        }
+        
+        // Check if edge involves center lines (row 2 or col 2) - divides into 4 quadrants
+        bool onCenter1 = (row1 == 2 || col1 == 2);
+        bool onCenter2 = (row2 == 2 || col2 == 2);
+        
+        if (onCenter1 && onCenter2) {
+            return RoadType::SUB_SECTOR;
+        }
+        
+        // Everything else is sub-sub-sector
+        return RoadType::SUB_SUB_SECTOR;
+    }
+
 public:
     CityGraphView(SmartCity* cityPtr) : city(cityPtr),
         mouseX(0), mouseY(0), hoveredNodeID(-1), hoveredSector(""),
@@ -248,8 +292,6 @@ public:
     }
 
     void loadResources() {
-        // Helper lambda to load texture and set sprite
-        // Checks multiple paths to be robust
         auto loadAsset = [](termgl::Texture& tex, termgl::Sprite& spr, const string& filename) {
             std::vector<string> paths = {
                 "assets/" + filename,
@@ -261,21 +303,16 @@ public:
                 filename
             };
 
-            bool loaded = false;
             for (const auto& path : paths) {
                 std::ifstream f(path.c_str());
                 if (f.good()) {
                     f.close();
                     if (tex.loadFromFile(path)) {
                         spr.setTexture(&tex);
-                        loaded = true;
-                        std::cout << "Loaded asset: " << path << " (" << tex.width << "x" << tex.height << ")" << std::endl;
-                        break;
+                        std::cout << "Loaded: " << path << std::endl;
+                        return;
                     }
                 }
-            }
-            if (!loaded) {
-                std::cerr << "Failed to load texture: " << filename << std::endl;
             }
         };
 
@@ -315,6 +352,7 @@ public:
         }
         nodeIdToIndex.resize(maxId + 1, -1);
 
+        // Build nodes
         for (int i = 0; i < graph->getNodeCount(); i++) {
             CityNode* node = graph->getNode(i);
             if (!node) continue;
@@ -335,7 +373,8 @@ public:
 
             if (gNode.isCorner) {
                 intersectionCounter++;
-                gNode.name = "Intersection " + std::to_string(intersectionCounter);
+                gNode.name = node->databaseID;  // Keep original ID for parsing
+                parseCornerGridPosition(node->databaseID, gNode.gridRow, gNode.gridCol);
             }
             else {
                 gNode.name = node->name;
@@ -345,6 +384,7 @@ public:
             graphNodes.push_back(gNode);
         }
 
+        // Build edges with proper classification
         for (int i = 0; i < graph->getNodeCount(); i++) {
             CityNode* node = graph->getNode(i);
             if (!node) continue;
@@ -353,13 +393,45 @@ public:
             for (int j = 0; j < roads.size(); j++) {
                 Edge edge = roads.at(j);
                 if (node->id < edge.destinationID) {
+                    CityNode* destNode = graph->getNode(edge.destinationID);
+                    if (!destNode) continue;
+
                     GraphEdge2D gEdge(node->id, edge.destinationID);
                     gEdge.isOnPath = false;
+                    gEdge.fromSector = node->sector;
+                    gEdge.toSector = destNode->sector;
+
+                    bool fromIsCorner = (node->type == "CORNER");
+                    bool toIsCorner = (destNode->type == "CORNER");
+
+                    if (fromIsCorner && toIsCorner) {
+                        // Both corners - classify based on grid position
+                        int idx1 = nodeIdToIndex[node->id];
+                        int idx2 = nodeIdToIndex[edge.destinationID];
+                        
+                        if (idx1 >= 0 && idx2 >= 0) {
+                            const GraphNode2D& n1 = graphNodes[idx1];
+                            const GraphNode2D& n2 = graphNodes[idx2];
+                            
+                            if (n1.gridRow >= 0 && n2.gridRow >= 0) {
+                                gEdge.roadType = classifySkeletonRoad(
+                                    n1.gridRow, n1.gridCol, n2.gridRow, n2.gridCol);
+                            } else {
+                                gEdge.roadType = RoadType::SUB_SUB_SECTOR;
+                            }
+                        }
+                    }
+                    else {
+                        // At least one is a facility
+                        gEdge.roadType = RoadType::FACILITY_ROAD;
+                    }
+
                     graphEdges.push_back(gEdge);
                 }
             }
         }
 
+        // Build sector regions
         for (int i = 0; i < SECTOR_COUNT; i++) {
             SectorRegion region;
             region.name = SECTOR_GRID[i].name;
@@ -394,8 +466,7 @@ public:
             else if (colorChoice == 2) vehicle.color = termgl::Color::Cyan();
             else vehicle.color = termgl::Color::Red();
 
-            if (rand() % 5 == 0) vehicle.isBus = true; // 20% chance to be a bus
-
+            if (rand() % 5 == 0) vehicle.isBus = true;
             trafficVehicles.push_back(vehicle);
         }
     }
@@ -430,11 +501,6 @@ public:
                         vehicle.edgeToID = nextEdge.fromID;
                     }
                 }
-                else if (!graphEdges.empty()) {
-                    int edgeIdx = rand() % graphEdges.getSize();
-                    vehicle.edgeFromID = graphEdges[edgeIdx].fromID;
-                    vehicle.edgeToID = graphEdges[edgeIdx].toID;
-                }
             }
         }
     }
@@ -445,24 +511,17 @@ public:
         hoveredNodeID = -1;
         hoveredSector = "";
 
-        // Check visible nodes only for hover to improve perf?
-        // For now, distance check is fast enough, but iterating all nodes is 0(N)
-        double minDist = 15.0;
+        double minDist = 15.0 * viewport.getScaleFactor();
 
-        // Simple Culling for Hover Logic
         for (int i = 0; i < graphNodes.getSize(); i++) {
             const GraphNode2D& node = graphNodes[i];
-
-            // Basic culling check before expensive math
             if (!viewport.isVisible(node.pos)) continue;
-
             if (node.isCorner && !showCorners) continue;
             if (node.type == "HOUSE" && !showHouses) continue;
 
             double dx = node.pos.x - mx;
             double dy = node.pos.y - my;
-            // Simple bounding box check first
-            if (std::abs(dx) > 20 || std::abs(dy) > 20) continue;
+            if (std::abs(dx) > 30 || std::abs(dy) > 30) continue;
 
             double dist = std::sqrt(dx * dx + dy * dy);
             if (dist < minDist) {
@@ -474,8 +533,8 @@ public:
         Point2D p(mx, my);
         for (int i = 0; i < sectorRegions.getSize(); i++) {
             SectorRegion& region = sectorRegions[i];
-            // Only check sectors that might be on screen? 
-            if (region.isHovered = region.contains(p)) {
+            region.isHovered = region.contains(p);
+            if (region.isHovered) {
                 hoveredSector = region.name;
             }
         }
@@ -570,14 +629,18 @@ public:
             int to = dijkstraPath[i + 1];
             for (int j = 0; j < graphEdges.getSize(); j++) {
                 GraphEdge2D& edge = graphEdges[j];
-                if ((edge.fromID == from && edge.toID == to) || (edge.fromID == to && edge.toID == from)) {
+                if ((edge.fromID == from && edge.toID == to) || 
+                    (edge.fromID == to && edge.toID == from)) {
                     edge.isOnPath = true;
                 }
             }
         }
     }
 
-    // Helper for thick lines
+    // ========================================================================
+    // DRAWING HELPERS
+    // ========================================================================
+
     void drawThickLine(termgl::Window& window, int x1, int y1, int x2, int y2, int thickness, termgl::Color c) {
         if (thickness <= 1) {
             window.drawLine(x1, y1, x2, y2, c);
@@ -599,8 +662,7 @@ public:
         }
     }
 
-    // Helper for dashed lines (e.g. center stripes)
-    void drawDashedLine(termgl::Window& window, int x1, int y1, int x2, int y2, termgl::Color c) {
+    void drawDashedLine(termgl::Window& window, int x1, int y1, int x2, int y2, termgl::Color c, double dashLen = 10.0) {
         double dx = x2 - x1;
         double dy = y2 - y1;
         double dist = std::sqrt(dx * dx + dy * dy);
@@ -608,28 +670,79 @@ public:
 
         double nx = dx / dist;
         double ny = dy / dist;
-
-        double dashLen = 10.0;
-        double gapLen = 10.0;
+        double gapLen = dashLen;
 
         double current = 0;
         while (current < dist) {
             double end = std::min(current + dashLen, dist);
-            int sx = (int)(x1 + nx * current);
-            int sy = (int)(y1 + ny * current);
-            int ex = (int)(x1 + nx * end);
-            int ey = (int)(y1 + ny * end);
-            window.drawLine(sx, sy, ex, ey, c);
+            window.drawLine(
+                (int)(x1 + nx * current), (int)(y1 + ny * current),
+                (int)(x1 + nx * end), (int)(y1 + ny * end), c);
             current += dashLen + gapLen;
         }
     }
+
+    // ========================================================================
+    // ROAD STYLING - Zoom dependent thickness
+    // ========================================================================
+
+    void getRoadStyle(RoadType roadType, double zoom, int& thickness, 
+                      termgl::Color& roadColor, termgl::Color& stripeColor, bool& visible) {
+        double scale = std::max(1.0, zoom * 0.6);
+        visible = true;
+
+        switch (roadType) {
+            case RoadType::SECTOR_BOUNDARY:
+                // Thickest - always visible, yellow stripe
+                thickness = (int)(4 * scale);
+                roadColor = termgl::Color(70, 70, 80);
+                stripeColor = termgl::Color(255, 200, 0);
+                break;
+
+            case RoadType::SUB_SECTOR:
+                // Medium - always visible, white stripe
+                thickness = (int)(3 * scale);
+                roadColor = termgl::Color(55, 55, 65);
+                stripeColor = termgl::Color(180, 180, 180);
+                break;
+
+            case RoadType::SUB_SUB_SECTOR:
+                // Thinner - always visible at base, no stripe at low zoom
+                thickness = (int)(2 * scale);
+                roadColor = termgl::Color(45, 45, 55);
+                stripeColor = termgl::Color(120, 120, 120);
+                break;
+
+            case RoadType::FACILITY_ROAD:
+                // Thinnest - only visible when zoomed in
+                if (zoom < 1.5) {
+                    visible = false;
+                    thickness = 0;
+                } else {
+                    thickness = (int)(1 * scale);
+                    roadColor = termgl::Color(40, 40, 50);
+                    stripeColor = termgl::Color(80, 80, 80);
+                }
+                break;
+        }
+
+        // Minimum thickness of 1 if visible
+        if (visible && thickness < 1) thickness = 1;
+    }
+
+    // ========================================================================
+    // RENDERING
+    // ========================================================================
 
     void renderGraph(termgl::Window& window) {
         int cw = window.getWidth();
         int ch = window.getHeight();
         viewport.setCanvasSize(cw, ch);
 
-        // Pre-calculate all node positions once per frame
+        double zoom = viewport.getZoom();
+        double scale = viewport.getScaleFactor();
+
+        // Pre-calculate all positions
         for (int i = 0; i < graphNodes.getSize(); i++) {
             graphNodes[i].pos = viewport.geoToCanvas(graphNodes[i].lat, graphNodes[i].lon);
         }
@@ -644,157 +757,200 @@ public:
                 (region.topLeft.y + region.bottomRight.y) / 2);
         }
 
-        double zoomLevel = viewport.getZoom();
-        bool highDetail = zoomLevel > 2.0;
-
+        // LAYER 1: Sector boundaries (optional)
         if (showSectorBounds) {
-            for (int i = 0; i < sectorRegions.getSize(); i++) {
-                const SectorRegion& region = sectorRegions[i];
-
-                // Culling Check for Sectors
-                if (!viewport.isVisible(region.topLeft, 0) && !viewport.isVisible(region.bottomRight, 0)) continue;
-
-                int x1 = (int)region.topLeft.x;
-                int y1 = (int)region.topLeft.y;
-                int w = (int)(region.bottomRight.x - region.topLeft.x);
-                int h = (int)(region.bottomRight.y - region.topLeft.y);
-
-                termgl::Color boundColor = region.isHovered ? termgl::Color::Yellow() : termgl::Color::Grey();
-                if (dijkstraPath.getSize() > 0) boundColor = termgl::Color::Grey();
-
-                window.drawRect(x1, y1, w, h, boundColor);
-                if (region.isHovered) {
-                    window.drawText(x1 + 5, y1 + 5, region.name, termgl::Color::Yellow());
-                }
-            }
+            renderSectorBoundaries(window, zoom);
         }
 
+        // LAYER 2: Roads (hierarchical, back to front)
         if (showRoads) {
-            for (int i = 0; i < graphEdges.getSize(); i++) {
-                const GraphEdge2D& edge = graphEdges[i];
-                if (edge.isOnPath) continue;
-                if (dijkstraPath.getSize() > 0 && dijkstraMode == DijkstraMode::COMPLETE) continue;
-
-                int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
-                int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
-                if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
-                    const GraphNode2D& n1 = graphNodes[idx1];
-                    const GraphNode2D& n2 = graphNodes[idx2];
-
-                    // Culling for Edges: if both ends are outside, skip
-                    if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
-
-                    if (highDetail) {
-                        // High detail road: Thick grey with markings
-                        drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 8, termgl::Color(60, 60, 60));
-                        // Dashed center line
-                        drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color(200, 200, 200));
-                    }
-                    else {
-                        // Low detail road
-                        window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color(50, 50, 60));
-                    }
-                }
-            }
-            // Highlighted path
-            for (int i = 0; i < graphEdges.getSize(); i++) {
-                const GraphEdge2D& edge = graphEdges[i];
-                if (!edge.isOnPath) continue;
-                int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
-                int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
-                if (idx1 >= 0 && idx2 >= 0 && idx1 < graphNodes.getSize() && idx2 < graphNodes.getSize()) {
-                    const GraphNode2D& n1 = graphNodes[idx1];
-                    const GraphNode2D& n2 = graphNodes[idx2];
-
-                    if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
-
-                    if (highDetail) {
-                        drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 8, termgl::Color(0, 100, 0));
-                        drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color::Green());
-                    }
-                    else {
-                        window.drawLine((int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, termgl::Color::Green());
-                        window.drawLine((int)n1.pos.x + 1, (int)n1.pos.y + 1, (int)n2.pos.x + 1, (int)n2.pos.y + 1, termgl::Color::Green());
-                    }
-                }
-            }
+            // Draw in order: Facility -> SubSubSector -> SubSector -> Boundary
+            renderRoadsByType(window, RoadType::FACILITY_ROAD, zoom);
+            renderRoadsByType(window, RoadType::SUB_SUB_SECTOR, zoom);
+            renderRoadsByType(window, RoadType::SUB_SECTOR, zoom);
+            renderRoadsByType(window, RoadType::SECTOR_BOUNDARY, zoom);
+            
+            // Path highlight on top
+            renderPathHighlight(window, zoom);
         }
 
+        // LAYER 3: Traffic
         if (showTraffic && !trafficPaused && dijkstraPath.getSize() == 0) {
-            for (int i = 0; i < trafficVehicles.getSize(); i++) {
-                const TrafficVehicle& vehicle = trafficVehicles[i];
-                int idx1 = (vehicle.edgeFromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[vehicle.edgeFromID] : -1;
-                int idx2 = (vehicle.edgeToID < nodeIdToIndex.getSize()) ? nodeIdToIndex[vehicle.edgeToID] : -1;
-                if (idx1 >= 0 && idx2 >= 0) {
-                    const GraphNode2D& n1 = graphNodes[idx1];
-                    const GraphNode2D& n2 = graphNodes[idx2];
-                    int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
-                    int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
-
-                    if (!viewport.isVisible(Point2D(vx, vy))) continue;
-
-                    if (highDetail) {
-                        // Draw sprite if available
-                        termgl::Sprite* s = vehicle.isBus ? &sprBus : &sprCar;
-                        if (s && s->texture && s->texture->width > 0) {
-                            float scale = 32.0f / s->texture->width; // Scale to ~32px
-                            s->setPosition(vx - 16, vy - 16);
-                            s->setScale(scale);
-                            window.drawSprite(*s);
-                        }
-                        else {
-                            window.fillCircle(vx, vy, 5, vehicle.color);
-                        }
-                    }
-                    else {
-                        window.fillCircle(vx, vy, 3, vehicle.color);
-                    }
-                }
-            }
+            renderTraffic(window, zoom);
         }
 
+        // LAYER 4: Houses
         if (showHouses && dijkstraPath.getSize() == 0) {
-            for (int i = 0; i < graphNodes.getSize(); i++) {
-                const GraphNode2D& node = graphNodes[i];
-                if (node.type != "HOUSE") continue;
-
-                if (!viewport.isVisible(node.pos)) continue;
-
-                if (highDetail && sprHouse.texture && sprHouse.texture->width > 0) {
-                    float scale = 16.0f / sprHouse.texture->width; // Scale to ~16px
-                    sprHouse.setPosition((float)node.pos.x - 8, (float)node.pos.y - 8);
-                    sprHouse.setScale(scale);
-                    window.drawSprite(sprHouse);
-                }
-                else {
-                    window.drawPixel((int)node.pos.x, (int)node.pos.y, termgl::Color(80, 80, 80));
-                }
-            }
+            renderHouses(window, zoom);
         }
 
+        // LAYER 5: Corners
         if (showCorners) {
-            for (int i = 0; i < graphNodes.getSize(); i++) {
-                const GraphNode2D& node = graphNodes[i];
-                if (!node.isCorner) continue;
-                if (dijkstraPath.getSize() > 0 && !node.isOnPath) continue;
+            renderCorners(window, zoom);
+        }
 
-                if (!viewport.isVisible(node.pos)) continue;
+        // LAYER 6: Facilities
+        renderFacilities(window, zoom);
+    }
 
-                termgl::Color c = node.isOnPath ? termgl::Color::Green() : termgl::Color::Grey();
-                window.fillCircle((int)node.pos.x, (int)node.pos.y, 2, c);
+    void renderSectorBoundaries(termgl::Window& window, double zoom) {
+        for (int i = 0; i < sectorRegions.getSize(); i++) {
+            const SectorRegion& region = sectorRegions[i];
+
+            if (!viewport.isVisible(region.topLeft, 0) && 
+                !viewport.isVisible(region.bottomRight, 0)) continue;
+
+            int x1 = (int)region.topLeft.x;
+            int y1 = (int)region.topLeft.y;
+            int w = (int)(region.bottomRight.x - region.topLeft.x);
+            int h = (int)(region.bottomRight.y - region.topLeft.y);
+
+            termgl::Color boundColor = region.isHovered ? 
+                termgl::Color::Yellow() : termgl::Color(60, 60, 70);
+
+            window.drawRect(x1, y1, w, h, boundColor);
+
+            // Draw sector name at center
+            if (zoom > 0.8 || region.isHovered) {
+                termgl::Color textColor = region.isHovered ? 
+                    termgl::Color::Yellow() : termgl::Color(120, 120, 140);
+                int textX = (int)region.center.x - (region.name.length() * 4);
+                int textY = (int)region.center.y - 8;
+                window.drawText(textX, textY, region.name, textColor);
             }
         }
+    }
+
+    void renderRoadsByType(termgl::Window& window, RoadType roadType, double zoom) {
+        int thickness;
+        termgl::Color roadColor, stripeColor;
+        bool visible;
+        
+        getRoadStyle(roadType, zoom, thickness, roadColor, stripeColor, visible);
+        if (!visible) return;
+
+        bool drawStripes = (zoom > 2.0) && (roadType != RoadType::FACILITY_ROAD);
+
+        for (int i = 0; i < graphEdges.getSize(); i++) {
+            const GraphEdge2D& edge = graphEdges[i];
+            
+            if (edge.roadType != roadType) continue;
+            if (edge.isOnPath) continue;
+            if (dijkstraPath.getSize() > 0 && dijkstraMode == DijkstraMode::COMPLETE) continue;
+
+            int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 < 0 || idx2 < 0) continue;
+
+            const GraphNode2D& n1 = graphNodes[idx1];
+            const GraphNode2D& n2 = graphNodes[idx2];
+
+            if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
+
+            drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, 
+                          (int)n2.pos.x, (int)n2.pos.y, thickness, roadColor);
+            
+            if (drawStripes && thickness >= 3) {
+                drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y,
+                               (int)n2.pos.x, (int)n2.pos.y, stripeColor);
+            }
+        }
+    }
+
+    void renderPathHighlight(termgl::Window& window, double zoom) {
+        double scale = viewport.getScaleFactor();
+        int pathThickness = (int)(6 * scale);
+
+        for (int i = 0; i < graphEdges.getSize(); i++) {
+            const GraphEdge2D& edge = graphEdges[i];
+            if (!edge.isOnPath) continue;
+
+            int idx1 = (edge.fromID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.fromID] : -1;
+            int idx2 = (edge.toID < nodeIdToIndex.getSize()) ? nodeIdToIndex[edge.toID] : -1;
+            if (idx1 < 0 || idx2 < 0) continue;
+
+            const GraphNode2D& n1 = graphNodes[idx1];
+            const GraphNode2D& n2 = graphNodes[idx2];
+
+            if (!viewport.isVisible(n1.pos) && !viewport.isVisible(n2.pos)) continue;
+
+            // Glow effect
+            drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 
+                          pathThickness + 4, termgl::Color(0, 40, 0));
+            drawThickLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 
+                          pathThickness, termgl::Color(0, 150, 0));
+            drawDashedLine(window, (int)n1.pos.x, (int)n1.pos.y, (int)n2.pos.x, (int)n2.pos.y, 
+                           termgl::Color::Green());
+        }
+    }
+
+    void renderTraffic(termgl::Window& window, double zoom) {
+        double scale = viewport.getScaleFactor();
+        int vehicleRadius = (int)(3 * scale);
+
+        for (int i = 0; i < trafficVehicles.getSize(); i++) {
+            const TrafficVehicle& vehicle = trafficVehicles[i];
+            int idx1 = (vehicle.edgeFromID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeFromID] : -1;
+            int idx2 = (vehicle.edgeToID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeToID] : -1;
+
+            if (idx1 >= 0 && idx2 >= 0) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                int vx = (int)(n1.pos.x + (n2.pos.x - n1.pos.x) * vehicle.progress);
+                int vy = (int)(n1.pos.y + (n2.pos.y - n1.pos.y) * vehicle.progress);
+
+                if (!viewport.isVisible(Point2D(vx, vy))) continue;
+
+                window.fillCircle(vx, vy, vehicleRadius, vehicle.color);
+            }
+        }
+    }
+
+    void renderHouses(termgl::Window& window, double zoom) {
+        if (zoom < 2.0) return;  // Only show houses when zoomed in
+        
+        double scale = viewport.getScaleFactor();
+        int houseRadius = (int)(2 * scale);
+
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            const GraphNode2D& node = graphNodes[i];
+            if (node.type != "HOUSE") continue;
+            if (!viewport.isVisible(node.pos)) continue;
+
+            window.fillCircle((int)node.pos.x, (int)node.pos.y, houseRadius, 
+                              termgl::Color(80, 80, 80));
+        }
+    }
+
+    void renderCorners(termgl::Window& window, double zoom) {
+        double scale = viewport.getScaleFactor();
+        int cornerRadius = (int)(2 * scale);
+
+        for (int i = 0; i < graphNodes.getSize(); i++) {
+            const GraphNode2D& node = graphNodes[i];
+            if (!node.isCorner) continue;
+            if (dijkstraPath.getSize() > 0 && !node.isOnPath) continue;
+            if (!viewport.isVisible(node.pos)) continue;
+
+            termgl::Color c = node.isOnPath ? termgl::Color::Green() : termgl::Color(90, 90, 100);
+            window.fillCircle((int)node.pos.x, (int)node.pos.y, cornerRadius, c);
+        }
+    }
+
+    void renderFacilities(termgl::Window& window, double zoom) {
+        double scale = viewport.getScaleFactor();
+        int baseRadius = (int)(5 * scale);
+        float spriteSize = 24.0f * (float)scale;
 
         for (int i = 0; i < graphNodes.getSize(); i++) {
             const GraphNode2D& node = graphNodes[i];
 
-            // Culling for Nodes
             if (!viewport.isVisible(node.pos)) continue;
-
             if (node.isCorner || node.type == "HOUSE") continue;
             if (dijkstraPath.getSize() > 0 && !node.isOnPath && !node.isStart && !node.isEnd) continue;
 
-            // Determine sprite and color for this node type
             termgl::Sprite* s = nullptr;
             if (node.type == "SCHOOL") s = &sprSchool;
             else if (node.type == "HOSPITAL") s = &sprHospital;
@@ -809,70 +965,61 @@ public:
             else if (node.type == "RESTAURANT") s = &sprRestaurant;
 
             bool spriteDrawn = false;
+            float targetSize = (node.isStart || node.isEnd) ? spriteSize * 1.5f : spriteSize;
 
-            // Try to draw sprite if in high detail mode and sprite is valid
-            if (highDetail && s != nullptr && s->texture != nullptr && s->texture->width > 0) {
-                float targetSize = (node.isStart || node.isEnd) ? 48.0f : 32.0f;
-                float scale = targetSize / s->texture->width;
-
+            if (zoom > 1.5 && s != nullptr && s->texture != nullptr && s->texture->width > 0) {
+                float sprScale = targetSize / s->texture->width;
                 s->setPosition((float)node.pos.x - (targetSize / 2),
-                    (float)node.pos.y - (targetSize / 2));
-                s->setScale(scale);
+                               (float)node.pos.y - (targetSize / 2));
+                s->setScale(sprScale);
                 window.drawSprite(*s);
                 spriteDrawn = true;
             }
 
-            // Fallback to colored circle if sprite not drawn
             if (!spriteDrawn) {
                 termgl::Color nodeColor = node.color;
-                int radius = highDetail ? 6 : 4;
-                
+                int radius = baseRadius;
+
                 if (node.isStart) { 
                     nodeColor = termgl::Color::Cyan(); 
-                    radius = highDetail ? 10 : 7; 
+                    radius = (int)(baseRadius * 1.5);
                 }
                 else if (node.isEnd) { 
                     nodeColor = termgl::Color::Yellow(); 
-                    radius = highDetail ? 10 : 7; 
+                    radius = (int)(baseRadius * 1.5);
                 }
                 else if (node.isOnPath) { 
                     nodeColor = termgl::Color::Green(); 
-                    radius = highDetail ? 8 : 5; 
-                }
-                else if (node.isVisited && dijkstraPath.getSize() == 0) {
-                    nodeColor = termgl::Color(255, 165, 0);
+                    radius = (int)(baseRadius * 1.2);
                 }
 
                 window.fillCircle((int)node.pos.x, (int)node.pos.y, radius, nodeColor);
-                
-                // Draw a border for better visibility in high detail
-                if (highDetail) {
-                    window.drawCircle((int)node.pos.x, (int)node.pos.y, radius + 1, termgl::Color::White());
-                }
+                window.drawCircle((int)node.pos.x, (int)node.pos.y, radius + 1, termgl::Color::White());
             }
 
-            // Draw start/end indicators
             if (node.isStart) {
-                window.drawCircle((int)node.pos.x, (int)node.pos.y, highDetail ? 14 : 10, termgl::Color::Green());
-                window.drawText((int)node.pos.x + 12, (int)node.pos.y - 5, "START", termgl::Color::Green());
+                int markerR = (int)(baseRadius * 2);
+                window.drawCircle((int)node.pos.x, (int)node.pos.y, markerR, termgl::Color::Green());
+                window.drawText((int)node.pos.x + markerR + 5, (int)node.pos.y - 8, "START", termgl::Color::Green());
             }
             if (node.isEnd) {
-                window.drawCircle((int)node.pos.x, (int)node.pos.y, highDetail ? 14 : 10, termgl::Color::Red());
-                window.drawText((int)node.pos.x + 12, (int)node.pos.y - 5, "END", termgl::Color::Red());
+                int markerR = (int)(baseRadius * 2);
+                window.drawCircle((int)node.pos.x, (int)node.pos.y, markerR, termgl::Color::Red());
+                window.drawText((int)node.pos.x + markerR + 5, (int)node.pos.y - 8, "END", termgl::Color::Red());
             }
 
-            // Draw name on hover
             if (node.id == hoveredNodeID) {
-                window.drawText((int)node.pos.x + 10, (int)node.pos.y - 10, node.name, termgl::Color::White());
-                if (!spriteDrawn) {
-                    window.drawCircle((int)node.pos.x, (int)node.pos.y, (highDetail ? 8 : 6) + 2, termgl::Color::White());
-                }
+                window.drawText((int)node.pos.x + 15, (int)node.pos.y - 10, node.name, termgl::Color::White());
             }
         }
     }
 
+    // ========================================================================
+    // MAIN RUN LOOP
+    // ========================================================================
+
     void run() {
-        loadResources(); // Load sprites before loop
+        loadResources();
         buildGraphVisualization();
         buildSelectableNodesList();
 
@@ -894,12 +1041,11 @@ public:
         int targetSel = 0;
         int scrollOffset = 0;
 
-        // Mouse Drag state
         bool isDragging = false;
         int lastMouseX = 0, lastMouseY = 0;
         int dragStartX = 0, dragStartY = 0;
 
-        viewport.setCanvasSize(window.getWidth() * 0.75, window.getHeight());
+        viewport.setCanvasSize((int)(width * 0.75), height);
 
         while (running && window.processEvents()) {
             if (window.isKeyPressed(VK_ESCAPE)) {
@@ -917,11 +1063,7 @@ public:
                 }
             }
 
-            // ========================================================================
             // INPUT HANDLING
-            // ========================================================================
-
-            // 1. Mouse Drag Panning (Click & Drag)
             window.setActivePartition(mapPartition);
             termgl::Vec2 mousePos = window.getMousePos();
 
@@ -946,24 +1088,22 @@ public:
             else {
                 if (isDragging) {
                     isDragging = false;
-                    // Check if it was a click (little movement)
                     if (std::abs(mousePos.x - dragStartX) < 5 && std::abs(mousePos.y - dragStartY) < 5) {
                         clickDetected = true;
                     }
                 }
             }
 
-            // 2. Zooming (Ctrl + Scroll or Ctrl + +/-)
-            if (window.isControlDown()) {
-                int scroll = window.getMouseScrollDelta();
-                if (scroll > 0) viewport.zoomIn();
-                if (scroll < 0) viewport.zoomOut();
+            // Zooming
+            int scroll = window.getMouseScrollDelta();
+            if (scroll > 0) viewport.zoomIn();
+            if (scroll < 0) viewport.zoomOut();
 
+            if (window.isControlDown()) {
                 if (window.isKeyPressed(VK_ADD) || window.isKeyPressed('=')) viewport.zoomIn();
                 if (window.isKeyPressed(VK_SUBTRACT) || window.isKeyPressed('-')) viewport.zoomOut();
             }
 
-            // 3. Node Clicking Logic (Dijkstra)
             updateHoverState(mousePos.x, mousePos.y);
 
             if (clickDetected && hoveredNodeID != -1) {
@@ -973,10 +1113,9 @@ public:
                         int idx = nodeIdToIndex[dijkstraStartNode];
                         if (idx >= 0) graphNodes[idx].isStart = true;
                         dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
-                        // Auto-select Custom Location logic if clicked again? 
-                        // For now just set start.
                     }
-                    else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE || dijkstraMode == DijkstraMode::RUNNING) {
+                    else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE || 
+                             dijkstraMode == DijkstraMode::RUNNING) {
                         dijkstraEndNode = hoveredNodeID;
                         dijkstraTargetType = "CUSTOM";
                         runDijkstraPointToPoint();
@@ -985,10 +1124,7 @@ public:
                 }
             }
 
-            // ========================================================================
             // RENDERING
-            // ========================================================================
-
             if (showTraffic && !trafficPaused) updateTraffic();
 
             window.setActivePartition(-1);
@@ -996,27 +1132,24 @@ public:
             window.drawPartitionFrames();
 
             window.setActivePartition(mapPartition);
-            window.clear(termgl::Color(0, 0, 0));
+            window.clear(termgl::Color(10, 10, 15));
             renderGraph(window);
 
-            // ========================================================================
-            // SIDE PANEL / CONTROLS
-            // ========================================================================
+            // SIDE PANEL
             window.setActivePartition(sidePartition);
             window.clear(termgl::Color(0, 0, 0));
 
             int cy = 10;
-            int panelW = window.getWidth(); // Partition width
+            int panelW = window.getWidth();
 
-            // --- Toggle Buttons ---
-            window.drawText(10, cy, "VISUALIZATION CONTROLS", termgl::Color::Cyan()); cy += 30;
+            window.drawText(10, cy, "VISUALIZATION", termgl::Color::Cyan()); cy += 30;
 
-            auto drawToggleBtn = [&](string label, bool& state, int bx, int by) {
+            auto drawToggleBtn = [&](const string& label, bool& state, int bx, int by) {
                 string text = (state ? "[ON] " : "[OFF] ") + label;
                 if (window.drawButton(bx, by, (panelW - 30) / 2, 30, text)) {
                     state = !state;
                 }
-                };
+            };
 
             int col1 = 10;
             int col2 = 10 + (panelW - 30) / 2 + 10;
@@ -1028,13 +1161,17 @@ public:
             drawToggleBtn("Houses", showHouses, col2, cy); cy += 40;
 
             drawToggleBtn("Traffic", showTraffic, col1, cy);
-            drawToggleBtn("Pause Tr.", trafficPaused, col2, cy); cy += 50;
+            drawToggleBtn("Pause", trafficPaused, col2, cy); cy += 50;
 
-            // --- Dijkstra Controls ---
+            // Zoom info
+            std::stringstream zoomSS;
+            zoomSS << "Zoom: " << std::fixed << std::setprecision(1) << viewport.getZoom() << "x";
+            window.drawText(10, cy, zoomSS.str(), termgl::Color::Grey()); cy += 30;
+
             window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
 
             if (!inDijkstraMode) {
-                if (window.drawButton(10, cy, panelW - 20, 35, "Start Navigation Mode")) {
+                if (window.drawButton(10, cy, panelW - 20, 35, "Start Navigation")) {
                     inDijkstraMode = true;
                     dijkstraMode = DijkstraMode::SELECT_START;
                     dijkstraNodeSelection = 0;
@@ -1043,46 +1180,20 @@ public:
                 }
             }
             else {
-                if (window.drawButton(10, cy, panelW - 20, 35, "Exit Navigation Mode")) {
+                if (window.drawButton(10, cy, panelW - 20, 35, "Exit Navigation")) {
                     inDijkstraMode = false;
                     dijkstraMode = DijkstraMode::SELECT_START;
                     clearDijkstraVisualization();
                 }
                 cy += 45;
 
-                // Dijkstra State UI
                 if (dijkstraMode == DijkstraMode::SELECT_START) {
                     window.drawText(10, cy, "STEP 1: Select Start", termgl::Color::Yellow()); cy += 20;
-                    window.drawText(10, cy, "Click a node on map OR select:", termgl::Color::Grey()); cy += 25;
-
-                    std::vector<string> items;
-                    for (int i = 0; i < selectableNodes.getSize(); i++) {
-                        int idx = nodeIdToIndex[selectableNodes[i]];
-                        items.push_back(graphNodes[idx].name);
-                    }
-                    int listH = 150;
-                    int dummyScroll = dijkstraNodeSelection * 20 - (listH / 2);
-                    int clicked = window.drawList(10, cy, panelW - 20, listH, items, dummyScroll);
-                    if (clicked != -1) {
-                        dijkstraNodeSelection = clicked;
-                        dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
-                        int idx = nodeIdToIndex[dijkstraStartNode];
-                        if (idx >= 0) graphNodes[idx].isStart = true;
-                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
-                    }
-                    // Sync list with scroll
-                    if (window.isKeyPressed(VK_UP) && dijkstraNodeSelection > 0) dijkstraNodeSelection--;
-                    if (window.isKeyPressed(VK_DOWN) && dijkstraNodeSelection < selectableNodes.getSize() - 1) dijkstraNodeSelection++;
-                    if (window.isKeyPressed(VK_RETURN)) {
-                        dijkstraStartNode = selectableNodes[dijkstraNodeSelection];
-                        int idx = nodeIdToIndex[dijkstraStartNode];
-                        if (idx >= 0) graphNodes[idx].isStart = true;
-                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
-                    }
+                    window.drawText(10, cy, "Click a node on map", termgl::Color::Grey()); cy += 25;
                 }
                 else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE) {
                     window.drawText(10, cy, "STEP 2: Select Destination", termgl::Color::Yellow()); cy += 20;
-                    window.drawText(10, cy, "Click node for Custom OR select:", termgl::Color::Grey()); cy += 25;
+                    window.drawText(10, cy, "Click node OR select type:", termgl::Color::Grey()); cy += 25;
 
                     for (size_t i = 0; i < targetTypes.size(); i++) {
                         termgl::Color c = (i == targetSel) ? termgl::Color::Green() : termgl::Color::White();
@@ -1091,12 +1202,11 @@ public:
                         cy += 25;
                     }
                     if (window.isKeyPressed(VK_UP) && targetSel > 0) targetSel--;
-                    if (window.isKeyPressed(VK_DOWN) && targetSel < targetTypes.size() - 1) targetSel++;
+                    if (window.isKeyPressed(VK_DOWN) && targetSel < (int)targetTypes.size() - 1) targetSel++;
                     if (window.isKeyPressed(VK_RETURN)) {
                         if (targetSel == 4) {
                             dijkstraTargetType = "CUSTOM";
                             dijkstraMode = DijkstraMode::RUNNING;
-                            dijkstraEndNodeSelection = 0;
                         }
                         else {
                             if (targetSel == 0) dijkstraTargetType = "SCHOOL";
@@ -1110,8 +1220,10 @@ public:
                 }
                 else if (dijkstraMode == DijkstraMode::COMPLETE) {
                     if (dijkstraPath.getSize() > 0) {
-                        window.drawText(10, cy, "ROUTE CALCULATED", termgl::Color::Green()); cy += 30;
-                        window.drawText(10, cy, "Distance: " + std::to_string(dijkstraDistance).substr(0, 5) + " km", termgl::Color::White()); cy += 25;
+                        window.drawText(10, cy, "ROUTE FOUND", termgl::Color::Green()); cy += 30;
+                        std::stringstream distSS;
+                        distSS << "Distance: " << std::fixed << std::setprecision(2) << dijkstraDistance << " km";
+                        window.drawText(10, cy, distSS.str(), termgl::Color::White()); cy += 25;
                         window.drawText(10, cy, "Stops: " + std::to_string(dijkstraPath.getSize()), termgl::Color::White()); cy += 35;
                     }
                     else {
@@ -1124,12 +1236,11 @@ public:
                 }
             }
 
-            // Info Panel at bottom
-            cy = window.getHeight() - 150;
-            window.drawRect(5, cy, panelW - 10, 140, termgl::Color(40, 40, 40));
-            window.drawText(12, cy + 10, "SELECTION INFO:", termgl::Color::Yellow());
-            string info = getHoverInfo();
-            window.drawText(12, cy + 30, info, termgl::Color::White());
+            // Info panel
+            cy = window.getHeight() - 120;
+            window.drawRect(5, cy, panelW - 10, 110, termgl::Color(40, 40, 40));
+            window.drawText(12, cy + 10, "INFO:", termgl::Color::Yellow());
+            window.drawText(12, cy + 30, getHoverInfo(), termgl::Color::White());
 
             window.display();
         }
