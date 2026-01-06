@@ -84,6 +84,11 @@ private:
     PriorityQueue<PatientTransfer> transferQueue;
     Vector<PatientTransfer> activeTransfers;
     
+    // ========== RICKSHAW MANAGEMENT (Feeder Vehicles) ==========
+    Vector<Vehicle*> rickshaws;
+    HashTable<string, Vector<Vehicle*>> sectorRickshawLookup;
+    int rickshawIDCounter;
+    
     HashTable<int, BusStopQueue*> stopQueues;
     
     int simulationStep;
@@ -156,6 +161,17 @@ public:
     Ambulance* getAmbulance(int index) const;
     const Vector<Ambulance*>& getAllAmbulances() const { return ambulances; }
     
+    // ==================== RICKSHAW MANAGEMENT ====================
+    
+    Vehicle* spawnRickshaw(const string& sector, int startNodeID);
+    void spawnRickshaws(int count);
+    Vehicle* findAvailableRickshaw(int nearNodeID, const string& sector) const;
+    bool dispatchRickshaw(Vehicle* rickshaw, int pickupNodeID, int destNodeID, const string& passengerCNIC);
+    void simulateRickshawStep();
+    int getRickshawCount() const { return rickshaws.getSize(); }
+    const Vector<Vehicle*>& getAllRickshaws() const { return rickshaws; }
+    
+    // ==================== PATIENT TRANSFER ====================
     
     string requestTransfer(const string& patientCNIC, const string& patientName,
                           const string& sourceHospitalID, int sourceNodeID, const string& sourceSector,
@@ -166,6 +182,7 @@ public:
     int getPendingTransferCount() const { return transferQueue.size(); }
     PatientTransfer* peekNextTransfer();
     
+    // ==================== PASSENGER QUEUE MANAGEMENT ====================
     
     void initializeStopQueue(int stopNodeID, const string& stopName, const string& sector);
     bool addPassengerToStop(int stopNodeID, const Passenger& passenger);
@@ -173,38 +190,23 @@ public:
     BusStopQueue* getStopQueue(int stopNodeID) const;
     void processBusArrival(Bus* bus, int stopNodeID);
     
+    // ==================== SIMULATION ====================
+    
     void runSimulationStep();
-   
     void runSimulation() { runSimulationStep(); }
- 
     void runSimulationSteps(int steps);
-    
-
     void runSimulation(int steps) { runSimulationSteps(steps); }
-    
- 
     int getSimulationStep() const { return simulationStep; }
-  
     int getSimulationTick() const { return simulationStep; }
-   
     void resetSimulation();
-  
     void startSimulation() { simulationRunning = true; }
-    
-  
     void stopSimulation() { simulationRunning = false; }
-    
-   
     bool isSimulationRunning() const { return simulationRunning; }
 
     void simulateBusStep();
-
     void simulateSchoolBusStep();
-
     void simulateAmbulanceStep();
-  
     void processSchoolBusPickup(SchoolBus* sb, int pickupNodeID);
-
     void processSchoolBusSchoolArrival(SchoolBus* sb, const string& schoolID, int schoolNodeID);
    
     TransportStats getStats() const;
@@ -214,7 +216,6 @@ public:
     bool loadBusesFromCSV(const string& filename, bool hasHeader = true);
     bool loadAmbulancesFromCSV(const string& filename, bool hasHeader = true);
     bool loadSchoolBusesFromCSV(const string& filename, bool hasHeader = true);
-    
     
     static Vector<string> getAdjacentSectors(const string& sector);
     static bool areSectorsAdjacent(const string& sector1, const string& sector2);
@@ -233,7 +234,9 @@ inline TransportManager::TransportManager()
       sectorSchoolBusLookup(53), pickupPoints(201), sectorPickupPoints(53),
       ambulances(), ambulanceLookup(53), 
       hospitalAmbulanceLookup(53), sectorAmbulanceLookup(53),
-      transferQueue(), activeTransfers(), stopQueues(201),
+      transferQueue(), activeTransfers(), 
+      rickshaws(), sectorRickshawLookup(53), rickshawIDCounter(0),
+      stopQueues(201),
       simulationStep(0), simulationRunning(false),
       totalTransferRequests(0), transferIDCounter(1000) {}
 
@@ -241,6 +244,7 @@ inline TransportManager::~TransportManager() {
     for (int i = 0; i < buses.getSize(); ++i) delete buses[i];
     for (int i = 0; i < schoolBuses.getSize(); ++i) delete schoolBuses[i];
     for (int i = 0; i < ambulances.getSize(); ++i) delete ambulances[i];
+    for (int i = 0; i < rickshaws.getSize(); ++i) delete rickshaws[i];
 }
 
 
@@ -719,6 +723,8 @@ inline void TransportManager::runSimulationStep() {
     simulateSchoolBusStep();
     
     simulateAmbulanceStep();
+    
+    simulateRickshawStep();
     
     while (getPendingTransferCount() > 0 && getAvailableAmbulances().getSize() > 0) {
         if (!dispatchNextTransfer()) break;
@@ -1240,4 +1246,219 @@ inline Vector<string> TransportManager::parseRoute(const string& routeStr) const
     if (!stop.empty()) stops.push_back(stop);
     
     return stops;
+}
+
+// ==================== RICKSHAW MANAGEMENT ====================
+
+inline Vehicle* TransportManager::spawnRickshaw(const string& sector, int startNodeID) {
+    string id = "RICK-" + std::to_string(++rickshawIDCounter);
+    Vehicle* rickshaw = new Vehicle(id, VehicleType::RICKSHAW, 3);  // 3 passenger capacity
+    rickshaw->setStatus(VehicleStatus::IDLE);
+    rickshaw->setHomeSector(sector);
+    rickshaw->setHomeNode(startNodeID);
+    rickshaw->setCurrentLocation(startNodeID, "", sector);
+    
+    rickshaws.push_back(rickshaw);
+    
+    Vector<Vehicle*>* sectorList = sectorRickshawLookup.get(sector);
+    if (sectorList) {
+        sectorList->push_back(rickshaw);
+    } else {
+        Vector<Vehicle*> newList;
+        newList.push_back(rickshaw);
+        sectorRickshawLookup.insert(sector, newList);
+    }
+    
+    return rickshaw;
+}
+
+inline void TransportManager::spawnRickshaws(int count) {
+    if (!cityGraph) return;
+    
+    // Distribute rickshaws across sectors
+    int nodeCount = cityGraph->getNodeCount();
+    if (nodeCount == 0) return;
+    
+    for (int i = 0; i < count; ++i) {
+        // Find a random corner node to spawn at
+        int attempts = 0;
+        while (attempts < 100) {
+            int nodeIdx = rand() % nodeCount;
+            CityNode* node = cityGraph->getNode(nodeIdx);
+            if (node && node->type == "CORNER" && !node->sector.empty()) {
+                spawnRickshaw(node->sector, node->id);
+                break;
+            }
+            attempts++;
+        }
+    }
+}
+
+inline Vehicle* TransportManager::findAvailableRickshaw(int nearNodeID, const string& sector) const {
+    // First check rickshaws in the same sector
+    Vector<Vehicle*>* sectorList = sectorRickshawLookup.get(sector);
+    if (sectorList) {
+        for (int i = 0; i < sectorList->getSize(); ++i) {
+            Vehicle* rick = (*sectorList)[i];
+            if (rick->getStatus() == VehicleStatus::IDLE) {
+                return rick;
+            }
+        }
+    }
+    
+    // Check adjacent sectors
+    Vector<string> adjacent = getAdjacentSectors(sector);
+    for (int i = 0; i < adjacent.getSize(); ++i) {
+        Vector<Vehicle*>* adjList = sectorRickshawLookup.get(adjacent[i]);
+        if (adjList) {
+            for (int j = 0; j < adjList->getSize(); ++j) {
+                Vehicle* rick = (*adjList)[j];
+                if (rick->getStatus() == VehicleStatus::IDLE) {
+                    return rick;
+                }
+            }
+        }
+    }
+    
+    // Last resort - any available rickshaw
+    for (int i = 0; i < rickshaws.getSize(); ++i) {
+        if (rickshaws[i]->getStatus() == VehicleStatus::IDLE) {
+            return rickshaws[i];
+        }
+    }
+    
+    return nullptr;
+}
+
+inline bool TransportManager::dispatchRickshaw(Vehicle* rickshaw, int pickupNodeID, int destNodeID, const string& passengerCNIC) {
+    if (!rickshaw || !cityGraph) return false;
+    if (rickshaw->getStatus() != VehicleStatus::IDLE) return false;
+    
+    // Calculate route from current position to pickup
+    double pickupDist = 0;
+    Vector<int> pickupRoute = cityGraph->findShortestPath(rickshaw->getCurrentNodeID(), pickupNodeID, pickupDist);
+    
+    if (pickupRoute.getSize() == 0) return false;
+    
+    // Store destination for later
+    rickshaw->setStatus(VehicleStatus::PICKING_UP);
+    rickshaw->setRouteSimple(pickupRoute, pickupDist);
+    rickshaw->addPassenger(passengerCNIC);
+    
+    // Try to enter the first edge
+    if (pickupRoute.getSize() > 1) {
+        int currentNode = pickupRoute[0];
+        int nextNode = pickupRoute[1];
+        if (!cityGraph->tryEnterEdge(currentNode, nextNode)) {
+            rickshaw->setIsStuck(true);
+        }
+    }
+    
+    return true;
+}
+
+inline void TransportManager::simulateRickshawStep() {
+    for (int i = 0; i < rickshaws.getSize(); ++i) {
+        Vehicle* rick = rickshaws[i];
+        string status = rick->getStatus();
+        
+        if (status == VehicleStatus::IDLE) {
+            // Roam randomly looking for passengers
+            if (rand() % 20 == 0 && cityGraph) {  // 5% chance to move
+                int currentNode = rick->getCurrentNodeID();
+                CityNode* node = cityGraph->getNode(currentNode);
+                if (node) {
+                    const LinkedList<Edge>& edges = node->getRoads();
+                    if (edges.size() > 0) {
+                        int edgeIdx = rand() % edges.size();
+                        int nextNode = edges.at(edgeIdx).destinationID;
+                        
+                        Vector<int> route;
+                        route.push_back(currentNode);
+                        route.push_back(nextNode);
+                        rick->setRouteSimple(route, 0.1);
+                        rick->setStatus(VehicleStatus::EN_ROUTE);
+                        
+                        if (!cityGraph->tryEnterEdge(currentNode, nextNode)) {
+                            rick->setIsStuck(true);
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        
+        // Handle stuck state
+        if (rick->getIsStuck()) {
+            int currentNode = rick->getCurrentNodeID();
+            int nextNode = rick->getNextNodeID();
+            if (cityGraph && nextNode != -1) {
+                if (cityGraph->tryEnterEdge(currentNode, nextNode)) {
+                    rick->setIsStuck(false);
+                } else {
+                    continue;
+                }
+            }
+        }
+        
+        // Moving states
+        if (status == VehicleStatus::PICKING_UP || 
+            status == VehicleStatus::DROPPING_OFF ||
+            status == VehicleStatus::EN_ROUTE) {
+            
+            double progress = rick->getProgressOnEdge();
+            double baseSpeed = 0.25;  // Rickshaws are medium speed
+            int currentNode = rick->getCurrentNodeID();
+            int nextNode = rick->getNextNodeID();
+            
+            if (cityGraph && nextNode != -1) {
+                double congestion = cityGraph->getEdgeCongestion(currentNode, nextNode);
+                double speedMultiplier = 1.0 - 0.5 * congestion * congestion;
+                if (speedMultiplier < 0.2) speedMultiplier = 0.2;
+                progress += baseSpeed * speedMultiplier;
+            } else {
+                progress += baseSpeed;
+            }
+            
+            rick->setProgressOnEdge(progress);
+            
+            // Update render position
+            if (cityGraph && currentNode >= 0 && nextNode >= 0) {
+                CityNode* currNode = cityGraph->getNode(currentNode);
+                CityNode* nxtNode = cityGraph->getNode(nextNode);
+                if (currNode && nxtNode) {
+                    double t = (progress > 1.0) ? 1.0 : progress;
+                    rick->setRenderPosition(
+                        currNode->lat + t * (nxtNode->lat - currNode->lat),
+                        currNode->lon + t * (nxtNode->lon - currNode->lon));
+                }
+            }
+            
+            if (progress >= 1.0) {
+                if (cityGraph && nextNode != -1) cityGraph->leaveEdge(currentNode, nextNode);
+                
+                if (!rick->moveToNextStop()) {
+                    // Reached destination
+                    if (status == VehicleStatus::PICKING_UP) {
+                        // At pickup location - would load passenger and start drop-off route
+                        rick->setStatus(VehicleStatus::IDLE);  // Simplified - just become idle
+                        rick->clearPassengers();
+                    } else if (status == VehicleStatus::DROPPING_OFF) {
+                        rick->setStatus(VehicleStatus::IDLE);
+                        rick->clearPassengers();
+                    } else {
+                        rick->setStatus(VehicleStatus::IDLE);
+                    }
+                } else {
+                    int newCurrent = rick->getCurrentNodeID();
+                    int newNext = rick->getNextNodeID();
+                    if (cityGraph && newNext != -1) {
+                        if (!cityGraph->tryEnterEdge(newCurrent, newNext)) {
+                            rick->setIsStuck(true);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

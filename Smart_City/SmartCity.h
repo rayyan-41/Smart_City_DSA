@@ -334,6 +334,12 @@ inline bool SmartCity::initialize() {
     // Initialize AI Manager (The Brain)
     aiManager = new AIManager(cityGraph, populationManager, transportManager);
 
+    // Spawn rickshaws (feeder vehicles) for citizen pickup
+    transportManager->spawnRickshaws(50);
+
+    // Enable agent simulation by default
+    agentSimulationEnabled = true;
+
     cityInitialized = true;
     return true;
 }

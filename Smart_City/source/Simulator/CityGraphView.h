@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #ifndef CITY_GRAPH_VIEW_H
 #define CITY_GRAPH_VIEW_H
 
@@ -148,7 +148,7 @@ public:
 
     Point2D geoToCanvas(double lat, double lon) const {
         // Calculate the real-world aspect ratio
-        // At Islamabad's latitude (~33.7°), longitude degrees are shorter than latitude degrees
+        // At Islamabad's latitude (~33.7ï¿½), longitude degrees are shorter than latitude degrees
         // 1 degree lat ? 111 km, 1 degree lon ? 92 km at this latitude
         double latRange = maxLat - minLat;
         double lonRange = maxLon - minLon;
@@ -348,8 +348,8 @@ public:
         mouseX(0), mouseY(0), hoveredNodeID(-1), hoveredSector(""),
         showCorners(true), showRoads(true), showSectorBounds(false),
         showHouses(true), showTraffic(true), trafficPaused(false),
-        showCongestionHeatmap(false), showRealVehicles(false), showCitizens(false),
-        useAgentSimulation(false), selectedVehicleIndex(-1), selectedCitizenIndex(-1),
+        showCongestionHeatmap(false), showRealVehicles(true), showCitizens(true),
+        useAgentSimulation(true), selectedVehicleIndex(-1), selectedCitizenIndex(-1),
         godModeEnabled(false),
         dijkstraMode(DijkstraMode::SELECT_START), inDijkstraMode(false),
         dijkstraStartNode(-1), dijkstraEndNode(-1), dijkstraDistance(0.0),
@@ -406,6 +406,7 @@ public:
         graphEdges.clear();
         sectorRegions.clear();
         nodeIdToIndex.clear();
+        trafficVehicles.clear();  // Clear any old traffic
         intersectionCounter = 0;
 
         if (!city || !city->getCityGraph()) return;
@@ -510,8 +511,11 @@ public:
             region.isHovered = false;
             sectorRegions.push_back(region);
         }
-
-        initializeTraffic();
+        
+        // Enable agent simulation by default
+        if (city) {
+            city->enableAgentSimulation(true);
+        }
     }
 
     void initializeTraffic() {
@@ -543,7 +547,7 @@ public:
 
     // ==================== PHASE 5: REAL VEHICLE SYNC ====================
     void syncRealVehicles() {
-        if (!city || !showRealVehicles) return;
+        if (!city) return;
         
         trafficVehicles.clear();
         TransportManager* tm = city->getTransportManager();
@@ -582,7 +586,7 @@ public:
             tv.isBus = false;
             tv.isStuck = amb->getIsStuck();
             tv.vehicleID = amb->getID();
-            tv.color = termgl::Color(255, 0, 0);  // Red for ambulance
+            tv.color = termgl::Color(255, 50, 50);  // Bright red for ambulance
             
             trafficVehicles.push_back(tv);
         }
@@ -602,6 +606,28 @@ public:
             tv.isStuck = sb->getIsStuck();
             tv.vehicleID = sb->getID();
             tv.color = termgl::Color::Yellow();
+            
+            trafficVehicles.push_back(tv);
+        }
+        
+        // Sync rickshaws
+        const Vector<Vehicle*>& rickshaws = tm->getAllRickshaws();
+        for (int i = 0; i < rickshaws.getSize(); i++) {
+            Vehicle* rick = rickshaws[i];
+            if (!rick) continue;
+            
+            // Skip idle rickshaws that aren't moving
+            if (rick->getStatus() == VehicleStatus::IDLE && rick->getNextNodeID() < 0) continue;
+            
+            TrafficVehicle tv;
+            tv.edgeFromID = rick->getCurrentNodeID();
+            tv.edgeToID = rick->getNextNodeID();
+            tv.progress = rick->getProgressOnEdge();
+            tv.isReal = true;
+            tv.isBus = false;
+            tv.isStuck = rick->getIsStuck();
+            tv.vehicleID = rick->getID();
+            tv.color = termgl::Color(255, 165, 0);  // Orange for rickshaw
             
             trafficVehicles.push_back(tv);
         }
@@ -982,9 +1008,9 @@ public:
 
         for (int i = 0; i < trafficVehicles.getSize(); i++) {
             const TrafficVehicle& vehicle = trafficVehicles[i];
-            int idx1 = (vehicle.edgeFromID < nodeIdToIndex.getSize()) ? 
+            int idx1 = (vehicle.edgeFromID >= 0 && vehicle.edgeFromID < nodeIdToIndex.getSize()) ? 
                        nodeIdToIndex[vehicle.edgeFromID] : -1;
-            int idx2 = (vehicle.edgeToID < nodeIdToIndex.getSize()) ? 
+            int idx2 = (vehicle.edgeToID >= 0 && vehicle.edgeToID < nodeIdToIndex.getSize()) ? 
                        nodeIdToIndex[vehicle.edgeToID] : -1;
 
             if (idx1 >= 0 && idx2 >= 0) {
@@ -1338,6 +1364,60 @@ public:
         }
     }
 
+    // ==================== HIT TESTING FOR VEHICLES/CITIZENS ====================
+    int hitTestVehicle(int mx, int my) {
+        double scale = viewport.getScaleFactor();
+        int hitRadius = (int)(10 * scale);
+        
+        for (int i = 0; i < trafficVehicles.getSize(); i++) {
+            const TrafficVehicle& vehicle = trafficVehicles[i];
+            
+            int idx1 = (vehicle.edgeFromID >= 0 && vehicle.edgeFromID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeFromID] : -1;
+            int idx2 = (vehicle.edgeToID >= 0 && vehicle.edgeToID < nodeIdToIndex.getSize()) ? 
+                       nodeIdToIndex[vehicle.edgeToID] : -1;
+            
+            if (idx1 < 0) continue;
+            
+            Point2D pos;
+            if (idx1 >= 0 && idx2 >= 0) {
+                const GraphNode2D& n1 = graphNodes[idx1];
+                const GraphNode2D& n2 = graphNodes[idx2];
+                double t = vehicle.progress;
+                if (t > 1.0) t = 1.0;
+                if (t < 0.0) t = 0.0;
+                pos.x = n1.pos.x + (n2.pos.x - n1.pos.x) * t;
+                pos.y = n1.pos.y + (n2.pos.y - n1.pos.y) * t;
+            } else {
+                pos = graphNodes[idx1].pos;
+            }
+            
+            double dx = pos.x - mx;
+            double dy = pos.y - my;
+            if (dx * dx + dy * dy < hitRadius * hitRadius) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
+    int hitTestCitizen(int mx, int my) {
+        double scale = viewport.getScaleFactor();
+        int hitRadius = (int)(8 * scale);
+        
+        for (int i = 0; i < citizenRenderList.getSize(); i++) {
+            const CitizenRenderData& crd = citizenRenderList[i];
+            Point2D pos = viewport.geoToCanvas(crd.lat, crd.lon);
+            
+            double dx = pos.x - mx;
+            double dy = pos.y - my;
+            if (dx * dx + dy * dy < hitRadius * hitRadius) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     // ========================================================================
     // MAIN RUN LOOP
     // ========================================================================
@@ -1346,11 +1426,6 @@ public:
         loadResources();
         buildGraphVisualization();
         buildSelectableNodesList();
-        
-        // Initialize with fake traffic if not using simulation
-        if (!showRealVehicles) {
-            initializeTraffic();
-        }
 
         termgl::Window window(1600, 900, "Islamabad City Simulator - Interactive Map", true);
         window.setFramerateLimit(60);
@@ -1375,8 +1450,10 @@ public:
         int dragStartX = 0, dragStartY = 0;
 
         viewport.setCanvasSize((int)(width * 0.75), height);
-        
-        int simulationTick = 0;
+
+        // Simulation timing: 1 real second = 1 simulation minute
+        int simulationFrameCounter = 0;
+        const int framesPerSimulationTick = 300;  // At 60 FPS, tick once per second
 
         while (running && window.processEvents()) {
             if (window.isKeyPressed(VK_ESCAPE)) {
@@ -1437,45 +1514,54 @@ public:
 
             updateHoverState(mousePos.x, mousePos.y);
 
-            if (clickDetected && hoveredNodeID != -1) {
-                if (inDijkstraMode) {
-                    if (dijkstraMode == DijkstraMode::SELECT_START) {
-                        dijkstraStartNode = hoveredNodeID;
-                        int idx = nodeIdToIndex[dijkstraStartNode];
-                        if (idx >= 0) graphNodes[idx].isStart = true;
-                        dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+            // Handle clicks - check vehicles/citizens first (God Mode), then nodes
+            if (clickDetected) {
+                // Check for vehicle click
+                int vehicleHit = hitTestVehicle(mousePos.x, mousePos.y);
+                if (vehicleHit >= 0) {
+                    selectedVehicleIndex = (selectedVehicleIndex == vehicleHit) ? -1 : vehicleHit;
+                    selectedCitizenIndex = -1;
+                }
+                // Check for citizen click
+                else {
+                    int citizenHit = hitTestCitizen(mousePos.x, mousePos.y);
+                    if (citizenHit >= 0) {
+                        selectedCitizenIndex = (selectedCitizenIndex == citizenHit) ? -1 : citizenHit;
+                        selectedVehicleIndex = -1;
                     }
-                    else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE || 
-                             dijkstraMode == DijkstraMode::RUNNING) {
-                        dijkstraEndNode = hoveredNodeID;
-                        dijkstraTargetType = "CUSTOM";
-                        runDijkstraPointToPoint();
-                        dijkstraMode = DijkstraMode::COMPLETE;
+                    // Check for node click (Dijkstra mode)
+                    else if (hoveredNodeID != -1 && inDijkstraMode) {
+                        if (dijkstraMode == DijkstraMode::SELECT_START) {
+                            dijkstraStartNode = hoveredNodeID;
+                            int idx = nodeIdToIndex[dijkstraStartNode];
+                            if (idx >= 0) graphNodes[idx].isStart = true;
+                            dijkstraMode = DijkstraMode::SELECT_TARGET_TYPE;
+                        }
+                        else if (dijkstraMode == DijkstraMode::SELECT_TARGET_TYPE || 
+                                 dijkstraMode == DijkstraMode::RUNNING) {
+                            dijkstraEndNode = hoveredNodeID;
+                            dijkstraTargetType = "CUSTOM";
+                            runDijkstraPointToPoint();
+                            dijkstraMode = DijkstraMode::COMPLETE;
+                        }
                     }
                 }
             }
 
             // ==================== SIMULATION UPDATE ====================
-            if (!trafficPaused) {
-                simulationTick++;
+            // Timing: 1 real second = 1 simulation minute (tick every 60 frames at 60 FPS)
+            if (!trafficPaused && city) {
+                simulationFrameCounter++;
                 
-                // Run transport simulation every few frames
-                if (useAgentSimulation && city && city->getTransportManager()) {
-                    if (simulationTick % 3 == 0) {  // Every 3 frames
-                        city->getTransportManager()->runSimulationStep();
-                        if (city->getCityGraph()) {
-                            city->getCityGraph()->updateTrafficWeights();
-                        }
-                    }
+                if (useAgentSimulation && simulationFrameCounter >= framesPerSimulationTick) {
+                    // Run the full city simulation (AIManager + Transport + Traffic)
+                    city->runSimulation();
+                    simulationFrameCounter = 0;
                 }
                 
-                // Sync visualization with simulation
-                if (showRealVehicles) {
-                    syncRealVehicles();
-                    syncCitizens();
-                } else {
-                    updateTraffic();
-                }
+                // Sync visualization with simulation state (every frame for smooth rendering)
+                syncRealVehicles();
+                syncCitizens();
             }
 
             // RENDERING
@@ -1500,13 +1586,9 @@ public:
                 string text = (state ? "[ON] " : "[OFF] ") + label;
                 if (window.drawButton(bx, by, (panelW - 30) / 2, 30, text)) {
                     state = !state;
-                    // Re-initialize traffic when toggling real vehicles
-                    if (&state == &showRealVehicles) {
-                        if (!showRealVehicles) {
-                            initializeTraffic();
-                        } else {
-                            trafficVehicles.clear();
-                        }
+                    // Sync agent simulation with SmartCity
+                    if (&state == &useAgentSimulation && city) {
+                        city->enableAgentSimulation(useAgentSimulation);
                     }
                 }
             };
@@ -1520,26 +1602,31 @@ public:
             drawToggleBtn("Sectors", showSectorBounds, col1, cy);
             drawToggleBtn("Houses", showHouses, col2, cy); cy += 40;
 
-            drawToggleBtn("Traffic", showTraffic, col1, cy);
+            drawToggleBtn("Heatmap", showCongestionHeatmap, col1, cy);
             drawToggleBtn("Pause", trafficPaused, col2, cy); cy += 40;
 
-            drawToggleBtn("Heatmap", showCongestionHeatmap, col1, cy);
-            drawToggleBtn("Sim Vehicles", showRealVehicles, col2, cy); cy += 40;
+            drawToggleBtn("Vehicles", showRealVehicles, col1, cy);
+            drawToggleBtn("Citizens", showCitizens, col2, cy); cy += 40;
 
-            drawToggleBtn("Citizens", showCitizens, col1, cy);
-            drawToggleBtn("Agent Sim", useAgentSimulation, col2, cy); cy += 40;
+            drawToggleBtn("Agent Sim", useAgentSimulation, col1, cy); cy += 40;
 
+            // Simulation stats
+            if (city) {
+                std::stringstream timeSS;
+                timeSS << "Time: " << std::setfill('0') << std::setw(2) << city->getSimulationHour() 
+                       << ":" << std::setfill('0') << std::setw(2) << city->getSimulationMinute();
+                window.drawText(10, cy, timeSS.str(), termgl::Color::Yellow()); cy += 20;
+                
+                window.drawText(10, cy, "Walking: " + std::to_string(city->getWalkingCitizenCount()), termgl::Color::Grey()); cy += 18;
+                window.drawText(10, cy, "Waiting: " + std::to_string(city->getWaitingCitizenCount()), termgl::Color::Grey()); cy += 18;
+                window.drawText(10, cy, "Commuting: " + std::to_string(city->getCommutingCitizenCount()), termgl::Color::Grey()); cy += 18;
+                window.drawText(10, cy, "Vehicles: " + std::to_string(city->getTotalVehiclesOnRoads()), termgl::Color::Grey()); cy += 25;
+            }
+            
             // Zoom info
             std::stringstream zoomSS;
             zoomSS << "Zoom: " << std::fixed << std::setprecision(1) << viewport.getZoom() << "x";
             window.drawText(10, cy, zoomSS.str(), termgl::Color::Grey()); cy += 25;
-            
-            // Traffic stats
-            if (city && city->getCityGraph()) {
-                int vehiclesOnRoads = city->getCityGraph()->getTotalVehiclesOnRoads();
-                window.drawText(10, cy, "Vehicles: " + std::to_string(vehiclesOnRoads), termgl::Color::Grey());
-                cy += 25;
-            }
 
             window.drawText(10, cy, "PATHFINDING", termgl::Color::Green()); cy += 30;
 
@@ -1609,11 +1696,27 @@ public:
                 }
             }
 
-            // Info panel
-            cy = window.getHeight() - 120;
-            window.drawRect(5, cy, panelW - 10, 110, termgl::Color(40, 40, 40));
+            // Info panel - show selected agent info
+            cy = window.getHeight() - 150;
+            window.drawRect(5, cy, panelW - 10, 140, termgl::Color(40, 40, 40));
             window.drawText(12, cy + 10, "INFO:", termgl::Color::Yellow());
-            window.drawText(12, cy + 30, getHoverInfo(), termgl::Color::White());
+            
+            if (selectedVehicleIndex >= 0 && selectedVehicleIndex < trafficVehicles.getSize()) {
+                const TrafficVehicle& v = trafficVehicles[selectedVehicleIndex];
+                window.drawText(12, cy + 30, "Vehicle: " + v.vehicleID, termgl::Color::Cyan());
+                window.drawText(12, cy + 50, v.isBus ? "Type: Bus" : "Type: Vehicle", termgl::Color::White());
+                window.drawText(12, cy + 70, v.isStuck ? "Status: STUCK!" : "Status: Moving", 
+                               v.isStuck ? termgl::Color::Red() : termgl::Color::Green());
+            }
+            else if (selectedCitizenIndex >= 0 && selectedCitizenIndex < citizenRenderList.getSize()) {
+                const CitizenRenderData& c = citizenRenderList[selectedCitizenIndex];
+                window.drawText(12, cy + 30, c.name, termgl::Color::Cyan());
+                window.drawText(12, cy + 50, "State: " + c.state, termgl::Color::White());
+                window.drawText(12, cy + 70, c.thought, termgl::Color::Grey());
+            }
+            else {
+                window.drawText(12, cy + 30, getHoverInfo(), termgl::Color::White());
+            }
 
             window.display();
         }
