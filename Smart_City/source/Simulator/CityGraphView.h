@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iomanip>
 #include <fstream>
-#include <iostream> // Added for debug output
+#include <iostream>
 
 #include "../../SmartCity.h"
 #include "../../termgl/Termgl.h"
@@ -252,10 +252,10 @@ public:
         // Checks multiple paths to be robust
         auto loadAsset = [](termgl::Texture& tex, termgl::Sprite& spr, const string& filename) {
             std::vector<string> paths = {
-                "Simulator/assets/" + filename,
                 "assets/" + filename,
-                "Smart_City/Simulator/assets/" + filename,
+                "Simulator/assets/" + filename,
                 "source/Simulator/assets/" + filename,
+                "Smart_City/assets/" + filename,
                 "Smart_City/source/Simulator/assets/" + filename,
                 "../assets/" + filename,
                 filename
@@ -284,20 +284,16 @@ public:
         loadAsset(texPharmacy, sprPharmacy, "pharmacy.png");
         loadAsset(texStop, sprStop, "stop.png");
         loadAsset(texMall, sprMall, "mall.png");
-
-        // Commented out assets not yet provided to prevent errors if logic depended on them
-        // loadAsset(texMosque, sprMosque, "mosque.png");
-        // loadAsset(texPark, sprPark, "park.png");
-        // loadAsset(texPolice, sprPolice, "police.png");
-        // loadAsset(texFire, sprFire, "fire.png");
-        // loadAsset(texLibrary, sprLibrary, "library.png");
-        // loadAsset(texRestaurant, sprRestaurant, "restaurant.png");
-        // loadAsset(texHouse, sprHouse, "house.png");
-        // loadAsset(texBus, sprBus, "bus.png");
-        // loadAsset(texCar, sprCar, "car.png");
-
-        // Default sprite for other types
-        // loadAsset(texDefault, sprDefault, "default.png");
+        loadAsset(texMosque, sprMosque, "mosque.png");
+        loadAsset(texPark, sprPark, "park.png");
+        loadAsset(texPolice, sprPolice, "police.png");
+        loadAsset(texFire, sprFire, "fire.png");
+        loadAsset(texLibrary, sprLibrary, "library.png");
+        loadAsset(texRestaurant, sprRestaurant, "restaurant.png");
+        loadAsset(texHouse, sprHouse, "house.png");
+        loadAsset(texBus, sprBus, "bus.png");
+        loadAsset(texCar, sprCar, "car.png");
+        loadAsset(texDefault, sprDefault, "default.png");
     }
 
     void buildGraphVisualization() {
@@ -798,52 +794,78 @@ public:
             if (node.isCorner || node.type == "HOUSE") continue;
             if (dijkstraPath.getSize() > 0 && !node.isOnPath && !node.isStart && !node.isEnd) continue;
 
-            if (highDetail) {
-                termgl::Sprite* s = nullptr;
-                if (node.type == "SCHOOL") s = &sprSchool;
-                else if (node.type == "HOSPITAL") s = &sprHospital;
-                else if (node.type == "PHARMACY") s = &sprPharmacy;
-                else if (node.type == "STOP") s = &sprStop;
-                else if (node.type == "MALL") s = &sprMall;
-                else if (node.type == "MOSQUE") s = &sprMosque;
-                else if (node.type == "PARK") s = &sprPark;
-                else if (node.type == "POLICE_STATION") s = &sprPolice;
-                else if (node.type == "FIRE_STATION") s = &sprFire;
-                else if (node.type == "LIBRARY") s = &sprLibrary;
-                else if (node.type == "RESTAURANT") s = &sprRestaurant;
-                else s = &sprDefault;
+            // Determine sprite and color for this node type
+            termgl::Sprite* s = nullptr;
+            if (node.type == "SCHOOL") s = &sprSchool;
+            else if (node.type == "HOSPITAL") s = &sprHospital;
+            else if (node.type == "PHARMACY") s = &sprPharmacy;
+            else if (node.type == "STOP") s = &sprStop;
+            else if (node.type == "MALL") s = &sprMall;
+            else if (node.type == "MOSQUE") s = &sprMosque;
+            else if (node.type == "PARK") s = &sprPark;
+            else if (node.type == "POLICE_STATION") s = &sprPolice;
+            else if (node.type == "FIRE_STATION") s = &sprFire;
+            else if (node.type == "LIBRARY") s = &sprLibrary;
+            else if (node.type == "RESTAURANT") s = &sprRestaurant;
 
-                if (s && s->texture && s->texture->width > 0) { // Check if valid
-                    float targetSize = (node.isStart || node.isEnd) ? 48.0f : 32.0f;
-                    float scale = targetSize / s->texture->width;
+            bool spriteDrawn = false;
 
-                    s->setPosition((float)node.pos.x - (targetSize / 2),
-                        (float)node.pos.y - (targetSize / 2));
-                    s->setScale(scale);
-                    window.drawSprite(*s);
-                }
-                else {
-                    // Fallback if texture not loaded
-                    window.fillCircle((int)node.pos.x, (int)node.pos.y, 6, node.color);
-                }
+            // Try to draw sprite if in high detail mode and sprite is valid
+            if (highDetail && s != nullptr && s->texture != nullptr && s->texture->width > 0) {
+                float targetSize = (node.isStart || node.isEnd) ? 48.0f : 32.0f;
+                float scale = targetSize / s->texture->width;
+
+                s->setPosition((float)node.pos.x - (targetSize / 2),
+                    (float)node.pos.y - (targetSize / 2));
+                s->setScale(scale);
+                window.drawSprite(*s);
+                spriteDrawn = true;
             }
-            else {
-                // Low Detail
+
+            // Fallback to colored circle if sprite not drawn
+            if (!spriteDrawn) {
                 termgl::Color nodeColor = node.color;
-                int radius = 4;
-                if (node.isStart) { nodeColor = termgl::Color::Cyan(); radius = 7; }
-                else if (node.isEnd) { nodeColor = termgl::Color::Yellow(); radius = 7; }
-                else if (node.isOnPath) { nodeColor = termgl::Color::Green(); radius = 5; }
-                else if (node.isVisited && dijkstraPath.getSize() == 0) nodeColor = termgl::Color(255, 165, 0);
+                int radius = highDetail ? 6 : 4;
+                
+                if (node.isStart) { 
+                    nodeColor = termgl::Color::Cyan(); 
+                    radius = highDetail ? 10 : 7; 
+                }
+                else if (node.isEnd) { 
+                    nodeColor = termgl::Color::Yellow(); 
+                    radius = highDetail ? 10 : 7; 
+                }
+                else if (node.isOnPath) { 
+                    nodeColor = termgl::Color::Green(); 
+                    radius = highDetail ? 8 : 5; 
+                }
+                else if (node.isVisited && dijkstraPath.getSize() == 0) {
+                    nodeColor = termgl::Color(255, 165, 0);
+                }
 
                 window.fillCircle((int)node.pos.x, (int)node.pos.y, radius, nodeColor);
+                
+                // Draw a border for better visibility in high detail
+                if (highDetail) {
+                    window.drawCircle((int)node.pos.x, (int)node.pos.y, radius + 1, termgl::Color::White());
+                }
             }
 
+            // Draw start/end indicators
+            if (node.isStart) {
+                window.drawCircle((int)node.pos.x, (int)node.pos.y, highDetail ? 14 : 10, termgl::Color::Green());
+                window.drawText((int)node.pos.x + 12, (int)node.pos.y - 5, "START", termgl::Color::Green());
+            }
+            if (node.isEnd) {
+                window.drawCircle((int)node.pos.x, (int)node.pos.y, highDetail ? 14 : 10, termgl::Color::Red());
+                window.drawText((int)node.pos.x + 12, (int)node.pos.y - 5, "END", termgl::Color::Red());
+            }
+
+            // Draw name on hover
             if (node.id == hoveredNodeID) {
-                // Always draw name on hover
                 window.drawText((int)node.pos.x + 10, (int)node.pos.y - 10, node.name, termgl::Color::White());
-                if (!highDetail) {
-                    window.drawCircle((int)node.pos.x, (int)node.pos.y, 8, termgl::Color::White());
+                if (!spriteDrawn) {
+                    window.drawCircle((int)node.pos.x, (int)node.pos.y, (highDetail ? 8 : 6) + 2, termgl::Color::White());
                 }
             }
         }
