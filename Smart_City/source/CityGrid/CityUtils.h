@@ -402,7 +402,7 @@ struct DijkstraNode {
     DijkstraNode(int id, double dist) : nodeID(id), distance(dist) {}
 
     bool operator<(const DijkstraNode& other) const {
-        return distance > other.distance; // Min-heap
+        return distance < other.distance; // Min-heap
     }
 };
 

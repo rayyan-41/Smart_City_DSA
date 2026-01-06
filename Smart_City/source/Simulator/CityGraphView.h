@@ -130,15 +130,50 @@ public:
     int getCanvasHeight() const { return canvasHeight; }
 
     Point2D geoToCanvas(double lat, double lon) const {
-        double normX = (lon - minLon) / (maxLon - minLon);
-        double normY = (maxLat - lat) / (maxLat - minLat);
-
+        // Calculate the real-world aspect ratio
+        // At Islamabad's latitude (~33.7°), longitude degrees are shorter than latitude degrees
+        // 1 degree lat ? 111 km, 1 degree lon ? 92 km at this latitude
+        double latRange = maxLat - minLat;
+        double lonRange = maxLon - minLon;
+        
+        // Real-world dimensions in km
+        double realHeight = latRange * KM_PER_LAT_DEGREE;  // ~111 km per degree
+        double realWidth = lonRange * KM_PER_LON_DEGREE;   // ~92 km per degree at this latitude
+        
+        // Calculate aspect ratio to make squares look square
+        double geoAspect = realWidth / realHeight;
+        double canvasAspect = (double)canvasWidth / (double)canvasHeight;
+        
+        // Normalize coordinates (0-1 range)
+        double normX = (lon - minLon) / lonRange;
+        double normY = (maxLat - lat) / latRange;  // Flip Y since screen Y increases downward
+        
+        // Apply zoom and pan
         normX = (normX - 0.5) * zoom + 0.5 + offsetX;
         normY = (normY - 0.5) * zoom + 0.5 + offsetY;
-
+        
+        // Padding
         double pad = 0.05;
-        double canvasX = pad * canvasWidth + normX * canvasWidth * (1.0 - 2 * pad);
-        double canvasY = pad * canvasHeight + normY * canvasHeight * (1.0 - 2 * pad);
+        double drawWidth = canvasWidth * (1.0 - 2 * pad);
+        double drawHeight = canvasHeight * (1.0 - 2 * pad);
+        
+        // Adjust for aspect ratio - fit the map while maintaining proportions
+        double scaleX, scaleY, offsetAdjustX = 0, offsetAdjustY = 0;
+        
+        if (geoAspect > canvasAspect) {
+            // Map is wider than canvas - fit to width
+            scaleX = drawWidth;
+            scaleY = drawWidth / geoAspect;
+            offsetAdjustY = (drawHeight - scaleY) / 2.0;
+        } else {
+            // Map is taller than canvas - fit to height
+            scaleY = drawHeight;
+            scaleX = drawHeight * geoAspect;
+            offsetAdjustX = (drawWidth - scaleX) / 2.0;
+        }
+        
+        double canvasX = pad * canvasWidth + offsetAdjustX + normX * scaleX;
+        double canvasY = pad * canvasHeight + offsetAdjustY + normY * scaleY;
 
         return Point2D(canvasX, canvasY);
     }

@@ -12,6 +12,9 @@ private:
     // Used for creating the skeleton (CORNER) nodes
     int createNodeRaw(const string& dbID, const string& sID, const string& name, const string& type, double lat, double lon);
 
+    // Snaps a node position to a logical place within its SubSubSector cell
+    void snapNodePosition(const SubSubSector* cell, int nodeIndex, double& lat, double& lon);
+
 public:
     CityGraph();
     ~CityGraph();
@@ -40,6 +43,9 @@ public:
 
     // ==================== ROAD MANAGEMENT ====================
     void addRoad(int id1, int id2);
+    void addFacilityRoad(int id1, int id2);  // Adds road with weight penalty
+    void removeRoad(int id1, int id2);
+    bool hasRoad(int id1, int id2) const;
 
     Vector<int> findShortestPath(int startID, int endID, double& totalDistance);
     int findNearestFacility(int fromNodeID, const string& facilityType);
@@ -132,11 +138,14 @@ inline string CityGraph::generateStopID(const string& type) {
 
 inline void CityGraph::initializeSectorFrame(const string& sectorName) {
     int idx = GeometryUtils::getSectorIndex(sectorName);
+    // Safety check: if sector doesn't exist or is already initialized, do nothing
     if (idx == -1 || SECTOR_GRID[idx].initialized) return;
 
     SectorBox& box = SECTOR_GRID[idx];
 
+    // =========================================================
     // 1. GENERATE 5x5 SKELETON GRID (CORNER NODES)
+    // =========================================================
     // 5 Rows (Lat) x 5 Cols (Lon)
     double latStep = box.getHeight() / 4.0;
     double lonStep = box.getWidth() / 4.0;
@@ -159,7 +168,9 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
         }
     }
 
-    // 2. CONNECT SKELETON NODES (ROADS)
+    // =========================================================
+    // 2. CONNECT SKELETON NODES INTERNALLY (ROADS)
+    // =========================================================
     for (int r = 0; r < 5; r++) {
         for (int c = 0; c < 5; c++) {
             int current = box.gridCorners[r][c];
@@ -178,8 +189,9 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
         }
     }
 
+    // =========================================================
     // 3. INITIALIZE SUB-SECTORS (16 CELLS)
-    // Map the corners to the cells for easy access later
+    // =========================================================
     for (int r = 0; r < 4; r++) {
         for (int c = 0; c < 4; c++) {
             int cellIdx = r * 4 + c;
@@ -200,10 +212,75 @@ inline void CityGraph::initializeSectorFrame(const string& sectorName) {
         }
     }
 
+    // Mark as initialized NOW so we can connect to neighbors
     SECTOR_GRID[idx].initialized = true;
+
+    // =========================================================
+    // 4. STITCHING: CONNECT TO NEIGHBOR SECTORS [NEW CODE]
+    // =========================================================
+    Vector<string> neighbors = GeometryUtils::getAdjacentSectors(sectorName);
+
+    for (int i = 0; i < neighbors.getSize(); i++) {
+        string neighborName = neighbors[i];
+        int nIdx = GeometryUtils::getSectorIndex(neighborName);
+
+        // We can only connect if the neighbor exists AND is already initialized.
+        // If it's not initialized yet, IT will connect to US when it gets initialized later.
+        if (nIdx == -1 || !SECTOR_GRID[nIdx].initialized) continue;
+
+        SectorBox& otherBox = SECTOR_GRID[nIdx];
+
+        // --- STITCHING LOGIC ---
+        // We compare the bounds to see where the neighbor is relative to us.
+
+        // CASE 1: Neighbor is to the WEST (Left)
+        // Check if My MinLon is close to Their MaxLon
+        if (std::abs(box.minLon - otherBox.maxLon) < 0.001) {
+            for (int r = 0; r < 5; r++) {
+                int myNode = box.gridCorners[r][0];         // My Left Edge (Col 0)
+                int otherNode = otherBox.gridCorners[r][4]; // Their Right Edge (Col 4)
+                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+            }
+        }
+
+        // CASE 2: Neighbor is to the EAST (Right)
+        // Check if My MaxLon is close to Their MinLon
+        else if (std::abs(box.maxLon - otherBox.minLon) < 0.001) {
+            for (int r = 0; r < 5; r++) {
+                int myNode = box.gridCorners[r][4];         // My Right Edge (Col 4)
+                int otherNode = otherBox.gridCorners[r][0]; // Their Left Edge (Col 0)
+                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+            }
+        }
+
+        // CASE 3: Neighbor is to the SOUTH (Below)
+        // Check if My MinLat is close to Their MaxLat
+        else if (std::abs(box.minLat - otherBox.maxLat) < 0.001) {
+            for (int c = 0; c < 5; c++) {
+                int myNode = box.gridCorners[0][c];         // My Bottom Edge (Row 0)
+                int otherNode = otherBox.gridCorners[4][c]; // Their Top Edge (Row 4)
+                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+            }
+        }
+
+        // CASE 4: Neighbor is to the NORTH (Above)
+        // Check if My MaxLat is close to Their MinLat
+        else if (std::abs(box.maxLat - otherBox.minLat) < 0.001) {
+            for (int c = 0; c < 5; c++) {
+                int myNode = box.gridCorners[4][c];         // My Top Edge (Row 4)
+                int otherNode = otherBox.gridCorners[0][c]; // Their Bottom Edge (Row 0)
+                if (myNode != -1 && otherNode != -1) addRoad(myNode, otherNode);
+            }
+        }
+    }
 }
 
 // ==================== ADD LOCATION (CORE LOGIC) ====================
+// Smart Insertion Algorithm with:
+// - Position snapping to avoid roads and create realistic placement
+// - Hierarchical road weights (facility roads have penalty to prefer highways)
+// - 1st node: Connects to all 4 corners of the cell
+// - 2nd+ nodes: Insert between existing nodes and corners based on position
 
 inline int CityGraph::addLocation(const string& databaseID, const string& stopID,
     const string& name, const string& type,
@@ -221,28 +298,23 @@ inline int CityGraph::addLocation(const string& databaseID, const string& stopID
         }
     }
 
-    // 2. Create the Node
-    int newID = createNodeRaw(databaseID, stopID, name, type, lat, lon);
-    if (newID == -1) return -1;
-
-    // 3. Logic for Non-Corner Nodes (Connectivity)
+    // 2. For non-corner nodes, snap position to a logical place in the cell
+    double finalLat = lat;
+    double finalLon = lon;
+    
     if (type != FacilityType::CORNER && sector != "Unknown") {
         int sectorIdx = GeometryUtils::getSectorIndex(sector);
         if (sectorIdx != -1) {
             SectorBox& box = SECTOR_GRID[sectorIdx];
-
-            // A. Resolve SubSector
             int cellIdx = GeometryUtils::getSubSectorIndex(lat, lon, box);
-
-            // B. Spillover Logic (if cell is full)
+            
             if (cellIdx != -1) {
                 SubSubSector* targetCell = &box.cells[cellIdx];
-
-                // If full, try to find nearest non-full neighbor cell
+                
+                // Handle spillover if cell is full
                 if (targetCell->isFull()) {
                     double minDist = INF;
                     SubSubSector* bestBackup = nullptr;
-
                     for (int i = 0; i < 16; i++) {
                         if (!box.cells[i].isFull()) {
                             double d = GeometryUtils::getGridDistance(lat, lon,
@@ -253,71 +325,287 @@ inline int CityGraph::addLocation(const string& databaseID, const string& stopID
                             }
                         }
                     }
-                    // If we found a backup, use it. Otherwise we stay with targetCell (and overload it)
+                    if (bestBackup != nullptr) {
+                        targetCell = bestBackup;
+                    }
+                }
+                
+                // Snap position to logical quadrant within the cell
+                snapNodePosition(targetCell, targetCell->nodeCount, finalLat, finalLon);
+            }
+        }
+    }
+
+    // 3. Create the Node with snapped position
+    int newID = createNodeRaw(databaseID, stopID, name, type, finalLat, finalLon);
+    if (newID == -1) return -1;
+
+    // 4. Logic for Non-Corner Nodes (Connectivity)
+    if (type != FacilityType::CORNER && sector != "Unknown") {
+        int sectorIdx = GeometryUtils::getSectorIndex(sector);
+        if (sectorIdx != -1) {
+            SectorBox& box = SECTOR_GRID[sectorIdx];
+            int cellIdx = GeometryUtils::getSubSectorIndex(finalLat, finalLon, box);
+
+            if (cellIdx != -1) {
+                SubSubSector* targetCell = &box.cells[cellIdx];
+
+                // Handle spillover again (in case original cell was full)
+                if (targetCell->isFull()) {
+                    double minDist = INF;
+                    SubSubSector* bestBackup = nullptr;
+                    for (int i = 0; i < 16; i++) {
+                        if (!box.cells[i].isFull()) {
+                            double d = GeometryUtils::getGridDistance(finalLat, finalLon,
+                                box.cells[i].getCenterLat(), box.cells[i].getCenterLon());
+                            if (d < minDist) {
+                                minDist = d;
+                                bestBackup = &box.cells[i];
+                            }
+                        }
+                    }
                     if (bestBackup != nullptr) {
                         targetCell = bestBackup;
                     }
                 }
 
-                // C. Add to Cell
-                if (targetCell->nodeCount < 4) {
+                // Add to Cell
+                int nodeSlot = targetCell->nodeCount;
+                if (nodeSlot < 4) {
                     targetCell->nodeIDs[targetCell->nodeCount++] = newID;
                 }
 
-                // D. Connect to NEAREST CORNER of the cell (Skeleton Access)
-                double minCornerDist = INF;
-                int bestCorner = -1;
-
+                // =========================================================
+                // SMART CONNECTIVITY BASED ON NODE COUNT IN CELL
+                // =========================================================
+                
+                int existingCount = 0;
+                int existingNodes[4] = {-1, -1, -1, -1};
                 for (int i = 0; i < 4; i++) {
-                    int cID = targetCell->cornerIDs[i];
-                    if (cID != -1 && nodes[cID]) {
-                        double d = GeometryUtils::getGridDistance(lat, lon, nodes[cID]->lat, nodes[cID]->lon);
-                        if (d < minCornerDist) {
-                            minCornerDist = d;
-                            bestCorner = cID;
+                    if (targetCell->nodeIDs[i] != -1 && targetCell->nodeIDs[i] != newID) {
+                        existingNodes[existingCount++] = targetCell->nodeIDs[i];
+                    }
+                }
+
+                if (existingCount == 0) {
+                    // =====================================================
+                    // CASE 1: First node in cell - Connect to ALL 4 corners
+                    // Uses penalty weight for facility-to-corner roads
+                    // =====================================================
+                    for (int i = 0; i < 4; i++) {
+                        int cornerID = targetCell->cornerIDs[i];
+                        if (cornerID != -1) {
+                            addFacilityRoad(newID, cornerID);
                         }
                     }
                 }
-                if (bestCorner != -1) {
-                    addRoad(newID, bestCorner);
-                }
-
-                // E. Connect to 2 CLOSEST NODES inside the cell (Cluster Access)
-                // Collect existing nodes in cell (excluding self)
-                int existingNodes[4];
-                double dists[4];
-                int count = 0;
-
-                for (int i = 0; i < 4; i++) {
-                    int nID = targetCell->nodeIDs[i];
-                    if (nID != -1 && nID != newID && nodes[nID]) {
-                        existingNodes[count] = nID;
-                        dists[count] = GeometryUtils::getGridDistance(lat, lon, nodes[nID]->lat, nodes[nID]->lon);
-                        count++;
-                    }
-                }
-
-                // Sort by distance (Bubble sort for tiny array)
-                for (int i = 0; i < count - 1; i++) {
-                    for (int j = 0; j < count - i - 1; j++) {
-                        if (dists[j] > dists[j + 1]) {
-                            std::swap(dists[j], dists[j + 1]);
-                            std::swap(existingNodes[j], existingNodes[j + 1]);
+                else {
+                    // =====================================================
+                    // CASE 2+: Insert node into existing network
+                    // =====================================================
+                    
+                    // Find which corner this new node is closest to
+                    int closestCornerIdx = -1;
+                    double minCornerDist = INF;
+                    for (int i = 0; i < 4; i++) {
+                        int cID = targetCell->cornerIDs[i];
+                        if (cID != -1 && nodes[cID]) {
+                            double d = GeometryUtils::getGridDistance(finalLat, finalLon, 
+                                nodes[cID]->lat, nodes[cID]->lon);
+                            if (d < minCornerDist) {
+                                minCornerDist = d;
+                                closestCornerIdx = i;
+                            }
                         }
                     }
-                }
 
-                // Connect to up to 2 closest
-                int links = 0;
-                for (int i = 0; i < count && links < 2; i++) {
-                    addRoad(newID, existingNodes[i]);
-                    links++;
+                    int closestCornerID = (closestCornerIdx >= 0) ? 
+                        targetCell->cornerIDs[closestCornerIdx] : -1;
+
+                    // Find which existing node currently "owns" this corner
+                    int nodeOwningCorner = -1;
+                    double ownerDistToCorner = INF;
+                    
+                    for (int i = 0; i < existingCount; i++) {
+                        int existID = existingNodes[i];
+                        if (existID == -1 || !nodes[existID]) continue;
+                        
+                        const LinkedList<Edge> &roads = nodes[existID]->roads;
+                        bool hasRoadToCorner = false;
+                        for (int r = 0; r < roads.size(); r++) {
+                            if (roads[r].destinationID == closestCornerID) {
+                                hasRoadToCorner = true;
+                                break;
+                            }
+                        }
+                        
+                        if (hasRoadToCorner) {
+                            double d = GeometryUtils::getGridDistance(
+                                nodes[existID]->lat, nodes[existID]->lon,
+                                nodes[closestCornerID]->lat, nodes[closestCornerID]->lon);
+                            if (d < ownerDistToCorner) {
+                                ownerDistToCorner = d;
+                                nodeOwningCorner = existID;
+                            }
+                        }
+                    }
+
+                    // Connect new node to its closest corner (with penalty weight)
+                    if (closestCornerID != -1) {
+                        addFacilityRoad(newID, closestCornerID);
+                    }
+
+                    // If an existing node owned this corner and we're closer,
+                    // break their connection and connect them to us instead
+                    if (nodeOwningCorner != -1 && closestCornerID != -1) {
+                        if (minCornerDist < ownerDistToCorner) {
+                            removeRoad(nodeOwningCorner, closestCornerID);
+                            addFacilityRoad(nodeOwningCorner, newID);
+                        } else {
+                            addFacilityRoad(newID, nodeOwningCorner);
+                        }
+                    }
+
+                    // Connect to the 2 closest existing nodes (for mesh connectivity)
+                    double dists[4];
+                    int sortedNodes[4];
+                    int sortCount = 0;
+                    
+                    for (int i = 0; i < existingCount; i++) {
+                        int existID = existingNodes[i];
+                        if (existID != -1 && nodes[existID]) {
+                            sortedNodes[sortCount] = existID;
+                            dists[sortCount] = GeometryUtils::getGridDistance(
+                                finalLat, finalLon, nodes[existID]->lat, nodes[existID]->lon);
+                            sortCount++;
+                        }
+                    }
+
+                    // Sort by distance
+                    for (int i = 0; i < sortCount - 1; i++) {
+                        for (int j = 0; j < sortCount - i - 1; j++) {
+                            if (dists[j] > dists[j + 1]) {
+                                std::swap(dists[j], dists[j + 1]);
+                                std::swap(sortedNodes[j], sortedNodes[j + 1]);
+                            }
+                        }
+                    }
+
+                    // Connect to up to 2 closest (if not already connected)
+                    int links = 0;
+                    for (int i = 0; i < sortCount && links < 2; i++) {
+                        int targetNode = sortedNodes[i];
+                        if (!hasRoad(newID, targetNode)) {
+                            addFacilityRoad(newID, targetNode);
+                            links++;
+                        }
+                    }
                 }
             }
         }
     }
 
     return newID;
+}
+
+// ==================== POSITION SNAPPING ====================
+// Snaps a node to a logical position within its SubSubSector cell
+// Positions are arranged to avoid the skeleton roads (which run along edges)
+// 
+// Cell layout with 4 node positions:
+//   NW Corner -------- NE Corner
+//       |   [1]    [2]   |
+//       |                |
+//       |   [0]    [3]   |
+//   SW Corner -------- SE Corner
+//
+// Each position is offset from the center towards its corresponding corner
+
+inline void CityGraph::snapNodePosition(const SubSubSector* cell, int nodeIndex, double& lat, double& lon) {
+    if (!cell) return;
+    
+    // Cell dimensions
+    double cellHeight = cell->maxLat - cell->minLat;
+    double cellWidth = cell->maxLon - cell->minLon;
+    double centerLat = cell->getCenterLat();
+    double centerLon = cell->getCenterLon();
+    
+    // Offset from center (30% towards corner, with small random variation)
+    double offsetRatio = 0.30;
+    double randomVariation = 0.05;
+    
+    // Add small random variation for realism
+    double randLat = ((double)rand() / RAND_MAX - 0.5) * 2.0 * randomVariation * cellHeight;
+    double randLon = ((double)rand() / RAND_MAX - 0.5) * 2.0 * randomVariation * cellWidth;
+    
+    // Position based on node index (0-3), each in a different quadrant
+    // This ensures nodes don't overlap with skeleton roads on the cell edges
+    switch (nodeIndex % 4) {
+        case 0: // SW quadrant
+            lat = centerLat - offsetRatio * cellHeight + randLat;
+            lon = centerLon - offsetRatio * cellWidth + randLon;
+            break;
+        case 1: // NW quadrant
+            lat = centerLat + offsetRatio * cellHeight + randLat;
+            lon = centerLon - offsetRatio * cellWidth + randLon;
+            break;
+        case 2: // NE quadrant
+            lat = centerLat + offsetRatio * cellHeight + randLat;
+            lon = centerLon + offsetRatio * cellWidth + randLon;
+            break;
+        case 3: // SE quadrant
+            lat = centerLat - offsetRatio * cellHeight + randLat;
+            lon = centerLon + offsetRatio * cellWidth + randLon;
+            break;
+    }
+    
+    // Clamp to cell bounds with margin (10% from edges to avoid roads)
+    double marginLat = cellHeight * 0.10;
+    double marginLon = cellWidth * 0.10;
+    
+    if (lat < cell->minLat + marginLat) lat = cell->minLat + marginLat;
+    if (lat > cell->maxLat - marginLat) lat = cell->maxLat - marginLat;
+    if (lon < cell->minLon + marginLon) lon = cell->minLon + marginLon;
+    if (lon > cell->maxLon - marginLon) lon = cell->maxLon - marginLon;
+}
+
+// ==================== ROAD WEIGHT CONSTANTS ====================
+// Penalty multiplier for facility roads - makes Dijkstra prefer skeleton/highway routes
+constexpr double FACILITY_ROAD_PENALTY = 1.5;  // 50% penalty on facility roads
+constexpr double INTER_FACILITY_PENALTY = 1.3; // 30% penalty between facilities
+
+// ==================== FACILITY ROAD (WITH WEIGHT PENALTY) ====================
+// Adds a road with weight penalty to discourage using facility roads for through-traffic
+// This makes Dijkstra prefer the main skeleton roads (highways)
+
+inline void CityGraph::addFacilityRoad(int id1, int id2) {
+    if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount || id1 == id2) {
+        return;
+    }
+    if (hasRoad(id1, id2)) return;
+
+    double dist = GeometryUtils::getGridDistance(
+        nodes[id1]->lat, nodes[id1]->lon,
+        nodes[id2]->lat, nodes[id2]->lon
+    );
+
+    // Apply penalty based on whether this is facility-to-corner or facility-to-facility
+    bool id1IsCorner = (nodes[id1]->type == FacilityType::CORNER);
+    bool id2IsCorner = (nodes[id2]->type == FacilityType::CORNER);
+    
+    double penalty;
+    if (id1IsCorner || id2IsCorner) {
+        // Facility to corner - moderate penalty
+        penalty = FACILITY_ROAD_PENALTY;
+    } else {
+        // Facility to facility - lower penalty (local traffic is okay)
+        penalty = INTER_FACILITY_PENALTY;
+    }
+    
+    double weightedDist = dist * penalty;
+
+    nodes[id1]->roads.push_back(Edge(id2, weightedDist));
+    nodes[id2]->roads.push_back(Edge(id1, weightedDist));
 }
 
 // ==================== PUBLIC FACILITY ====================
@@ -349,18 +637,12 @@ inline int CityGraph::addPublicFacility(const string& name, const string& type, 
         int cellID = availableCells[randIdx];
         SubSubSector& cell = box.cells[cellID];
 
-        // Generate coords INSIDE this cell
-        double marginLat = cell.getHeight() * 0.1;
-        double marginLon = cell.getWidth() * 0.1;
-
-        double r1 = (double)rand() / RAND_MAX;
-        double r2 = (double)rand() / RAND_MAX;
-
-        lat = cell.minLat + marginLat + r1 * (cell.getHeight() - 2 * marginLat);
-        lon = cell.minLon + marginLon + r2 * (cell.getWidth() - 2 * marginLon);
+        // Generate coords at cell center (will be snapped by addLocation)
+        lat = cell.getCenterLat();
+        lon = cell.getCenterLon();
     }
     else {
-        // Fallback: Generate generic coords in sector (will trigger spillover logic in addLocation)
+        // Fallback: Generate generic coords in sector
         GeometryUtils::generateCoords(sector, lat, lon);
     }
 
@@ -452,11 +734,13 @@ inline int CityGraph::addPublicToilet(const string& name, const string& sector) 
 
 // ==================== ROAD MANAGEMENT ====================
 
-
 inline void CityGraph::addRoad(int id1, int id2) {
     if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount || id1 == id2) {
         return;
     }
+
+    // Check if road already exists to avoid duplicates
+    if (hasRoad(id1, id2)) return;
 
     double dist = GeometryUtils::getGridDistance(
         nodes[id1]->lat, nodes[id1]->lon,
@@ -465,6 +749,42 @@ inline void CityGraph::addRoad(int id1, int id2) {
 
     nodes[id1]->roads.push_back(Edge(id2, dist));
     nodes[id2]->roads.push_back(Edge(id1, dist));
+}
+
+inline void CityGraph::removeRoad(int id1, int id2) {
+    if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount) return;
+    if (!nodes[id1] || !nodes[id2]) return;
+
+    // Remove id2 from id1's roads
+    LinkedList<Edge>& roads1 = nodes[id1]->roads;
+    for (int i = 0; i < roads1.size(); i++) {
+        if (roads1[i].destinationID == id2) {
+            roads1.erase(i);
+            break;
+        }
+    }
+
+    // Remove id1 from id2's roads
+    LinkedList<Edge>& roads2 = nodes[id2]->roads;
+    for (int i = 0; i < roads2.size(); i++) {
+        if (roads2[i].destinationID == id1) {
+            roads2.erase(i);
+            break;
+        }
+    }
+}
+
+inline bool CityGraph::hasRoad(int id1, int id2) const {
+    if (id1 < 0 || id2 < 0 || id1 >= nodeCount || id2 >= nodeCount) return false;
+    if (!nodes[id1]) return false;
+
+    const LinkedList<Edge>& roads = nodes[id1]->roads;
+    for (int i = 0; i < roads.size(); i++) {
+        if (roads[i].destinationID == id2) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ==================== LOOKUP FUNCTIONS ====================
@@ -631,8 +951,6 @@ inline int CityGraph::findNearestFacility(int fromNodeID, const string& facility
     return -1;
 }
 
-
-
 inline Vector<int> CityGraph::findAllNearestFacilities(int fromNodeID, const string& facilityType, int maxCount) {
     Vector<int> results;
     if (fromNodeID < 0 || fromNodeID >= nodeCount) return results;
@@ -682,7 +1000,7 @@ inline Vector<int> CityGraph::calculateBusRoute(int startNodeID, int endNodeID, 
     return findShortestPath(startNodeID, endNodeID, distance);
 }
 
-
+// ==================== CSV LOADING ====================
 
 inline void CityGraph::loadStopsCSV(const string& filename) {
     ifstream file(filename);
@@ -714,7 +1032,6 @@ inline void CityGraph::loadStopsCSV(const string& filename) {
     }
     file.close();
 }
-
 
 inline void CityGraph::loadBuildingsCSV(const string& filename, const string& type) {
     ifstream file(filename);
